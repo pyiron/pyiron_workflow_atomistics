@@ -65,7 +65,7 @@ source_suffix = {
 master_doc = 'index'
 
 # General information about the project.
-project = u'pyiron_module_template'
+project = u'pyiron_workflow_atomistics'
 copyright = u'2024, Max-Planck-Institut für Nachhaltige Materialien GmbH - Computational Materials Design (CM) Department ' \
             u'All rights reserved'
 
@@ -246,7 +246,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-  ('index', 'pyiron_module_template.tex', u'pyiron_module_template Documentation',
+  ('index', 'pyiron_workflow_atomistics.tex', u'pyiron_workflow_atomistics Documentation',
    u'Max-Planck-Institut für Nachhaltige Materialien GmbH - Computational Materials Design (CM) Department', 'manual'),
 ]
 
@@ -277,8 +277,8 @@ latex_documents = [
 # (source start file, name, description, authors, manual section).
 man_pages = [
     ('index',
-     'pyiron_module_template',
-     u'pyiron_module_template Documentation',
+     'pyiron_workflow_atomistics',
+     u'pyiron_workflow_atomistics Documentation',
      [u'Max-Planck-Institut für Nachhaltige Materialien GmbH - Computational Materials Design (CM) Department'], 1)
 ]
 
@@ -293,10 +293,10 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index',
-   'pyiron_module_template',
-   u'pyiron_module_template Documentation',
+   'pyiron_workflow_atomistics',
+   u'pyiron_workflow_atomistics Documentation',
    u'Max-Planck-Institut für Nachhaltige Materialien GmbH - Computational Materials Design (CM) Department',
-   'pyiron_module_template',
+   'pyiron_workflow_atomistics',
    'One line description of project.',
    'Miscellaneous'),
 ]
@@ -313,7 +313,7 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 # texinfo_no_detailmenu = False
 
-main(['-e', '-o', 'apidoc', '../pyiron_module_template', '--force'])
+main(['-e', '-o', 'apidoc', '../pyiron_workflow_atomistics', '--force'])
 
 curdir = os.path.dirname(os.path.abspath(__file__))
 if os.path.exists(os.path.join(curdir, 'source/notebooks')):
