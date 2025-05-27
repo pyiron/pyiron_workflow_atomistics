@@ -1,7 +1,7 @@
 #!/bin/bash
 # Mac users: You [may first need to install gnu-sed](https://github.com/MigleSur/GenAPI/issues/8)
 
-module_name="pyiron_IntendedModuleName"
+module_name="pyiron_workflow_atomistics"
 rst_delimit="========================="   # This should be as many '=' as the name length.
 
 for file in .binder/postBuild \
