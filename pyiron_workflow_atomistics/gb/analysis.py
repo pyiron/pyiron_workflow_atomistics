@@ -9,82 +9,73 @@ def find_GB_plane(
     atoms: Atoms,
     featuriser: callable,
     axis: str = "c",
-    approx_frac: float = 0.5,
+    approx_frac: float | None = None,
     tolerance: float = 5.0,
     bulk_offset: float = 10.0,
     slab_thickness: float = 2.0,
     featuriser_kwargs: dict | None = None,
     n_bulk: int = 10,
-    threshold_frac: float = 0.5
+    threshold_frac: float = 0.5,
+    extend_frac: float = 0.0
 ) -> dict:
     """
     Locate the GB plane by finding where disorder (feature-space distance
     from bulk template) begins and ends, then returning the midpoint.
-    Only featurises atoms in a narrow GB window and samples up to n_bulk
-    atoms in two small bulk slabs.
+    Optionally extend the selected region by a given fraction.
 
     Parameters
     ----------
     atoms : ASE Atoms
-      Full atomic structure.
-    featuriser : function
-      Callable featuriser(atoms, site, **featuriser_kwargs) -> dict of floats.
+    featuriser : callable
     axis : str or int
-      GB normal axis ('a','b','c' or 0,1,2).
+        GB normal axis ('a','b','c' or 0,1,2).
     approx_frac : float, optional
-      Rough fractional GB location. Defaults to mean(frac coords).
+        Rough fractional GB location (default = mean(frac coords)).
     tolerance : float
-      Half-thickness (Å) around approx_frac for GB window.
+        Half-thickness (Å) around approx_frac for GB window.
     bulk_offset : float
-      Distance (Å) from approx_frac to centre bulk sampling slabs.
+        Distance (Å) from approx_frac to centre bulk sampling slabs.
     slab_thickness : float
-      Half-thickness (Å) of each bulk sampling slab.
+        Half-thickness (Å) of each bulk sampling slab.
     featuriser_kwargs : dict, optional
-      Keyword args passed to featuriser.
     n_bulk : int
-      Max number of bulk atoms to sample for template.
+        Max number of bulk atoms to sample for template.
     threshold_frac : float
-      Fraction of max disorder at which region boundaries are set.
+        Fraction of peak disorder at which region boundaries are set.
+    extend_frac : float
+        Fraction to extend region boundaries by (in fractional units).
 
     Returns
     -------
-    dict with:
-      gb_frac : float
-        Fractional mid-plane coordinate.
-      gb_cart : float
-        Cartesian mid-plane coordinate (Å).
-      sel_indices : List[int]
-        Atoms featurised in GB window.
-      bulk_indices : List[int]
-        Bulk-sampled atom indices used for template.
-      sel_fracs : np.ndarray
-        Fractional positions of sel_indices.
-      scores : np.ndarray
-        Disorder scores for sel_indices.
-      region_start_frac : float or None
-        Fraction where disorder first exceeds threshold.
-      region_end_frac : float or None
-        Fraction where disorder falls below threshold again.
+    dict with keys:
+      gb_frac, gb_cart,
+      sel_indices, bulk_indices,
+      sel_fracs, scores,
+      region_start_frac, region_end_frac,
+      extended_sel_indices
     """
+    import numpy as np
+    import pandas as pd
+
     if featuriser_kwargs is None:
         featuriser_kwargs = {}
 
     # 1) axis index, fractional coords, cell length
-    idx = {"a":0, "b":1, "c":2}[axis] if isinstance(axis, str) else axis
-    fracs = atoms.get_scaled_positions()[:, idx] % 1.0
+    idx      = {"a":0, "b":1, "c":2}[axis] if isinstance(axis, str) else axis
+    fracs    = atoms.get_scaled_positions()[:, idx] % 1.0
     cell_len = np.linalg.norm(atoms.get_cell()[idx])
 
-    # 2) approximate GB location
+    # 2) approx GB location
     if approx_frac is None:
         approx_frac = fracs.mean()
 
     # 3) masks for GB window and bulk slabs
-    tol_frac = tolerance / cell_len
+    tol_frac = tolerance   / cell_len
     off_frac = bulk_offset / cell_len
-    slab_frac = slab_thickness / cell_len
+    slab_frac= slab_thickness / cell_len
 
-    sel_mask = np.abs(fracs - approx_frac) <= tol_frac
-    sel_indices = np.where(sel_mask)[0]
+    sel_mask     = np.abs(fracs - approx_frac) <= tol_frac
+    sel_indices  = np.where(sel_mask)[0]
 
     bulk1 = np.abs(fracs - (approx_frac - off_frac)) <= slab_frac
     bulk2 = np.abs(fracs - (approx_frac + off_frac)) <= slab_frac
@@ -99,53 +90,59 @@ def find_GB_plane(
     # 5) build bulk template
     feats_bulk = [pd.Series(featuriser(atoms, i, **featuriser_kwargs))
                   for i in bulk_indices]
-    df_bulk = pd.DataFrame(feats_bulk).fillna(0.0)
+    df_bulk    = pd.DataFrame(feats_bulk).fillna(0.0)
     bulk_template = df_bulk.mean(axis=0).values
 
     # 6) featurise GB window
     feats_sel = [pd.Series(featuriser(atoms, i, **featuriser_kwargs))
                  for i in sel_indices]
-    df_sel = pd.DataFrame(feats_sel).fillna(0.0)
-    X_sel = df_sel.values
+    df_sel    = pd.DataFrame(feats_sel).fillna(0.0)
+    X_sel     = df_sel.values
 
     # 7) disorder scores
-    scores = np.linalg.norm(X_sel - bulk_template[None, :], axis=1)
+    scores    = np.linalg.norm(X_sel - bulk_template[None, :], axis=1)
     sel_fracs = fracs[sel_indices]
 
-    # 8) find region boundaries and mid
-    order = np.argsort(sel_fracs)
-    fs = sel_fracs[order]
-    ss = scores[order]
-    i_peak = np.argmax(ss)
-    peak = ss[i_peak]
-    thr = threshold_frac * peak
+    # 8) find region boundaries and mid‐plane
+    order   = np.argsort(sel_fracs)
+    fs, ss  = sel_fracs[order], scores[order]
+    i_peak  = np.argmax(ss)
+    peak    = ss[i_peak]
+    thr     = threshold_frac * peak
 
-    # left boundary: last < thr before peak
-    left_idxs = np.where(ss[:i_peak] < thr)[0]
-    # right boundary: first < thr after peak
+    left_idxs  = np.where(ss[:i_peak] < thr)[0]
     right_idxs = np.where(ss[i_peak:] < thr)[0]
 
     if left_idxs.size and right_idxs.size:
         start_frac = fs[left_idxs[-1]]
-        end_frac = fs[i_peak + right_idxs[0]]
-        mid_frac = 0.5 * (start_frac + end_frac)
+        end_frac   = fs[i_peak + right_idxs[0]]
+        mid_frac   = 0.5 * (start_frac + end_frac)
     else:
-        # fallback to peak location
         start_frac = None
-        end_frac = None
-        mid_frac = fs[i_peak]
+        end_frac   = None
+        mid_frac   = fs[i_peak]
 
     mid_cart = mid_frac * cell_len
 
+    # 9) optionally extend selection by extend_frac
+    if extend_frac > 0 and start_frac is not None and end_frac is not None:
+        lower = start_frac - extend_frac
+        upper = end_frac   + extend_frac
+        ext_mask = (fracs >= lower) & (fracs <= upper)
+        extended_sel_indices = np.where(ext_mask)[0].tolist()
+    else:
+        extended_sel_indices = sel_indices.tolist()
+
     return {
-        "gb_frac": mid_frac,
-        "gb_cart": mid_cart,
-        "sel_indices": sel_indices.tolist(),
-        "bulk_indices": bulk_indices.tolist(),
-        "sel_fracs": sel_fracs,
-        "scores": scores,
-        "region_start_frac": start_frac,
-        "region_end_frac": end_frac
+        "gb_frac":               mid_frac,
+        "gb_cart":               mid_cart,
+        "sel_indices":           sel_indices.tolist(),
+        "bulk_indices":          bulk_indices.tolist(),
+        "sel_fracs":             sel_fracs,
+        "scores":                scores,
+        "region_start_frac":     start_frac,
+        "region_end_frac":       end_frac,
+        "extended_sel_indices":  extended_sel_indices
     }
 
 @pwf.as_function_node
