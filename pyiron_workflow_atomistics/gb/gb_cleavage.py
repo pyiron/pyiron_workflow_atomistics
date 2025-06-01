@@ -1,9 +1,13 @@
-from ase import Atoms
-
 import numpy as np
 from ase import Atoms
-from copy import deepcopy
-from ase.build import add_vacuum  # or your custom add_vacuum implementation
+import matplotlib.pyplot as plt
+import pyiron_workflow as pwf
+from .analysis import get_sites_on_plane
+
+# Wrap‐aware difference in fractional space:
+def frac_dist(a, b):
+    return abs(((a - b + 0.5) % 1.0) - 0.5)
+@pwf.as_function_node
 def find_viable_cleavage_planes_around_plane(
     atoms: Atoms,
     axis: int,
@@ -31,7 +35,7 @@ def find_viable_cleavage_planes_around_plane(
     coord_tol : float
         The half‐width tolerance around `plane_coord`. Units match `plane_coord` (Å if
         `fractional=False`, fractional units if `fractional=True`).
-    tolerance : float, optional (default=1e-3)
+    layer_tolerance : float, optional (default=1e-3)
         Tolerance for merging nearly‐identical layer positions. If two coordinates differ
         by less than `tolerance` (or `tolerance / cell_length` in fractional mode), they
         are considered the same layer.
@@ -52,9 +56,7 @@ def find_viable_cleavage_planes_around_plane(
     - The list of unique layer positions.
     - The list of all candidate cleavage‐plane midpoints.
     """
-
-    import numpy as np
-
+    
     # 1) Get cell lengths along each axis
     cell = atoms.get_cell()
     cell_lengths = np.linalg.norm(cell, axis=1)  # length of each cell vector
@@ -92,10 +94,6 @@ def find_viable_cleavage_planes_around_plane(
 
     # 5) Filter midpoints that lie within ±tol_plane of `target`
     if fractional:
-        # Wrap‐aware difference in fractional space:
-        def frac_dist(a, b):
-            return abs(((a - b + 0.5) % 1.0) - 0.5)
-
         viable_planes = [
             cp for cp in candidate_planes
             if frac_dist(cp, target) <= tol_plane
@@ -108,6 +106,7 @@ def find_viable_cleavage_planes_around_plane(
 
     return viable_planes
 
+@pwf.as_function_node
 def find_viable_cleavage_planes_around_site(atoms: Atoms,
                                 axis: int,
                                 site_index: int,
@@ -133,17 +132,13 @@ def find_viable_cleavage_planes_around_site(atoms: Atoms,
     site_dist_threshold : float
         Maximum allowed distance (in Å if `fractional=False`, or in fraction of cell length
         if `fractional=True`) between the site’s coordinate and a candidate cleavage plane.
-    tolerance : float, optional (default=1e-3)
+    layer_tolerance : float, optional (default=1e-3)
         Tolerance for merging nearly‐identical layer positions. If two coordinates
         differ by less than `tolerance`, they are considered the same layer.
         When `fractional=True`, this tolerance is divided by the cell length along `axis`.
     fractional : bool, optional (default=False)
         If True, use fractional (scaled) coordinates along `axis` to identify layers.
         If False, use Cartesian coordinates (in Å).
-    add_vacuum_block_length : float or None, optional (default=None)
-        If not None, first make a copy of `atoms`, insert a vacuum slab of this thickness
-        (in Å) along `axis`, and then perform the layer analysis on the vacuum‐padded structure.
-        Set to None to disable adding vacuum.
 
     Returns
     -------
@@ -204,6 +199,7 @@ def find_viable_cleavage_planes_around_site(atoms: Atoms,
 
     return viable_planes
 
+@pwf.as_function_node
 def get_cleavage_planes_around_site(atoms: Atoms,
                                 axis: int,
                                 site_index: int,
@@ -237,10 +233,6 @@ def get_cleavage_planes_around_site(atoms: Atoms,
     fractional : bool, optional (default=False)
         If True, use fractional (scaled) coordinates along `axis` to identify layers.
         If False, use Cartesian coordinates (in Å).
-    add_vacuum_block_length : float or None, optional (default=None)
-        If not None, first make a copy of `atoms`, insert a vacuum slab of this thickness
-        (in Å) along `axis`, and then perform the layer analysis on the vacuum‐padded structure.
-        Set to None to disable adding vacuum.
 
     Returns
     -------
@@ -300,6 +292,7 @@ def get_cleavage_planes_around_site(atoms: Atoms,
 
     return viable_planes
 
+@pwf.as_function_node
 def cleave_axis_aligned(
     atoms: Atoms,
     axis: str | int,
@@ -355,7 +348,7 @@ def cleave_axis_aligned(
     """
 
     # 1) Copy so original Atoms isn’t modified
-    new_atoms = deepcopy(atoms)
+    new_atoms = atoms.copy()
 
     # 2) Determine integer axis index (0=x,1=y,2=z)
     if isinstance(axis, str):
@@ -406,9 +399,7 @@ def cleave_axis_aligned(
 
     return new_atoms
 
-import matplotlib.pyplot as plt
-import numpy as np
-
+@pwf.as_function_node
 def plot_structure_with_cleavage(
     atoms,
     cleavage_planes,
@@ -421,7 +412,8 @@ def plot_structure_with_cleavage(
     atom_size=30,
     save_path=None,
     dpi=300,
-    show_fractional_axes: bool = True
+    show_fractional_axes: bool = True,
+    ylims=None
 ):
     """
     Plot a 2D projection of `atoms` with cleavage planes overlaid as lines,
@@ -454,11 +446,16 @@ def plot_structure_with_cleavage(
         Resolution in dots per inch if the figure is saved.
     show_fractional_axes : bool, optional
         If True, add secondary x- and y-axes showing fractional coordinates.
+    ylims : tuple(float, float) or None, optional
+        If provided, sets the y-axis limits on the primary axis as (ymin, ymax).
 
     Returns
     -------
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
+    import numpy as np
+    import matplotlib.pyplot as plt
+
     # Unpack projection
     p0, p1 = projection
     cell = atoms.get_cell()
@@ -502,32 +499,49 @@ def plot_structure_with_cleavage(
     ax.set_ylabel(f'Axis {p1} (Å)')
     ax.set_title(f'2D Projection with Cleavage Planes (proj {p0}-{p1})')
     ax.set_aspect('equal')
+
+    # 4) Apply user-specified y-limits if provided
+    if ylims is not None:
+        ax.set_ylim(ylims)
+
     ax.autoscale()
 
-    # 4) Add secondary fractional axes if requested
+    # 5) Add secondary fractional axes if requested
     if show_fractional_axes:
         # Secondary Y-axis (right): fractional along p1
         cell_len_p1 = np.linalg.norm(cell[p1])
-        def to_frac_y(y): return y / cell_len_p1
-        def to_cart_y(f): return f * cell_len_p1
-        secax_y = ax.secondary_yaxis('right', functions=(to_frac_y, to_cart_y))
+        secax_y = ax.secondary_yaxis(
+            'right',
+            functions=(lambda y: y / cell_len_p1,    # cart → frac
+                       lambda f: f * cell_len_p1)    # frac → cart
+        )
         secax_y.set_ylabel(f'Axis {p1} (fractional)')
 
         # Secondary X-axis (top): fractional along p0
         cell_len_p0 = np.linalg.norm(cell[p0])
-        def to_frac_x(x): return x / cell_len_p0
-        def to_cart_x(f): return f * cell_len_p0
-        secax_x = ax.secondary_xaxis('top', functions=(to_frac_x, to_cart_x))
+        secax_x = ax.secondary_xaxis(
+            'top',
+            functions=(lambda x: x / cell_len_p0,     # cart → frac
+                       lambda f: f * cell_len_p0)      # frac → cart
+        )
         secax_x.set_xlabel(f'Axis {p0} (fractional)')
 
-        # Optionally set ticks on the fractional axes (uncomment to use):
-        # frac_ticks = [0.0, 0.25, 0.5, 0.75, 1.0]
-        # secax_y.set_yticks(frac_ticks)
-        # secax_y.set_ylim(to_frac_y(ax.get_ylim()[0]), to_frac_y(ax.get_ylim()[1]))
-        # secax_x.set_xticks(frac_ticks)
-        # secax_x.set_xlim(to_frac_x(ax.get_xlim()[0]), to_frac_x(ax.get_xlim()[1]))
+        # If you want to align fractional tick ranges with the primary axis limits,
+        # you can uncomment and use the following lines:
+        #
+        # # For Y-axis:
+        # if ylims is not None:
+        #     frac_ymin = ylims[0] / cell_len_p1
+        #     frac_ymax = ylims[1] / cell_len_p1
+        #     secax_y.set_ylim(frac_ymin, frac_ymax)
+        #
+        # # For X-axis:
+        # xlims = ax.get_xlim()
+        # frac_xmin = xlims[0] / cell_len_p0
+        # frac_xmax = xlims[1] / cell_len_p0
+        # secax_x.set_xlim(frac_xmin, frac_xmax)
 
-    # 5) Legend outside the plot area
+    # 6) Legend outside the plot area
     handles, labels = ax.get_legend_handles_labels()
     by_label = dict(zip(labels, handles))
     ax.legend(
@@ -538,12 +552,148 @@ def plot_structure_with_cleavage(
         borderaxespad=0.
     )
 
-    # 6) Adjust layout to accommodate legend and save if requested
-    if save_path:
-        plt.tight_layout(rect=[0, 0, 0.75, 1])  # leave room on right
-        fig.savefig(save_path, dpi=dpi)
-    else:
-        plt.tight_layout(rect=[0, 0, 0.75, 1])
+    # 7) Adjust layout to accommodate legend and save if requested
+    # if save_path:
+    #     plt.tight_layout(rect=[0, 0, 0.75, 1])  # leave room on right
+    #     fig.savefig(save_path, dpi=dpi)
+    # else:
+    #     plt.tight_layout(rect=[0, 0, 0.75, 1])
 
     plt.show()
     return fig, ax
+
+
+@pwf.as_function_node
+def cleave_gb_structure(
+    base_atoms,
+    axis_to_cleave="z",
+    target_coord=None,
+    tol=0.3,
+    cleave_region_halflength=5.0,
+    layer_tolerance=0.3,
+    separation=8.0,
+    use_fractional=False
+):
+    """
+    Find and cleave a grain‐boundary‐type slab (base_atoms) into multiple
+    “cleaved” pieces along all viable GB planes found near a given target_coord.
+
+    Parameters
+    ----------
+    base_atoms : ase.Atoms
+        The input slab/Supercell (e.g. Fe+GB+vacuum) that you want to cleave.
+    axis_to_cleave : {"x", "y", "z", 0, 1, 2}, default "z"
+        The crystallographic direction along which to cleave (e.g. "z" or 2).
+        This is passed directly to cleave_axis_aligned.
+    target_coord : array‐like of length 3, required
+        The Cartesian (x,y,z) coordinate of the GB plane (e.g. from your
+        gb_plane_extractor.outputs.gb_plane_analysis_dict["gb_cart"]).
+        Used to locate which atomic “site” sits on/near the GB plane. 
+    tol : float, default 0.3
+        Tolerance (in Å or fractional units, depending on use_fractional)
+        for selecting atoms on that plane when calling get_sites_on_plane.
+    cleave_region_halflength : float, default 5.0
+        In Å, how far away from the “best” mid‐plane site to search for
+        additional nearby planes. Passed to find_viable_cleavage_planes_around_site.
+    layer_tolerance : float, default 0.3
+        Tolerance (in Å) for how “stacked” atomic layers can be when picking
+        cleavage planes. Passed to find_viable_cleavage_planes_around_site.
+    separation : float, default 8.0
+        Final gap (in Å) between the two half‐slabs after cleaving. Passed to cleave_axis_aligned.
+    use_fractional : bool, default False
+        Whether target_coord and tol are in fractional (True) or Cartesian (False)
+        units when calling get_sites_on_plane.
+
+    Returns
+    -------
+    cleaved_structures : list of ase.Atoms
+        A list containing one `Atoms` object per viable cleavage plane.
+        Each entry is the full “cleaved” supercell with the specified separation.
+
+    Example
+    -------
+    >>> from ase.build import bulk
+    >>> from pyiron_workflow_atomistics.gb.analysis import get_sites_on_plane
+    >>> # … (suppose you have a workflow `wf` that built `wf.gb_with_vacuum.outputs.new_atoms.value`) …
+    >>> base = wf.gb_with_vacuum.outputs.new_atoms.value
+    >>> gb_cart = wf.gb_plane_extractor.outputs.gb_plane_analysis_dict.value["gb_cart"]
+    >>> cleaved_list = cleave_gb_structure(
+    ...     base_atoms=base,
+    ...     axis_to_cleave="z",
+    ...     target_coord=gb_cart,
+    ...     tol=0.3,
+    ...     site_dist_threshold=5.0,
+    ...     layer_tolerance=0.3,
+    ...     separation=8.0,
+    ...     use_fractional=False
+    ... )
+    >>> len(cleaved_list)
+    3  # say there were 3 viable planes found
+    >>> # You can then inspect or write any of them:
+    >>> cleaved_list[0].write("gb_cleaved_0.vasp", format="vasp")
+    """
+    # 1) Map axis_to_cleave → the “axis letter” that get_sites_on_plane expects.
+    #
+    #    - If user passed integer (0/1/2), convert to 'a'/'b'/'c'.
+    #    - If user passed string 'x','y','z' (case‐insensitive), map to 'a','b','c'.
+    #    - Otherwise, assume they passed already 'a','b','c'.
+    axis_map_int_to_letter = {0: "a", 1: "b", 2: "c"}
+    axis_map_xyz_to_abc = {"x": "a", "y": "b", "z": "c"}
+    if isinstance(axis_to_cleave, int):
+        plane_axis_letter = axis_map_int_to_letter[axis_to_cleave]
+        cleave_axis_arg = axis_to_cleave
+    else:
+        # string case
+        a2c = axis_to_cleave.lower()
+        if a2c in axis_map_xyz_to_abc:
+            plane_axis_letter = axis_map_xyz_to_abc[a2c]
+            cleave_axis_arg = ["x", "y", "z"].index(a2c)
+        elif a2c in ("a", "b", "c"):
+            plane_axis_letter = a2c
+            cleave_axis_arg = {"a": 0, "b": 1, "c": 2}[a2c]
+        else:
+            raise ValueError(
+                f"axis_to_cleave='{axis_to_cleave}' not recognized. Must be 0/1/2 or "
+                f"'x','y','z','a','b','c'."
+            )
+
+    # 2) Identify which atom index sits “on/near” the GB plane.
+    #    We call get_sites_on_plane with the chosen axis‐letter, target_coord, and tol.
+    #    That returns an array of site indices; pick the first (or only) one.
+    mid_site_indices = get_sites_on_plane.node_function(
+        atoms=base_atoms,
+        axis=plane_axis_letter,
+        target_coord=target_coord,
+        tol=tol,
+        use_fractional=use_fractional,
+    )
+    if len(mid_site_indices) == 0:
+        raise RuntimeError(
+            f"No atoms found within tol={tol} Å (or fractional) of {plane_axis_letter}={target_coord}."
+        )
+    mid_site_idx = int(mid_site_indices[0])
+
+    # 3) Find all viable cleavage planes around that site index.
+    #    We pass the integer‐axis (0/1/2), the site index, plus thresholds.
+    cleavage_plane_coords = find_viable_cleavage_planes_around_site.node_function(
+        atoms=base_atoms,
+        axis=cleave_axis_arg,
+        site_index=mid_site_idx,
+        site_dist_threshold=cleave_region_halflength,
+        layer_tolerance=layer_tolerance,
+        fractional=use_fractional,
+    )
+
+    # 4) For each plane coord, call cleave_axis_aligned to get a “cleaved” slab.
+    cleaved_structures = []
+    for plane_c in cleavage_plane_coords:
+        slab_pair = cleave_axis_aligned.node_function(
+            atoms=base_atoms,
+            axis=cleave_axis_arg,
+            plane_coord=plane_c,
+            separation=separation,
+            use_fractional=use_fractional
+        )
+        cleaved_structures.append(slab_pair)
+
+    return cleaved_structures, cleavage_plane_coords

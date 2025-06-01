@@ -403,6 +403,7 @@ def plot_GB_plane(
     plt.show()
     return fig, ax
 
+@pwf.as_function_node
 def get_sites_on_plane(
     atoms: Atoms,
     axis: str | int,
