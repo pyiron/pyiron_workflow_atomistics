@@ -12,7 +12,7 @@ import pyiron_workflow as pwf
 from . import gb_generator as gbc
 from pyiron_workflow import Workflow 
 from pyiron_workflow.api import for_node
-from pyiron_workflow_atomistics.calculator import calculate_structure_node
+from pyiron_workflow_atomistics.calculator import calculate_structure_node, fillin_default_calckwargs
 from typing import List, Tuple
 
 @pwf.as_function_node
@@ -372,59 +372,6 @@ def get_extended_names(extensions):
     for extension in extensions:
         extended_names.append((f"ext_{extension:.3f}"))
     return extended_names
-    
-@pwf.as_function_node("full_calc_kwargs2")
-def fillin_default_calckwargs(calc_kwargs, default_values=None):
-    """
-    Take a partial calc_kwargs dict and fill in any missing entries
-    with the standard defaults, but allow an optional `default_values`
-    dict to override any of those built-in defaults.
-
-    Parameters
-    ----------
-    calc_kwargs : dict
-        User-provided kwargs for the calculation (may be partial).
-    default_values : dict, optional
-        If provided, these key→value pairs will override the built-in defaults.
-
-    Returns
-    -------
-    full_calc_kwargs : dict
-        A dict containing every argument, using user values when present,
-        then `default_values`, then the built-in defaults.
-    """
-    # 1) define your built-in defaults
-    built_in = {
-        "output_dir":           "calc_dir",
-        "fmax":                 0.01,
-        "max_steps":            1000,
-        "properties":           ('energy', 'forces', 'stresses'),
-        "write_to_disk":        False,
-        "initial_struct_path":  'initial_structure.xyz',
-        "initial_results_path": 'initial_results.json',
-        "traj_struct_path":     'trajectory.xyz',
-        "traj_results_path":    'trajectory_results.json',
-        "final_struct_path":    'final_structure.xyz',
-        "final_results_path":   'final_results.json',
-    }
-
-    # 2) overlay any user-supplied default overrides
-    if default_values:
-        built_in.update(default_values)
-
-    # 3) build the final dict: user → default_values → built-in
-    full = {}
-    for key, default in built_in.items():
-        if key in calc_kwargs:
-            full[key] = calc_kwargs[key]
-        else:
-            full[key] = default
-
-    # 4) ensure tuple for properties
-    full["properties"] = tuple(full["properties"])
-
-    return full
-    
 
 @Workflow.wrap.as_macro_node(
     "extended_GB_results",

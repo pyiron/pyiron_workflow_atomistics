@@ -123,16 +123,19 @@ def find_GB_plane(
     fs      = sel_fracs[order]
     ss      = scores[order]
     peak_val= ss.max()
-    i_peaks = np.where(np.isclose(ss, peak_val, atol=1e-8))[0]
+    i_peaks = np.where(np.isclose(ss, peak_val, atol=0.1))[0]
 
     # threshold for region edges
     thr = threshold_frac * peak_val
 
     # If multiple equal peaks exist:
     if len(i_peaks) >= 2:
+        print("double peak detected")
+
         # Define first and last peak positions
         i_peak_min = i_peaks.min()
         i_peak_max = i_peaks.max()
+        print(i_peak_min, i_peak_max)
         p_min = fs[i_peak_min]
         p_max = fs[i_peak_max]
 
@@ -159,6 +162,7 @@ def find_GB_plane(
         mid_frac = (0.5 * (p_min + p_max)) % 1.0
 
     else:
+        print("single peak detected")
         # Only one clear peak → treat it as a single index
         i_peak = i_peaks[0]
 
