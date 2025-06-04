@@ -39,7 +39,7 @@ def find_viable_cleavage_planes_around_plane(
     atoms : ase.Atoms
         The ASE Atoms object to analyze.
     axis : int
-        Which axis to cleave along: 0 = x, 1 = y, 2 = z.
+        Which axis to cleave along: 0 = a, 1 = b, 2 = c.
     plane_coord : float
         The target plane coordinate along `axis`. If `fractional=False`, this is in Å; if
         `fractional=True`, this is a fractional coordinate (0 ≤ plane_coord < 1).
@@ -573,7 +573,6 @@ def plot_structure_with_cleavage(
     plt.show()
     return fig, ax
 
-
 @pwf.as_function_node
 def cleave_gb_structure(
     base_atoms,
@@ -759,7 +758,7 @@ def get_results_df(df,
         # Get the 2 vectors that span the cleavage plane perpendicular to the cleavage axis
         a1, a2 = np.delete(cell, axis_index, axis=0)
         area = np.linalg.norm(np.cross(a1, a2))  # in Å²
-        print(area, struct.cell[-2][-2] *struct.cell[0][0])
+        #print(area, struct.cell[-2][-2] *struct.cell[0][0])
         # Cleavage energy in J/m²
         E_cleave = (E - uncleaved_energy) / (area) * 16.0218  # eV/Å² → J/m² # Only 1 GB so no 2 factor on bottom
         cleavage_energies.append(E_cleave)
@@ -773,6 +772,13 @@ def get_results_df(df,
     })
 
 
+@pwf.as_function_node
+def toggle_rigid_calc(rigid, calc_kwargs):
+    if rigid:
+        max_steps = 0
+    else:
+        max_steps = calc_kwargs["max_steps"]
+    return max_steps
 from pyiron_workflow_atomistics.gb.dataclass_storage import CleaveGBStructureInput, PlotCleaveInput
 @pwf.as_macro_node("cleaved_structure_list",
                     "cleaved_plane_coords_list",
@@ -818,6 +824,8 @@ def calc_cleavage_GB(wf,
                                                     default_values = None)
     wf.cleave_structure_foldernames = get_cleavage_calc_names(parent_dir = parent_dir,
                                                                cleavage_planes = wf.cleave_setup.outputs.cleavage_plane_coords)
+    wf.toggle_rigid_calc = toggle_rigid_calc(rigid=rigid,
+                                             calc_kwargs = wf.full_calc_kwargs.outputs.full_calc_kwargs2)
     wf.calculate_cleaved = pwf.api.for_node(
         calculate_structure_node,
         zip_on=("structure", "output_dir"),
@@ -825,7 +833,7 @@ def calc_cleavage_GB(wf,
         output_dir=wf.cleave_structure_foldernames,
         calc=calc,
         fmax=wf.full_calc_kwargs.outputs.full_calc_kwargs2["fmax"],
-        max_steps=wf.full_calc_kwargs.outputs.full_calc_kwargs2["max_steps"],
+        max_steps=wf.toggle_rigid_calc.outputs.max_steps,
         properties=wf.full_calc_kwargs.outputs.full_calc_kwargs2["properties"],
         write_to_disk=wf.full_calc_kwargs.outputs.full_calc_kwargs2["write_to_disk"],
         initial_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["initial_struct_path"],
