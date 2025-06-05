@@ -9,7 +9,7 @@ from pymatgen.core import Structure, Lattice
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.io.ase import AseAtomsAdaptor
 import pyiron_workflow as pwf
-from . import gb_generator as gbc
+from pyiron_workflow_atomistics.gb.gb_code import gb_generator as gbc
 from pyiron_workflow import Workflow 
 from pyiron_workflow.api import for_node
 from pyiron_workflow_atomistics.calculator import calculate_structure_node, fillin_default_calckwargs

@@ -135,11 +135,13 @@ def calc_structure(
         trajectory.append({'structure': snap, 'results': snap_res})
         if write_to_disk and traj_struct_path is not None:
             ase_write(os.path.join(output_dir, traj_struct_path), snap, append=True)
+            
     # Prepare output directory
     if write_to_disk:
         optimizer = BFGS(atoms, trajectory=f'{output_dir}/opt.asecalc.traj', logfile=f'{output_dir}/opt.asecalc.log')
     else:
         optimizer = BFGS(atoms)
+        
     optimizer.attach(record_step, interval=1)
     converged = optimizer.run(fmax=fmax, steps=max_steps)
 

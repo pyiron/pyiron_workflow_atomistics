@@ -3,6 +3,18 @@ from ase import Atoms
 import matplotlib.pyplot as plt
 import pyiron_workflow as pwf
 from .analysis import get_sites_on_plane
+
+from pyiron_workflow_atomistics.featurisers import voronoiSiteFeaturiser
+from pyiron_workflow_atomistics.gb.analysis import find_GB_plane, plot_GB_plane
+from pyiron_workflow_atomistics.calculator import fillin_default_calckwargs, calculate_structure_node
+import os
+from pyiron_workflow.api import for_node
+from pyiron_workflow_atomistics.pyiron_workflow_atomistics.gb.optimiser import fillin_default_calckwargs
+import pandas as pd
+import pandas as pd
+import numpy as np
+from ase import Atoms
+
 # Wrap‐aware difference in fractional space:
 def frac_dist(a, b):
     return abs(((a - b + 0.5) % 1.0) - 0.5)
@@ -27,7 +39,7 @@ def find_viable_cleavage_planes_around_plane(
     atoms : ase.Atoms
         The ASE Atoms object to analyze.
     axis : int
-        Which axis to cleave along: 0 = x, 1 = y, 2 = z.
+        Which axis to cleave along: 0 = a, 1 = b, 2 = c.
     plane_coord : float
         The target plane coordinate along `axis`. If `fractional=False`, this is in Å; if
         `fractional=True`, this is a fractional coordinate (0 ≤ plane_coord < 1).
@@ -552,15 +564,12 @@ def plot_structure_with_cleavage(
     )
 
     # 7) Adjust layout to accommodate legend and save if requested
-    # if save_path:
-    #     plt.tight_layout(rect=[0, 0, 0.75, 1])  # leave room on right
-    #     fig.savefig(save_path, dpi=dpi)
-    # else:
-    #     plt.tight_layout(rect=[0, 0, 0.75, 1])
-
-    plt.show()
+    if save_path:
+        plt.tight_layout(rect=[0, 0, 0.75, 1])  # leave room on right
+        fig.savefig(save_path, dpi=dpi)
+    else:
+        plt.tight_layout(rect=[0, 0, 0.75, 1])
     return fig, ax
-
 
 @pwf.as_function_node
 def cleave_gb_structure(
@@ -696,240 +705,133 @@ def cleave_gb_structure(
         cleaved_structures.append(slab_pair)
 
     return cleaved_structures, cleavage_plane_coords
+    
+@pwf.as_function_node
+def get_cleavage_calc_names(parent_dir,
+                            cleavage_planes):
+    folder_name_list = []
+    for plane in cleavage_planes:
+        calc_foldername = f"{os.path.basename(parent_dir)}_cp_{np.round(plane,3)}"
+        folder_name_list.append(os.path.join(parent_dir, calc_foldername))
+    return folder_name_list
 
-from pyiron_workflow_atomistics.featurisers import voronoiSiteFeaturiser
-from pyiron_workflow_atomistics.gb.analysis import find_GB_plane, plot_GB_plane
-from pyiron_workflow_atomistics.calculator import fillin_default_calckwargs, calculate_structure_node
-import os
-from pyiron_workflow.api import for_node
-@pwf.as_macro_node(
-    "gb_plane_extractor",
-    "gb_plane_plot",
-    "cleave_setup",
-    "cleavage_foldernames",
-    "cleavage_structure_plot",
-    "calculate_cleaved",
-    "calculate_rigid"
-)
-def gb_cleavage_macro(
-    wf,
-    structure,
-    calc,
-    # Parent directory for outputs
-    parent_dir: str = "gb_cleavage",
-    #
-    # --- find_GB_plane flags ---
-    featuriser=voronoiSiteFeaturiser,
-    gb_axis: str = "c",
-    approx_frac: float = 0.5,
-    tolerance: float = 5.0,
-    bulk_offset: float = 10.0,
-    slab_thickness: float = 2.0,
-    featuriser_kwargs: dict = {},
-    n_bulk: int = 10,
-    threshold_frac: float = 0.1,
-    #
-    # --- plot_GB_plane flags ---
-    plot_projection: tuple = (0, 2),
-    plot_reps: tuple = (5, 1),
-    plot_figsize: tuple = (10, 6),
-    bulk_color: str = "C0",
-    window_cmap: str = "viridis",
-    plane_linestyles: tuple = ("--", "-"),
-    plot_axis: int = 2,
-    plot_dpi: int = 300,
-    gb_plane_save_path: str = None,
-    #
-    # --- cleave_gb_structure flags ---
-    axis_to_cleave: str = "z",
-    cleave_tol: float = 0.3,
-    cleave_region_halflength: float = 5.0,
-    layer_tolerance: float = 0.3,
-    separation: float = 8.0,
-    use_fractional: bool = False,
-    #
-    # --- plot_structure_with_cleavage flags ---
-    struct_projection: tuple = (0, 2),
-    struct_reps: tuple = (5, 1),
-    struct_figsize: tuple = (8, 6),
-    atom_color: str = "C0",
-    plane_color: str = "r",
-    plane_linestyle: str = "--",
-    atom_size: float = 30,
-    struct_save_path: str = None,
-    struct_dpi: int = 300,
-    show_fractional_axes: bool = True,
-    ylims: list = [0, 61],
-    #
-    # --- calculation kwargs ---
-    calc_kwargs: dict = None,
-    calc_kwargs_defaults: dict = {
-        "output_dir":           "gb_cleavage/calculations",
-        "fmax":                 0.01,
-        "max_steps":            1000,
-        "properties":           ("energy", "forces", "stresses", "volume"),
-        "write_to_disk":        False,
-        "initial_struct_path":  "initial_structure.xyz",
-        "initial_results_path": "initial_results.json",
-        "traj_struct_path":     "trajectory.xyz",
-        "traj_results_path":    "trajectory_results.json",
-        "final_struct_path":    "final_structure.xyz",
-        "final_results_path":   "final_results.json",
-    },
-    static_max_steps: int = 0
-):
+
+@pwf.as_function_node("df")
+def get_results_df(df,
+                   cleavage_coords,
+                   cleaved_structures,
+                   uncleaved_energy,
+                   cleavage_axis: str = "c"):
     """
-    Macro node that:
-    1. Finds the grain‐boundary (GB) plane in the relaxed structure.
-    2. Plots the GB‐plane identification.
-    3. Generates and plots the cleaved structures along that plane.
-    4. Sets up and runs “full” and “rigid” calculations on each cleaved slab.
+    Assemble a results DataFrame from cleavage scan outputs and compute cleavage energy.
 
-    Parameters:
-    -----------
-    wf : Workflow
-        The workflow to which nodes are added.
-    relax_original_structure : Node
-        Node whose output `.outputs.atoms` is the relaxed GB structure.
-    calc : Calc
-        Calculation setup/node to apply to each cleaved structure.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Output DataFrame from structure calculations. Must have 'results' and 'atoms' columns.
+    cleavage_coords : list[float]
+        List of cleavage plane coordinates.
+    cleaved_structures : list[ase.Atoms]
+        List of the initial cleaved ASE structures.
+    uncleaved_energy : float
+        Energy of the original un-cleaved (reference) structure.
+    cleavage_axis : str
+        Axis along which the cleavage occurs ("x", "y", or "z").
 
-    parent_dir : str
-        Base folder for storing plots & calculation subfolders.
-
-    --- find_GB_plane flags ---
-    featuriser : Featuriser class
-    gb_axis : {"a","b","c"}
-    approx_frac : float
-    tolerance : float
-    bulk_offset : float
-    slab_thickness : float
-    featuriser_kwargs : dict
-    n_bulk : int
-    threshold_frac : float
-
-    --- plot_GB_plane flags ---
-    plot_projection : tuple[int, int]
-    plot_reps : tuple[int, int]
-    plot_figsize : tuple[float, float]
-    bulk_color : str
-    window_cmap : str
-    plane_linestyles : tuple[str, str]
-    plot_axis : int
-    plot_dpi : int
-    gb_plane_save_path : str or None
-
-    --- cleave_gb_structure flags ---
-    axis_to_cleave : {"a","b","c"}
-    cleave_tol : float
-    cleave_region_halflength : float
-    layer_tolerance : float
-    separation : float
-    use_fractional : bool
-
-    --- plot_structure_with_cleavage flags ---
-    struct_projection : tuple[int, int]
-    struct_reps : tuple[int, int]
-    struct_figsize : tuple[float, float]
-    atom_color : str
-    plane_color : str
-    plane_linestyle : str
-    atom_size : float
-    struct_save_path : str or None
-    struct_dpi : int
-    show_fractional_axes : bool
-    ylims : list[float]
-
-    --- calculation kwargs ---
-    calc_kwargs : dict
-        Overrides for calculation parameters. Merged with calc_kwargs_defaults.
-    calc_kwargs_defaults : dict
-        Default calculation parameters for “full” runs.
-    static_max_steps : int
-        Number of steps for a “rigid/static” run (defaults to 0).
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with columns:
+        ['cleavage_coord', 'initial_structure', 'final_structure', 'energy', 'cleavage_energy']
+        where cleavage_energy is in J/m².
     """
-    # 1. Ensure the parent directory exists
-    os.makedirs(parent_dir, exist_ok=True)
+    relaxed_structures = df.atoms.tolist()
+    energies = [res["energy"] for res in df.results.tolist()]
+    
+    axis_index = {"a": 0, "b": 1, "c": 2}[cleavage_axis.lower()]
+    cleavage_energies = []
 
-    # 2. Find the GB plane
-    wf.gb_plane_extractor = find_GB_plane(
-        atoms=structure,
-        featuriser=featuriser,
-        axis=gb_axis,
-        approx_frac=approx_frac,
-        tolerance=tolerance,
-        bulk_offset=bulk_offset,
-        slab_thickness=slab_thickness,
-        featuriser_kwargs=featuriser_kwargs,
-        n_bulk=n_bulk,
-        threshold_frac=threshold_frac,
-    )
+    for E, struct in zip(energies, relaxed_structures):
+        cell = struct.get_cell()
+        # Get the 2 vectors that span the cleavage plane perpendicular to the cleavage axis
+        a1, a2 = np.delete(cell, axis_index, axis=0)
+        area = np.linalg.norm(np.cross(a1, a2))  # in Å²
+        #print(area, struct.cell[-2][-2] *struct.cell[0][0])
+        # Cleavage energy in J/m²
+        E_cleave = (E - uncleaved_energy) / (area) * 16.0218  # eV/Å² → J/m² # Only 1 GB so no 2 factor on bottom
+        cleavage_energies.append(E_cleave)
 
-    # 3. Plot the GB‐plane identification
-    wf.gb_plane_plot = plot_GB_plane(
-        atoms=structure,
-        res=wf.gb_plane_extractor.outputs.gb_plane_analysis_dict,
-        projection=plot_projection,
-        reps=plot_reps,
-        figsize=plot_figsize,
-        bulk_color=bulk_color,
-        window_cmap=window_cmap,
-        plane_linestyles=plane_linestyles,
-        axis=plot_axis,
-        dpi=plot_dpi,
-        save_path=gb_plane_save_path or f"{parent_dir}/pureGB_plane_identifier.jpg",
-    )
+    return pd.DataFrame({
+        "cleavage_coord": cleavage_coords,
+        "initial_structure": cleaved_structures,
+        "final_structure": relaxed_structures,
+        "energy": energies,
+        "cleavage_energy": cleavage_energies
+    })
 
-    # 4. Cleave the structure at the GB plane
+
+@pwf.as_function_node
+def toggle_rigid_calc(rigid, calc_kwargs):
+    if rigid:
+        max_steps = 0
+    else:
+        max_steps = calc_kwargs["max_steps"]
+    return max_steps
+from pyiron_workflow_atomistics.gb.dataclass_storage import CleaveGBStructureInput, PlotCleaveInput
+@pwf.as_macro_node("cleaved_structure_list",
+                    "cleaved_plane_coords_list",
+                    "cleavage_plane_plot_fig",
+                   "cleavage_plane_plot_ax",
+                   "cleavage_calcs_df")
+def calc_cleavage_GB(wf,
+                     structure: Atoms,
+                     energy,
+                     calc,
+                     input_cleave_gb_structure: CleaveGBStructureInput,
+                     input_plot_cleave: PlotCleaveInput,
+                     input_calc_structure: dict,
+                     parent_dir: str = "gb_cleavage",
+                     rigid=True):
     wf.cleave_setup = cleave_gb_structure(
         base_atoms=structure,
-        axis_to_cleave=axis_to_cleave,
-        target_coord=wf.gb_plane_extractor.outputs.gb_plane_analysis_dict["gb_cart"],
-        tol=cleave_tol,
-        cleave_region_halflength=cleave_region_halflength,
-        layer_tolerance=layer_tolerance,
-        separation=separation,
-        use_fractional=use_fractional,
+        axis_to_cleave=input_cleave_gb_structure.axis_to_cleave,
+        target_coord=input_cleave_gb_structure.cleavage_target_coord,
+        tol=input_cleave_gb_structure.tol,
+        cleave_region_halflength=input_cleave_gb_structure.cleave_region_halflength,
+        layer_tolerance=input_cleave_gb_structure.layer_tolerance,
+        separation=input_cleave_gb_structure.separation,
+        use_fractional=input_cleave_gb_structure.use_fractional,
     )
-
-    # 5. Generate folder‐names for each cleaved slab
-    wf.cleavage_foldernames = get_cleavage_calc_names(
-        parent_dir=f"{parent_dir}/S3_RA110_S112",
-        cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords,
-    )
-
-    # 6. Plot the cleaved structures
     wf.cleavage_structure_plot = plot_structure_with_cleavage(
         atoms=structure,
         cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords,
-        projection=struct_projection,
-        reps=struct_reps,
-        figsize=struct_figsize,
-        atom_color=atom_color,
-        plane_color=plane_color,
-        plane_linestyle=plane_linestyle,
-        atom_size=atom_size,
-        save_path=struct_save_path,
-        dpi=struct_dpi,
-        show_fractional_axes=show_fractional_axes,
-        ylims=ylims,
+        projection=input_plot_cleave.projection,
+        reps=input_plot_cleave.reps,
+        figsize=input_plot_cleave.figsize,
+        atom_color=input_plot_cleave.atom_color,
+        plane_color=input_plot_cleave.plane_color,
+        plane_linestyle=input_plot_cleave.plane_linestyle,
+        atom_size=input_plot_cleave.atom_size,
+        save_path=input_plot_cleave.save_path,
+        dpi=input_plot_cleave.dpi,
+        show_fractional_axes=input_plot_cleave.show_fractional_axes,
+        ylims=input_plot_cleave.ylims,
     )
 
-    # 7. Fill in default “full” calculation kwargs (merge overrides)
-    wf.full_calc_kwargs = fillin_default_calckwargs(
-        calc_kwargs=calc_kwargs,
-        default_values=calc_kwargs_defaults
-    )
-
-    # 8. Run “fully‐relaxed” calculations on each cleaved slab
-    wf.calculate_cleaved = for_node(
+    wf.full_calc_kwargs = fillin_default_calckwargs(calc_kwargs = input_calc_structure,
+                                                    default_values = None)
+    wf.cleave_structure_foldernames = get_cleavage_calc_names(parent_dir = parent_dir,
+                                                               cleavage_planes = wf.cleave_setup.outputs.cleavage_plane_coords)
+    wf.toggle_rigid_calc = toggle_rigid_calc(rigid=rigid,
+                                             calc_kwargs = wf.full_calc_kwargs.outputs.full_calc_kwargs2)
+    wf.calculate_cleaved = pwf.api.for_node(
         calculate_structure_node,
         zip_on=("structure", "output_dir"),
         structure=wf.cleave_setup.outputs.cleaved_structures,
-        output_dir=wf.cleavage_foldernames,
+        output_dir=wf.cleave_structure_foldernames,
         calc=calc,
         fmax=wf.full_calc_kwargs.outputs.full_calc_kwargs2["fmax"],
-        max_steps=wf.full_calc_kwargs.outputs.full_calc_kwargs2["max_steps"],
+        max_steps=wf.toggle_rigid_calc.outputs.max_steps,
         properties=wf.full_calc_kwargs.outputs.full_calc_kwargs2["properties"],
         write_to_disk=wf.full_calc_kwargs.outputs.full_calc_kwargs2["write_to_disk"],
         initial_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["initial_struct_path"],
@@ -939,50 +841,14 @@ def gb_cleavage_macro(
         final_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["final_struct_path"],
         final_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["final_results_path"],
     )
+    wf.collate_results = get_results_df(df = wf.calculate_cleaved.outputs.df,
+                                        cleavage_coords = wf.cleave_setup.outputs.cleavage_plane_coords,
+                                        cleaved_structures = wf.cleave_setup.outputs.cleaved_structures,
+                                        uncleaved_energy = energy,
+                                        cleavage_axis = input_cleave_gb_structure.axis_to_cleave)
 
-    # 9. Override “max_steps” for rigid/static runs
-    rigid_kwargs = {
-        **wf.full_calc_kwargs.outputs.full_calc_kwargs2,
-        "max_steps": static_max_steps
-    }
-    wf.static_calc_kwargs = fillin_default_calckwargs(
-        calc_kwargs=rigid_kwargs,
-        default_values=None
-    )
-
-    # 10. Run “rigid/static” (zero‐step) calculations on each cleaved slab
-    wf.calculate_rigid = for_node(
-        calculate_structure_node,
-        zip_on=("structure", "output_dir"),
-        structure=wf.cleave_setup.outputs.cleaved_structures,
-        output_dir=wf.cleavage_foldernames,
-        calc=calc,
-        fmax=wf.static_calc_kwargs.outputs.full_calc_kwargs2["fmax"],
-        max_steps=wf.static_calc_kwargs.outputs.full_calc_kwargs2["max_steps"],
-        properties=wf.static_calc_kwargs.outputs.full_calc_kwargs2["properties"],
-        write_to_disk=wf.static_calc_kwargs.outputs.full_calc_kwargs2["write_to_disk"],
-        initial_struct_path=wf.static_calc_kwargs.outputs.full_calc_kwargs2["initial_struct_path"],
-        initial_results_path=wf.static_calc_kwargs.outputs.full_calc_kwargs2["initial_results_path"],
-        traj_struct_path=wf.static_calc_kwargs.outputs.full_calc_kwargs2["traj_struct_path"],
-        traj_results_path=wf.static_calc_kwargs.outputs.full_calc_kwargs2["traj_results_path"],
-        final_struct_path=wf.static_calc_kwargs.outputs.full_calc_kwargs2["final_struct_path"],
-        final_results_path=wf.static_calc_kwargs.outputs.full_calc_kwargs2["final_results_path"],
-    )
-
-    return (
-        wf.gb_plane_extractor,
-        wf.gb_plane_plot,
-        wf.cleave_setup,
-        wf.cleavage_foldernames,
-        wf.cleavage_structure_plot,
-        wf.calculate_cleaved,
-        wf.calculate_rigid,
-    )
-    
-@pwf.as_function_node
-def get_cleavage_calc_names(parent_dir, cleavage_planes):
-    folder_name_list = []
-    for plane in cleavage_planes:
-        calc_foldername = f"{os.path.basename(parent_dir)}_cp_{np.round(plane,3)}"
-        folder_name_list.append(os.path.join(parent_dir, calc_foldername))
-    return folder_name_list
+    return (wf.cleave_setup.outputs.cleaved_structures,
+            wf.cleave_setup.outputs.cleavage_plane_coords,
+            wf.cleavage_structure_plot.outputs.fig,
+            wf.cleavage_structure_plot.outputs.ax,
+            wf.collate_results.outputs.df)
