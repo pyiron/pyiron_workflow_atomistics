@@ -410,7 +410,7 @@ def plot_GB_plane(
 @pwf.as_function_node
 def get_sites_on_plane(
     atoms: Atoms,
-    axis: str | int,
+    axis: str,
     target_coord: float,
     tol: float = 1e-2,
     use_fractional: bool = False
@@ -424,8 +424,8 @@ def get_sites_on_plane(
     ----------
     atoms : ASE Atoms
         The atomic structure to query.
-    axis : str or int
-        The cell‐axis to use. Accepts 'a','b','c' (or 0,1,2) to indicate the
+    axis : str 
+        The cell‐axis to use. Accepts 'a','b','c' to indicate the
         first, second, or third cell vector.
     target_coord : float
         The target coordinate. If use_fractional is False, interprets this as

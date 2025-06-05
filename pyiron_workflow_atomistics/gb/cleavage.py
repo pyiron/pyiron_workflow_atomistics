@@ -9,7 +9,7 @@ from pyiron_workflow_atomistics.gb.analysis import find_GB_plane, plot_GB_plane
 from pyiron_workflow_atomistics.calculator import fillin_default_calckwargs, calculate_structure_node
 import os
 from pyiron_workflow.api import for_node
-from pyiron_workflow_atomistics.gb.gb_optimiser import fillin_default_calckwargs
+from pyiron_workflow_atomistics.pyiron_workflow_atomistics.gb.optimiser import fillin_default_calckwargs
 import pandas as pd
 import pandas as pd
 import numpy as np
@@ -564,13 +564,11 @@ def plot_structure_with_cleavage(
     )
 
     # 7) Adjust layout to accommodate legend and save if requested
-    # if save_path:
-    #     plt.tight_layout(rect=[0, 0, 0.75, 1])  # leave room on right
-    #     fig.savefig(save_path, dpi=dpi)
-    # else:
-    #     plt.tight_layout(rect=[0, 0, 0.75, 1])
-
-    plt.show()
+    if save_path:
+        plt.tight_layout(rect=[0, 0, 0.75, 1])  # leave room on right
+        fig.savefig(save_path, dpi=dpi)
+    else:
+        plt.tight_layout(rect=[0, 0, 0.75, 1])
     return fig, ax
 
 @pwf.as_function_node
