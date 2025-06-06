@@ -1,3 +1,5 @@
+import pyiron_workflow as pwf
+
 def axis_to_index(axis):
     """
     Convert an axis identifier to a numeric index.
@@ -32,3 +34,4 @@ def axis_to_index(axis):
         return axis
     else:
         raise TypeError(f"Axis must be either str or int, not {type(axis).__name__}.")
+    
