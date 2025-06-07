@@ -8,9 +8,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyiron_workflow_atomistics"
-description = "pyiron_workflow_atomistics - Your pyiron-like module."
+description = "A pyiron module for atomistic simulation workflows"
 readme = "docs/README.md"
-keywords = [ "pyiron",]
+keywords = ["pyiron", "atomistics", "workflow"]
 requires-python = ">=3.9, <3.13"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -18,17 +18,24 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "pyiron_base==0.8.3"
+    "numpy<2.0.0",
+    "pandas>=1.3.0",
+    "matplotlib>=3.4.0",
+    "ase>=3.22.0",
+    "scipy>=1.7.0",
+    "pyiron_workflow",
+    "pymatgen>=2024.8.8",
+    "pyiron_snippets",
+    "scikit-learn>=1.0.0"
 ]
-dynamic = [ "version",]
+dynamic = ["version"]
 authors = [
-    { name = "Lorem Ipsum", email = "lorem@ipsum.com" },
+    { name = "pyiron team", email = "pyiron@mpie.de" },
 ]
 
 [project.license]
