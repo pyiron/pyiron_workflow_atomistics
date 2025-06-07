@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
+
 @dataclass
 class CleaveGBStructureInput:
     axis_to_cleave: str = "c"
@@ -10,11 +11,11 @@ class CleaveGBStructureInput:
     separation: float = 8.0
     use_fractional: bool = False
     cleavage_target_coord: float = 0.5
-    
+
 
 @dataclass
 class FindGBPlaneInput:
-    featuriser: Any 
+    featuriser: Any
     gb_axis: str = "c"
     approx_frac: float = 0.5
     tolerance: float = 5.0
@@ -37,6 +38,7 @@ class PlotGBPlaneInput:
     dpi: int = 300
     save_path: Optional[str] = None
 
+
 @dataclass
 class PlotCleaveInput:
     projection: Tuple[int, int] = (0, 2)
@@ -51,7 +53,10 @@ class PlotCleaveInput:
     show_fractional_axes: bool = True
     ylims: List[float] = field(default_factory=lambda: [0, 61])
 
+
 from dataclasses import dataclass, asdict
+
+
 @dataclass
 class CalcStructureInput:
     output_dir: str = "gb_cleavage/calculations"
@@ -65,6 +70,7 @@ class CalcStructureInput:
     traj_results_path: str = "trajectory_results.json"
     final_struct_path: str = "final_structure.xyz"
     final_results_path: str = "final_results.json"
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Convert this dataclass into a plain dict suitable

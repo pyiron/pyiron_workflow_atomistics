@@ -8,20 +8,21 @@ import pyiron_workflow as pwf
 import numpy as np
 from typing import Optional, Tuple, List, Dict, Any
 
+
 def calc_structure(
     structure: Atoms,
     calc: Calculator,
     fmax: float = 0.01,
     max_steps: int = 10000,
-    properties: Tuple[str, ...] = ('energy', 'forces', 'stresses'),
+    properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
     write_to_disk: bool = False,
     output_dir: str = "calc_output",
-    initial_struct_path: Optional[str] = 'initial_structure.xyz',
-    initial_results_path: Optional[str] = 'initial_results.json',
-    traj_struct_path: Optional[str] = 'trajectory.xyz',
-    traj_results_path: Optional[str] = 'trajectory_results.json',
-    final_struct_path: Optional[str] = 'final_structure.xyz',
-    final_results_path: Optional[str] = 'final_results.json'
+    initial_struct_path: Optional[str] = "initial_structure.xyz",
+    initial_results_path: Optional[str] = "initial_results.json",
+    traj_struct_path: Optional[str] = "trajectory.xyz",
+    traj_results_path: Optional[str] = "trajectory_results.json",
+    final_struct_path: Optional[str] = "final_structure.xyz",
+    final_results_path: Optional[str] = "final_results.json",
 ):
     """
     Relax an ASE Atoms object and optionally write snapshots to disk.
@@ -80,31 +81,31 @@ def calc_structure(
 
     def gather(atoms: Atoms) -> Dict[str, Any]:
         all_results: Dict[str, Any] = {
-            'energy':    atoms.get_potential_energy(),
-            'forces':    atoms.get_forces().tolist(),
-            'cell':      atoms.get_cell().tolist(),
-            'volume':    atoms.get_volume(),
-            'positions': atoms.get_positions().tolist(),
-            'numbers':   atoms.get_atomic_numbers().tolist(),
-            'masses':    atoms.get_masses().tolist(),
+            "energy": atoms.get_potential_energy(),
+            "forces": atoms.get_forces().tolist(),
+            "cell": atoms.get_cell().tolist(),
+            "volume": atoms.get_volume(),
+            "positions": atoms.get_positions().tolist(),
+            "numbers": atoms.get_atomic_numbers().tolist(),
+            "masses": atoms.get_masses().tolist(),
         }
-        if 'stresses' in props:
+        if "stresses" in props:
             try:
-                all_results['stresses'] = atoms.get_stress().tolist()
+                all_results["stresses"] = atoms.get_stress().tolist()
             except Exception:
                 pass
         mapping = {
-            'charges': 'get_charges',
-            'dipole': 'get_dipole_moment',
-            'magmoms': 'get_magnetic_moments',
-            'virial': 'get_virial',
-            'pressure': 'get_pressure'
+            "charges": "get_charges",
+            "dipole": "get_dipole_moment",
+            "magmoms": "get_magnetic_moments",
+            "virial": "get_virial",
+            "pressure": "get_pressure",
         }
         for key, method in mapping.items():
             if key in props:
                 try:
                     val = getattr(atoms, method)()
-                    all_results[key] = val.tolist() if hasattr(val, 'tolist') else val
+                    all_results[key] = val.tolist() if hasattr(val, "tolist") else val
                 except Exception:
                     pass
         missing = [p for p in props if p not in all_results]
@@ -115,120 +116,127 @@ def calc_structure(
     atoms = structure.copy()
     atoms.calc = calc
 
-
     os.makedirs(output_dir, exist_ok=True)
 
     # 1) Initial snapshot
-    initial = {'structure': atoms.copy(), 'results': gather(atoms)}
+    initial = {"structure": atoms.copy(), "results": gather(atoms)}
     if write_to_disk:
         if initial_struct_path is not None:
-            ase_write(os.path.join(output_dir, initial_struct_path), initial['structure'])
+            ase_write(
+                os.path.join(output_dir, initial_struct_path), initial["structure"]
+            )
         if initial_results_path is not None:
-            with open(os.path.join(output_dir, initial_results_path), 'w') as f:
-                json.dump(initial['results'], f, indent=2)
+            with open(os.path.join(output_dir, initial_results_path), "w") as f:
+                json.dump(initial["results"], f, indent=2)
 
     # 2) Trajectory
     trajectory: List[Dict[str, Any]] = []
+
     def record_step():
         snap = atoms.copy()
         snap_res = gather(atoms)
-        trajectory.append({'structure': snap, 'results': snap_res})
+        trajectory.append({"structure": snap, "results": snap_res})
         if write_to_disk and traj_struct_path is not None:
             ase_write(os.path.join(output_dir, traj_struct_path), snap, append=True)
-            
+
     # Prepare output directory
     if write_to_disk:
-        optimizer = BFGS(atoms, trajectory=f'{output_dir}/opt.asecalc.traj', logfile=f'{output_dir}/opt.asecalc.log')
+        optimizer = BFGS(
+            atoms,
+            trajectory=f"{output_dir}/opt.asecalc.traj",
+            logfile=f"{output_dir}/opt.asecalc.log",
+        )
     else:
         optimizer = BFGS(atoms)
-        
+
     optimizer.attach(record_step, interval=1)
     converged = optimizer.run(fmax=fmax, steps=max_steps)
 
     if write_to_disk and traj_results_path is not None:
-        traj_res_list = [step['results'] for step in trajectory]
-        with open(os.path.join(output_dir, traj_results_path), 'w') as f:
+        traj_res_list = [step["results"] for step in trajectory]
+        with open(os.path.join(output_dir, traj_results_path), "w") as f:
             json.dump(traj_res_list, f, indent=2)
 
     # 3) Final snapshot
-    final = {'structure': atoms.copy(), 'results': gather(atoms)}
+    final = {"structure": atoms.copy(), "results": gather(atoms)}
     if write_to_disk:
         if final_struct_path is not None:
-            ase_write(os.path.join(output_dir, final_struct_path), final['structure'])
+            ase_write(os.path.join(output_dir, final_struct_path), final["structure"])
         if final_results_path is not None:
-            with open(os.path.join(output_dir, final_results_path), 'w') as f:
-                json.dump(final['results'], f, indent=2)
+            with open(os.path.join(output_dir, final_results_path), "w") as f:
+                json.dump(final["results"], f, indent=2)
 
     return {
-        'initial':    initial,
-        'trajectory': trajectory,
-        'final':      final,
-        'converged':  converged
+        "initial": initial,
+        "trajectory": trajectory,
+        "final": final,
+        "converged": converged,
     }
 
 
 @pwf.as_function_node("atoms", "results", "converged")
 def calculate_structure_node(
-     # structure: Atoms,
-     # calc: Calculator,
-     # fmax: float = 0.01,
-     # max_steps: int = 1000,
-     # properties: Tuple[str, ...] = ('energy', 'forces', 'stresses'),
-     # write_to_disk: bool = False,
-     # output_dir: str = "calc_output",
-     # initial_struct_path: Optional[str] = 'initial_structure.xyz',
-     # initial_results_path: Optional[str] = 'initial_results.json',
-     # traj_struct_path: Optional[str] = 'trajectory.xyz',
-     # traj_results_path: Optional[str] = 'trajectory_results.json',
-     # final_struct_path: Optional[str] = 'final_structure.xyz',
-     # final_results_path: Optional[str] = 'final_results.json',
+    # structure: Atoms,
+    # calc: Calculator,
+    # fmax: float = 0.01,
+    # max_steps: int = 1000,
+    # properties: Tuple[str, ...] = ('energy', 'forces', 'stresses'),
+    # write_to_disk: bool = False,
+    # output_dir: str = "calc_output",
+    # initial_struct_path: Optional[str] = 'initial_structure.xyz',
+    # initial_results_path: Optional[str] = 'initial_results.json',
+    # traj_struct_path: Optional[str] = 'trajectory.xyz',
+    # traj_results_path: Optional[str] = 'trajectory_results.json',
+    # final_struct_path: Optional[str] = 'final_structure.xyz',
+    # final_results_path: Optional[str] = 'final_results.json',
     structure,
     calc,
     fmax=0.01,
     max_steps=10000,
-    properties=('energy', 'forces', 'stresses'),
+    properties=("energy", "forces", "stresses"),
     write_to_disk=False,
     output_dir="calc_output",
-    initial_struct_path='initial_structure.xyz',
-    initial_results_path='initial_results.json',
-    traj_struct_path='trajectory.xyz',
-    traj_results_path='trajectory_results.json',
-    final_struct_path='final_structure.xyz',
-    final_results_path='final_results.json'
- ):
-     """
-     ASE relaxation with full disk‐writing under output_dir of initial, trajectory, and final data;
-     any path set to `None` will simply not be written.
+    initial_struct_path="initial_structure.xyz",
+    initial_results_path="initial_results.json",
+    traj_struct_path="trajectory.xyz",
+    traj_results_path="trajectory_results.json",
+    final_struct_path="final_structure.xyz",
+    final_results_path="final_results.json",
+):
+    """
+    ASE relaxation with full disk‐writing under output_dir of initial, trajectory, and final data;
+    any path set to `None` will simply not be written.
 
-     Returns
-     -------
-     atoms : ase.Atoms
-         The final relaxed structure.
-     final_results : dict
-         The final requested properties.
-     converged : bool
-         Whether the relaxation converged.
-     """
-     out = calc_structure(
-         structure=structure,
-         calc=calc,
-         fmax=fmax,
-         max_steps=max_steps,
-         properties=properties,
-         write_to_disk=write_to_disk,
-         output_dir=output_dir,
-         initial_struct_path=initial_struct_path,
-         initial_results_path=initial_results_path,
-         traj_struct_path=traj_struct_path,
-         traj_results_path=traj_results_path,
-         final_struct_path=final_struct_path,
-         final_results_path=final_results_path
-     )
+    Returns
+    -------
+    atoms : ase.Atoms
+        The final relaxed structure.
+    final_results : dict
+        The final requested properties.
+    converged : bool
+        Whether the relaxation converged.
+    """
+    out = calc_structure(
+        structure=structure,
+        calc=calc,
+        fmax=fmax,
+        max_steps=max_steps,
+        properties=properties,
+        write_to_disk=write_to_disk,
+        output_dir=output_dir,
+        initial_struct_path=initial_struct_path,
+        initial_results_path=initial_results_path,
+        traj_struct_path=traj_struct_path,
+        traj_results_path=traj_results_path,
+        final_struct_path=final_struct_path,
+        final_results_path=final_results_path,
+    )
 
-     atoms = out['final']['structure']
-     final_results = out['final']['results']
-     converged = out['converged']
-     return atoms, final_results, converged
+    atoms = out["final"]["structure"]
+    final_results = out["final"]["results"]
+    converged = out["converged"]
+    return atoms, final_results, converged
+
 
 @pwf.as_function_node("output")
 def extract_values(results_list, key):
@@ -259,6 +267,7 @@ def extract_values(results_list, key):
         extracted_values = np.nan
     return extracted_values
 
+
 @pwf.as_function_node("full_calc_kwargs2")
 def fillin_default_calckwargs(calc_kwargs, default_values=None):
     """
@@ -281,17 +290,17 @@ def fillin_default_calckwargs(calc_kwargs, default_values=None):
     """
     # 1) define your built-in defaults
     built_in = {
-        "output_dir":           "calc_dir",
-        "fmax":                 0.01,
-        "max_steps":            1000,
-        "properties":           ('energy', 'forces', 'stresses'),
-        "write_to_disk":        False,
-        "initial_struct_path":  'initial_structure.xyz',
-        "initial_results_path": 'initial_results.json',
-        "traj_struct_path":     'trajectory.xyz',
-        "traj_results_path":    'trajectory_results.json',
-        "final_struct_path":    'final_structure.xyz',
-        "final_results_path":   'final_results.json',
+        "output_dir": "calc_dir",
+        "fmax": 0.01,
+        "max_steps": 1000,
+        "properties": ("energy", "forces", "stresses"),
+        "write_to_disk": False,
+        "initial_struct_path": "initial_structure.xyz",
+        "initial_results_path": "initial_results.json",
+        "traj_struct_path": "trajectory.xyz",
+        "traj_results_path": "trajectory_results.json",
+        "final_struct_path": "final_structure.xyz",
+        "final_results_path": "final_results.json",
     }
 
     # 2) overlay any user-supplied default overrides
