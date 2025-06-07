@@ -6,6 +6,7 @@ from pyiron_workflow import Workflow
 from .calculator import extract_values, calc_structure
 import os
 
+
 @pwf.as_function_node("structure_list")
 def generate_structures(
     base_structure: Atoms,
@@ -65,9 +66,11 @@ def generate_structures(
 @pwf.as_function_node("e0", "v0", "B")
 def equation_of_state(energies, volumes, eos="sj"):
     from ase.eos import EquationOfState
+
     eos = EquationOfState(volumes, energies, eos=eos)
-    v0, e0, B = eos.fit() #v0, e0, B
-    return e0, v0, B#eos_results
+    v0, e0, B = eos.fit()  # v0, e0, B
+    return e0, v0, B  # eos_results
+
 
 @pwf.as_function_node("structures", "results_dict", "convergence_lst")
 def evaluate_structures(
@@ -96,7 +99,7 @@ def evaluate_structures(
     os.makedirs(calc_kwargs["output_dir"], exist_ok=True)
 
     rel_structs_lst = []
-    results_lst     = []
+    results_lst = []
     convergence_lst = []
 
     for i, struct in enumerate(structures):
@@ -107,38 +110,23 @@ def evaluate_structures(
         local_kwargs = dict(calc_kwargs)
         local_kwargs["output_dir"] = strain_dir
         # only fill in defaults where the user did NOT provide anything
-        local_kwargs.setdefault(
-            "initial_struct_path", "initial_structure.xyz"
-        )
-        local_kwargs.setdefault(
-            "initial_results_path", "initial_results.json"
-        )
-        local_kwargs.setdefault(
-            "traj_struct_path", "trajectory.xyz"
-        )
-        local_kwargs.setdefault(
-            "traj_results_path", "trajectory_results.json"
-        )
-        local_kwargs.setdefault(
-            "final_struct_path", "final_structure.xyz"
-        )
-        local_kwargs.setdefault(
-            "final_results_path", "final_results.json"
-        )
+        local_kwargs.setdefault("initial_struct_path", "initial_structure.xyz")
+        local_kwargs.setdefault("initial_results_path", "initial_results.json")
+        local_kwargs.setdefault("traj_struct_path", "trajectory.xyz")
+        local_kwargs.setdefault("traj_results_path", "trajectory_results.json")
+        local_kwargs.setdefault("final_struct_path", "final_structure.xyz")
+        local_kwargs.setdefault("final_results_path", "final_results.json")
         # print(local_kwargs)
         # run the full trajectory-enabled calculation
-        out = calc_structure(
-            struct,
-            calc,
-            **local_kwargs
-        )
+        out = calc_structure(struct, calc, **local_kwargs)
 
         # unpack final results
-        rel_structs_lst.append(out['final']['structure'])
-        results_lst.append(out['final']['results'])
-        convergence_lst.append(out['converged'])
+        rel_structs_lst.append(out["final"]["structure"])
+        results_lst.append(out["final"]["results"])
+        convergence_lst.append(out["converged"])
 
     return rel_structs_lst, results_lst, convergence_lst
+
 
 # @pwf.as_function_node("energies", "volumes")
 # def extract_energies_volumes_from_output(results, energy_parser_func, energy_parser_func_kwargs, volume_parser_func, volume_parser_func_kwargs):
@@ -146,36 +134,44 @@ def evaluate_structures(
 #     volumes = volume_parser_func(results, **volume_parser_func_kwargs)
 #     return energies, volumes
 
+
 @pwf.as_function_node("equil_struct")
-def get_bulk_structure(name: str,
-                        crystalstructure = None,
-                        a = None,
-                        b = None,
-                        c = None,
-                        alpha = None,
-                        covera = None,
-                        u = None,
-                        orthorhombic = False,
-                        cubic = False,
-                        basis=None):
+def get_bulk_structure(
+    name: str,
+    crystalstructure=None,
+    a=None,
+    b=None,
+    c=None,
+    alpha=None,
+    covera=None,
+    u=None,
+    orthorhombic=False,
+    cubic=False,
+    basis=None,
+):
     from ase.build import bulk
-    equil_struct = bulk(name = name,
-                        crystalstructure = crystalstructure,
-                        a = a,
-                        b = b,
-                        c = c,
-                        alpha = alpha,
-                        covera = covera,
-                        u = u,
-                        orthorhombic = orthorhombic,
-                        cubic = cubic,
-                        basis = basis)
+
+    equil_struct = bulk(
+        name=name,
+        crystalstructure=crystalstructure,
+        a=a,
+        b=b,
+        c=c,
+        alpha=alpha,
+        covera=covera,
+        u=u,
+        orthorhombic=orthorhombic,
+        cubic=cubic,
+        basis=basis,
+    )
     return equil_struct
-    
+
+
 @pwf.as_function_node("a0")
 def get_equil_lat_param(eos_output):
-    a0 = eos_output**(1/3)
+    a0 = eos_output ** (1 / 3)
     return a0
+
 
 @pwf.as_function_node("calc_kwargs_out")
 def init_calc_kwargs(calc_kwargs):
@@ -189,6 +185,7 @@ def init_calc_kwargs(calc_kwargs):
             "properties": ("energy", "forces", "stresses", "volume"),
         }
     return calc_kwargs
+
 
 @Workflow.wrap.as_macro_node("v0", "e0", "B", "volumes", "energies")
 def eos_volume_scan(

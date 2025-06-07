@@ -1,5 +1,6 @@
 import pyiron_workflow as pwf
 
+
 def axis_to_index(axis):
     """
     Convert an axis identifier to a numeric index.
@@ -28,10 +29,11 @@ def axis_to_index(axis):
         try:
             return mapping[axis]
         except KeyError:
-            raise ValueError(f"Invalid axis string '{axis}'. "
-                             f"Expected one of {list(mapping.keys())}.")
+            raise ValueError(
+                f"Invalid axis string '{axis}'. "
+                f"Expected one of {list(mapping.keys())}."
+            )
     elif isinstance(axis, int):
         return axis
     else:
         raise TypeError(f"Axis must be either str or int, not {type(axis).__name__}.")
-    

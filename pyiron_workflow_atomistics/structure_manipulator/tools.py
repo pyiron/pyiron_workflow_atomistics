@@ -2,8 +2,9 @@ import pyiron_workflow as pwf
 import numpy as np
 from ase import Atoms
 
+
 @pwf.as_function_node
-def add_vacuum(atoms, vacuum_length=20, axis='c', center_atoms=True):
+def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     """
     Add vacuum padding to an ASE Atoms object along a specified axis.
 
@@ -25,7 +26,7 @@ def add_vacuum(atoms, vacuum_length=20, axis='c', center_atoms=True):
     new_atoms = atoms.copy()
 
     # Map axis letter to index
-    axis_map = {'a': 0, 'b': 1, 'c': 2}
+    axis_map = {"a": 0, "b": 1, "c": 2}
     if isinstance(axis, str):
         axis_lower = axis.lower()
         if axis_lower not in axis_map:
@@ -37,13 +38,15 @@ def add_vacuum(atoms, vacuum_length=20, axis='c', center_atoms=True):
         raise ValueError(f"Invalid axis '{axis}'. Must be 'a', 'b', 'c' or 0,1,2.")
 
     # Use ASE's add_vacuum
-    #ase_add_vacuum(new_atoms, vacuum_length, axis=axis_idx)
-    new_atoms.center(vacuum=vacuum_length/2, axis=axis_idx)
+    # ase_add_vacuum(new_atoms, vacuum_length, axis=axis_idx)
+    new_atoms.center(vacuum=vacuum_length / 2, axis=axis_idx)
     return new_atoms
 
+
 @pwf.as_function_node("supercell")
-def create_supercell_with_min_dimensions(base_structure: Atoms,
-                                         min_dimensions=[6, 6, None]) -> Atoms:
+def create_supercell_with_min_dimensions(
+    base_structure: Atoms, min_dimensions=[6, 6, None]
+) -> Atoms:
     """
     Expand a base ASE structure into a supercell so that each cell vector
     length meets or exceeds the specified minimum dimensions.
@@ -80,17 +83,20 @@ def create_supercell_with_min_dimensions(base_structure: Atoms,
     supercell = base_structure.repeat(tuple(repeats))
     return supercell
 
+
 @pwf.as_function_node("structure")
-def substitutional_swap_one_site(base_structure: Atoms,
-                              defect_site: int = 0,
-                              new_symbol: str = "Si") -> Atoms:
+def substitutional_swap_one_site(
+    base_structure: Atoms, defect_site: int = 0, new_symbol: str = "Si"
+) -> Atoms:
     # build the supercell
     structure = base_structure.copy()
     # swap only the one atom in the original (0,0,0) block
     structure[defect_site].symbol = new_symbol
     return structure
 
+
 import itertools
+
 
 # Because it is really fucking annoying to have to access the data from the dataframe when all I want is a list.
 @pwf.as_function_node

@@ -8,13 +8,19 @@ import pyiron_workflow as pwf
 
 from .analysis import get_sites_on_plane
 
-from pyiron_workflow_atomistics.calculator import fillin_default_calckwargs, calculate_structure_node
+from pyiron_workflow_atomistics.calculator import (
+    fillin_default_calckwargs,
+    calculate_structure_node,
+)
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
 
 from pyiron_snippets.logger import logger
+
+
 # Wrap‐aware difference in fractional space:
 def _frac_dist(a, b):
     return abs(((a - b + 0.5) % 1.0) - 0.5)
+
 
 @pwf.as_function_node
 def find_viable_cleavage_planes_around_plane(
@@ -23,7 +29,7 @@ def find_viable_cleavage_planes_around_plane(
     plane_coord: float,
     coord_tol: float,
     layer_tolerance: float = 1e-3,
-    fractional: bool = False
+    fractional: bool = False,
 ) -> list:
     """
     Identify viable cleavage‐plane positions along a given axis around a specified plane
@@ -104,16 +110,17 @@ def find_viable_cleavage_planes_around_plane(
     # 5) Filter midpoints that lie within ±tol_plane of `target`
     if fractional:
         viable_planes = [
-            cp for cp in candidate_planes
-            if _frac_dist(cp, target) <= tol_plane
+            cp for cp in candidate_planes if _frac_dist(cp, target) <= tol_plane
         ]
     else:
         viable_planes = [
-            cp for cp in candidate_planes
+            cp
+            for cp in candidate_planes
             if (target - tol_plane) <= cp <= (target + tol_plane)
         ]
 
     return viable_planes
+
 
 @pwf.as_function_node
 def find_viable_cleavage_planes_around_site(
@@ -122,7 +129,7 @@ def find_viable_cleavage_planes_around_site(
     site_index: int,
     site_dist_threshold: float,
     layer_tolerance: float = 1e-3,
-    fractional: bool = False
+    fractional: bool = False,
 ) -> list:
     """
     Identify viable cleavage‐plane positions along a given axis around a specified site.
@@ -189,7 +196,9 @@ def find_viable_cleavage_planes_around_site(
         max_lim = site_coord + site_dist_threshold
 
     logger.info(f"{min_lim} {max_lim}")
-    logger.info(f"Site coordinate along axis {ax}: {site_coord} ({'fractional' if fractional else 'Å'})")
+    logger.info(
+        f"Site coordinate along axis {ax}: {site_coord} ({'fractional' if fractional else 'Å'})"
+    )
 
     # 4) Identify unique “layers” by merging coordinates within `tol`
     sorted_coords = np.sort(all_coords)
@@ -207,12 +216,11 @@ def find_viable_cleavage_planes_around_site(
     logger.info(f"Candidate cleavage positions: {candidate_planes}")
 
     # 6) Filter midpoints to those within ± site_dist_threshold of the site
-    viable_planes = [
-        cp for cp in candidate_planes if (min_lim <= cp <= max_lim)
-    ]
+    viable_planes = [cp for cp in candidate_planes if (min_lim <= cp <= max_lim)]
     logger.info(f"Viable cleavage positions: {viable_planes}")
 
     return viable_planes
+
 
 @pwf.as_function_node
 def cleave_axis_aligned(
@@ -220,7 +228,7 @@ def cleave_axis_aligned(
     axis: str,
     plane_coord: float,
     separation: float,
-    use_fractional: bool = False
+    use_fractional: bool = False,
 ) -> Atoms:
     """
     Cleave an ASE Atoms object by an axis‐aligned plane and move the two halves apart.
@@ -287,7 +295,7 @@ def cleave_axis_aligned(
         mask_negative = coords < target
 
     # 4) Determine shift distances (in Å)
-    delta_pos =  0.5 * separation
+    delta_pos = 0.5 * separation
     delta_neg = -0.5 * separation
 
     # 5) Build displacement array (N×3) all zeros except on the chosen axis
@@ -302,6 +310,7 @@ def cleave_axis_aligned(
 
     return new_structure
 
+
 @pwf.as_function_node
 def plot_structure_with_cleavage(
     structure: Atoms,
@@ -309,14 +318,14 @@ def plot_structure_with_cleavage(
     projection=(0, 2),
     reps=(1, 1),
     figsize=(8, 6),
-    atom_color='C0',
-    plane_color='r',
-    plane_linestyle='--',
+    atom_color="C0",
+    plane_color="r",
+    plane_linestyle="--",
     atom_size=30,
     save_path=None,
     dpi=300,
     show_fractional_axes: bool = True,
-    ylims=None
+    ylims=None,
 ):
     """
     Plot a 2D projection of `structure` with cleavage planes overlaid as lines,
@@ -364,7 +373,9 @@ def plot_structure_with_cleavage(
     cell = structure.get_cell()
 
     # Compute tiling shifts (in Cartesian)
-    shifts = [i * cell[p0] + j * cell[p1] for i in range(reps[0]) for j in range(reps[1])]
+    shifts = [
+        i * cell[p0] + j * cell[p1] for i in range(reps[0]) for j in range(reps[1])
+    ]
 
     # Extract atomic positions
     pos = structure.get_positions()
@@ -377,9 +388,11 @@ def plot_structure_with_cleavage(
     for shift in shifts:
         sx, sy = shift[p0], shift[p1]
         ax.scatter(
-            xs + sx, ys + sy,
-            s=atom_size, color=atom_color,
-            label='Atoms' if shift is shifts[0] else None
+            xs + sx,
+            ys + sy,
+            s=atom_size,
+            color=atom_color,
+            label="Atoms" if shift is shifts[0] else None,
         )
 
     # Determine overall x-range for the horizontal lines
@@ -392,17 +405,22 @@ def plot_structure_with_cleavage(
             line_y = plane + shift[p1]
             ax.hlines(
                 y=line_y,
-                xmin=x_min, xmax=x_max,
+                xmin=x_min,
+                xmax=x_max,
                 colors=plane_color,
                 linestyles=plane_linestyle,
-                label='Cleavage plane' if (plane == cleavage_planes[0] and shift is shifts[0]) else None
+                label=(
+                    "Cleavage plane"
+                    if (plane == cleavage_planes[0] and shift is shifts[0])
+                    else None
+                ),
             )
 
     # 3) Labels and aesthetics
-    ax.set_xlabel(f'Axis {p0} (Å)')
-    ax.set_ylabel(f'Axis {p1} (Å)')
-    ax.set_title(f'2D Projection with Cleavage Planes (proj {p0}-{p1})')
-    ax.set_aspect('equal')
+    ax.set_xlabel(f"Axis {p0} (Å)")
+    ax.set_ylabel(f"Axis {p1} (Å)")
+    ax.set_title(f"2D Projection with Cleavage Planes (proj {p0}-{p1})")
+    ax.set_aspect("equal")
 
     # 4) Apply user-specified y-limits if provided
     if ylims is not None:
@@ -415,20 +433,24 @@ def plot_structure_with_cleavage(
         # Secondary Y-axis (right): fractional along p1
         cell_len_p1 = np.linalg.norm(cell[p1])
         secax_y = ax.secondary_yaxis(
-            'right',
-            functions=(lambda y: y / cell_len_p1,    # cart → frac
-                       lambda f: f * cell_len_p1)    # frac → cart
+            "right",
+            functions=(
+                lambda y: y / cell_len_p1,  # cart → frac
+                lambda f: f * cell_len_p1,
+            ),  # frac → cart
         )
-        secax_y.set_ylabel(f'Axis {p1} (fractional)')
+        secax_y.set_ylabel(f"Axis {p1} (fractional)")
 
         # Secondary X-axis (top): fractional along p0
         cell_len_p0 = np.linalg.norm(cell[p0])
         secax_x = ax.secondary_xaxis(
-            'top',
-            functions=(lambda x: x / cell_len_p0,     # cart → frac
-                       lambda f: f * cell_len_p0)      # frac → cart
+            "top",
+            functions=(
+                lambda x: x / cell_len_p0,  # cart → frac
+                lambda f: f * cell_len_p0,
+            ),  # frac → cart
         )
-        secax_x.set_xlabel(f'Axis {p0} (fractional)')
+        secax_x.set_xlabel(f"Axis {p0} (fractional)")
 
     # 6) Legend outside the plot area
     handles, labels = ax.get_legend_handles_labels()
@@ -436,9 +458,9 @@ def plot_structure_with_cleavage(
     ax.legend(
         by_label.values(),
         by_label.keys(),
-        loc='upper left',
+        loc="upper left",
         bbox_to_anchor=(1.05, 1),
-        borderaxespad=0.
+        borderaxespad=0.0,
     )
 
     # 7) Adjust layout to accommodate legend and save if requested
@@ -450,6 +472,7 @@ def plot_structure_with_cleavage(
 
     return fig, ax
 
+
 @pwf.as_function_node
 def cleave_gb_structure(
     base_structure: Atoms,
@@ -459,7 +482,7 @@ def cleave_gb_structure(
     cleave_region_halflength=5.0,
     layer_tolerance=0.3,
     separation=8.0,
-    use_fractional=False
+    use_fractional=False,
 ):
     """
     Find and cleave a grain‐boundary‐type slab (base_structure) into multiple
@@ -532,17 +555,15 @@ def cleave_gb_structure(
             axis=ax,
             plane_coord=plane_c,
             separation=separation,
-            use_fractional=use_fractional
+            use_fractional=use_fractional,
         )
         cleaved_structures.append(slab_structure)
 
     return cleaved_structures, cleavage_plane_coords
 
 
-    
 @pwf.as_function_node
-def get_cleavage_calc_names(parent_dir,
-                            cleavage_planes):
+def get_cleavage_calc_names(parent_dir, cleavage_planes):
     folder_name_list = []
     for plane in cleavage_planes:
         calc_foldername = f"{os.path.basename(parent_dir)}_cp_{np.round(plane,3)}"
@@ -551,11 +572,9 @@ def get_cleavage_calc_names(parent_dir,
 
 
 @pwf.as_function_node("df")
-def get_results_df(df,
-                   cleavage_coords,
-                   cleaved_structures,
-                   uncleaved_energy,
-                   cleavage_axis: str = "c"):
+def get_results_df(
+    df, cleavage_coords, cleaved_structures, uncleaved_energy, cleavage_axis: str = "c"
+):
     """
     Assemble a results DataFrame from cleavage scan outputs and compute cleavage energy.
 
@@ -581,7 +600,7 @@ def get_results_df(df,
     """
     relaxed_structures = df.atoms.tolist()
     energies = [res["energy"] for res in df.results.tolist()]
-    
+
     axis_index = {"a": 0, "b": 1, "c": 2}[cleavage_axis.lower()]
     cleavage_energies = []
 
@@ -590,18 +609,22 @@ def get_results_df(df,
         # Get the 2 vectors that span the cleavage plane perpendicular to the cleavage axis
         a1, a2 = np.delete(cell, axis_index, axis=0)
         area = np.linalg.norm(np.cross(a1, a2))  # in Å²
-        #print(area, struct.cell[-2][-2] *struct.cell[0][0])
+        # print(area, struct.cell[-2][-2] *struct.cell[0][0])
         # Cleavage energy in J/m²
-        E_cleave = (E - uncleaved_energy) / (area) * 16.0218  # eV/Å² → J/m² # Only 1 GB so no 2 factor on bottom
+        E_cleave = (
+            (E - uncleaved_energy) / (area) * 16.0218
+        )  # eV/Å² → J/m² # Only 1 GB so no 2 factor on bottom
         cleavage_energies.append(E_cleave)
 
-    return pd.DataFrame({
-        "cleavage_coord": cleavage_coords,
-        "initial_structure": cleaved_structures,
-        "final_structure": relaxed_structures,
-        "energy": energies,
-        "cleavage_energy": cleavage_energies
-    })
+    return pd.DataFrame(
+        {
+            "cleavage_coord": cleavage_coords,
+            "initial_structure": cleaved_structures,
+            "final_structure": relaxed_structures,
+            "energy": energies,
+            "cleavage_energy": cleavage_energies,
+        }
+    )
 
 
 @pwf.as_function_node
@@ -612,22 +635,31 @@ def toggle_rigid_calc(rigid, calc_kwargs):
         max_steps = calc_kwargs["max_steps"]
     return max_steps
 
-from pyiron_workflow_atomistics.gb.dataclass_storage import CleaveGBStructureInput, PlotCleaveInput
 
-@pwf.as_macro_node("cleaved_structure_list",
-                    "cleaved_plane_coords_list",
-                    "cleavage_plane_plot_fig",
-                    "cleavage_plane_plot_ax",
-                    "cleavage_calcs_df")
-def calc_cleavage_GB(wf,
-                     structure: Atoms,
-                     energy,
-                     calc,
-                     input_cleave_gb_structure: CleaveGBStructureInput,
-                     input_plot_cleave: PlotCleaveInput,
-                     input_calc_structure: dict,
-                     parent_dir: str = "gb_cleavage",
-                     rigid=True):
+from pyiron_workflow_atomistics.gb.dataclass_storage import (
+    CleaveGBStructureInput,
+    PlotCleaveInput,
+)
+
+
+@pwf.as_macro_node(
+    "cleaved_structure_list",
+    "cleaved_plane_coords_list",
+    "cleavage_plane_plot_fig",
+    "cleavage_plane_plot_ax",
+    "cleavage_calcs_df",
+)
+def calc_cleavage_GB(
+    wf,
+    structure: Atoms,
+    energy,
+    calc,
+    input_cleave_gb_structure: CleaveGBStructureInput,
+    input_plot_cleave: PlotCleaveInput,
+    input_calc_structure: dict,
+    parent_dir: str = "gb_cleavage",
+    rigid=True,
+):
     wf.cleave_setup = cleave_gb_structure(
         base_structure=structure,
         axis_to_cleave=input_cleave_gb_structure.axis_to_cleave,
@@ -654,12 +686,16 @@ def calc_cleavage_GB(wf,
         ylims=input_plot_cleave.ylims,
     )
 
-    wf.full_calc_kwargs = fillin_default_calckwargs(calc_kwargs=input_calc_structure,
-                                                    default_values=None)
-    wf.cleave_structure_foldernames = get_cleavage_calc_names(parent_dir=parent_dir,
-                                                               cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords)
-    wf.toggle_rigid_calc = toggle_rigid_calc(rigid=rigid,
-                                             calc_kwargs=wf.full_calc_kwargs.outputs.full_calc_kwargs2)
+    wf.full_calc_kwargs = fillin_default_calckwargs(
+        calc_kwargs=input_calc_structure, default_values=None
+    )
+    wf.cleave_structure_foldernames = get_cleavage_calc_names(
+        parent_dir=parent_dir,
+        cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords,
+    )
+    wf.toggle_rigid_calc = toggle_rigid_calc(
+        rigid=rigid, calc_kwargs=wf.full_calc_kwargs.outputs.full_calc_kwargs2
+    )
     wf.calculate_cleaved = pwf.api.for_node(
         calculate_structure_node,
         zip_on=("structure", "output_dir"),
@@ -670,21 +706,37 @@ def calc_cleavage_GB(wf,
         max_steps=wf.toggle_rigid_calc.outputs.max_steps,
         properties=wf.full_calc_kwargs.outputs.full_calc_kwargs2["properties"],
         write_to_disk=wf.full_calc_kwargs.outputs.full_calc_kwargs2["write_to_disk"],
-        initial_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["initial_struct_path"],
-        initial_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["initial_results_path"],
-        traj_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["traj_struct_path"],
-        traj_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["traj_results_path"],
-        final_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["final_struct_path"],
-        final_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2["final_results_path"],
+        initial_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
+            "initial_struct_path"
+        ],
+        initial_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
+            "initial_results_path"
+        ],
+        traj_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
+            "traj_struct_path"
+        ],
+        traj_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
+            "traj_results_path"
+        ],
+        final_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
+            "final_struct_path"
+        ],
+        final_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
+            "final_results_path"
+        ],
     )
-    wf.collate_results = get_results_df(df=wf.calculate_cleaved.outputs.df,
-                                        cleavage_coords=wf.cleave_setup.outputs.cleavage_plane_coords,
-                                        cleaved_structures=wf.cleave_setup.outputs.cleaved_structures,
-                                        uncleaved_energy=energy,
-                                        cleavage_axis=input_cleave_gb_structure.axis_to_cleave)
+    wf.collate_results = get_results_df(
+        df=wf.calculate_cleaved.outputs.df,
+        cleavage_coords=wf.cleave_setup.outputs.cleavage_plane_coords,
+        cleaved_structures=wf.cleave_setup.outputs.cleaved_structures,
+        uncleaved_energy=energy,
+        cleavage_axis=input_cleave_gb_structure.axis_to_cleave,
+    )
 
-    return (wf.cleave_setup.outputs.cleaved_structures,
-            wf.cleave_setup.outputs.cleavage_plane_coords,
-            wf.cleavage_structure_plot.outputs.fig,
-            wf.cleavage_structure_plot.outputs.ax,
-            wf.collate_results.outputs.df)
+    return (
+        wf.cleave_setup.outputs.cleaved_structures,
+        wf.cleave_setup.outputs.cleavage_plane_coords,
+        wf.cleavage_structure_plot.outputs.fig,
+        wf.cleavage_structure_plot.outputs.ax,
+        wf.collate_results.outputs.df,
+    )
