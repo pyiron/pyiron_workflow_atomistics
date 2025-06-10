@@ -3,8 +3,10 @@ from ase import Atoms
 import pyiron_workflow as pwf
 from pyiron_workflow import Workflow
 
-from .calculator import extract_values, calc_structure
+from .calculator import extract_values, calculate_structure_node
 import os
+from typing import Callable, Tuple, Dict, Any, Optional, List
+from .calculator import ase_calculate_structure_node_interface
 
 
 @pwf.as_function_node("structure_list")
@@ -22,7 +24,7 @@ def generate_structures(
     base_structure
         ASE Atoms object to be strained.
     axes
-        List of axes to strain simultaneously: any combination of "x", "y", "z".
+        List of axes to strain simultaneously: any combination of "a", "b", "c".
         Use ["iso"] for isotropic (all axes) by default.
     strain_range
         (min_strain, max_strain), e.g. (-0.2, 0.2) for ±20%.
@@ -47,17 +49,17 @@ def generate_structures(
             new_cell = cell.copy()
             for ax in axes:
                 ax_lower = ax.lower()
-                if ax_lower == "x":
+                if ax_lower == "a":
                     new_cell[0] = cell[0] * (1 + epsilon)
-                elif ax_lower == "y":
+                elif ax_lower == "b":
                     new_cell[1] = cell[1] * (1 + epsilon)
-                elif ax_lower == "z":
+                elif ax_lower == "c":
                     new_cell[2] = cell[2] * (1 + epsilon)
                 else:
                     # ignore unknown axis labels
                     continue
-
         s.set_cell(new_cell, scale_atoms=True)
+        print(s)
         structure_list.append(s)
 
     return structure_list
@@ -71,12 +73,11 @@ def equation_of_state(energies, volumes, eos="sj"):
     v0, e0, B = eos.fit()  # v0, e0, B
     return e0, v0, B  # eos_results
 
-
 @pwf.as_function_node("structures", "results_dict", "convergence_lst")
 def evaluate_structures(
     structures: list[Atoms],
-    calc,
-    calc_kwargs: dict,
+    calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs: Optional[Dict[str, Any]] = None,
 ):
     """
     Evaluate each structure, writing each one's results under its own subfolder.
@@ -96,7 +97,8 @@ def evaluate_structures(
     convergence_lst : list of bool
         Convergence flag for each calculation.
     """
-    os.makedirs(calc_kwargs["output_dir"], exist_ok=True)
+    
+    os.makedirs(calc_structure_fn_kwargs["output_dir"], exist_ok=True)
 
     rel_structs_lst = []
     results_lst = []
@@ -104,26 +106,21 @@ def evaluate_structures(
 
     for i, struct in enumerate(structures):
         # per-structure subfolder
-        strain_dir = os.path.join(calc_kwargs["output_dir"], f"strain_{i:03d}")
-
+        local_kwargs = calc_structure_fn_kwargs.copy()
+        
+        strain_dir = os.path.join(local_kwargs["output_dir"], f"strain_{i:03d}")
+        print(struct)
         # start from the user’s calc_kwargs, preserving any keys they set
-        local_kwargs = dict(calc_kwargs)
         local_kwargs["output_dir"] = strain_dir
-        # only fill in defaults where the user did NOT provide anything
-        local_kwargs.setdefault("initial_struct_path", "initial_structure.xyz")
-        local_kwargs.setdefault("initial_results_path", "initial_results.json")
-        local_kwargs.setdefault("traj_struct_path", "trajectory.xyz")
-        local_kwargs.setdefault("traj_results_path", "trajectory_results.json")
-        local_kwargs.setdefault("final_struct_path", "final_structure.xyz")
-        local_kwargs.setdefault("final_results_path", "final_results.json")
-        # print(local_kwargs)
         # run the full trajectory-enabled calculation
-        out = calc_structure(struct, calc, **local_kwargs)
+        atoms, final_results, converged = calculate_structure_node.node_function(structure = struct,
+                                                     calc_structure_fn = calc_structure_fn,
+                                                     calc_structure_fn_kwargs = local_kwargs)
 
         # unpack final results
-        rel_structs_lst.append(out["final"]["structure"])
-        results_lst.append(out["final"]["results"])
-        convergence_lst.append(out["converged"])
+        rel_structs_lst.append(atoms)
+        results_lst.append(final_results)
+        convergence_lst.append(converged)
 
     return rel_structs_lst, results_lst, convergence_lst
 
@@ -172,34 +169,17 @@ def get_equil_lat_param(eos_output):
     a0 = eos_output ** (1 / 3)
     return a0
 
-
-@pwf.as_function_node("calc_kwargs_out")
-def init_calc_kwargs(calc_kwargs):
-    """
-    Ensure calc_kwargs is always a dict, filling in defaults if None.
-    """
-    if calc_kwargs is None:
-        calc_kwargs = {
-            "fmax": 0.01,
-            "max_steps": 10000,
-            "properties": ("energy", "forces", "stresses", "volume"),
-        }
-    return calc_kwargs
-
-
 @Workflow.wrap.as_macro_node("v0", "e0", "B", "volumes", "energies")
 def eos_volume_scan(
     wf,
     base_structure,
-    calc,
-    calc_kwargs=None,
-    axes=["x", "y", "z"],
+    calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs: Optional[Dict[str, Any]] = None,
+    axes=["a", "b", "c"],
     strain_range=(-0.2, 0.2),
     num_points=11,
+    
 ):
-    # 0) Ensure we have a dict for calc_kwargs
-    wf.calc_kwargs_in = init_calc_kwargs(calc_kwargs)
-
     # 1) generate strained structures
     wf.structures_list = generate_structures(
         base_structure,
@@ -211,8 +191,8 @@ def eos_volume_scan(
     # 2) evaluate them in subfolders under output_dir
     wf.evaluation = evaluate_structures(
         structures=wf.structures_list,
-        calc=calc,
-        calc_kwargs=wf.calc_kwargs_in,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
     )
 
     # 3) extract energies and volumes
