@@ -4,7 +4,7 @@ from sklearn.cluster import DBSCAN
 from ase import Atoms
 import pyiron_workflow as pwf
 import matplotlib.pyplot as plt
-
+from .utils import axis_to_index
 
 @pwf.as_function_node("gb_plane_analysis_dict")
 def find_GB_plane(
@@ -77,7 +77,7 @@ def find_GB_plane(
         featuriser_kwargs = {}
 
     # 1) axis index, fractional coords, cell length
-    idx = {"a": 0, "b": 1, "c": 2}[axis] if isinstance(axis, str) else axis
+    idx = axis_to_index(axis)
     fracs = atoms.get_scaled_positions()[:, idx] % 1.0
     cell_len = np.linalg.norm(atoms.get_cell()[idx])
 
@@ -479,7 +479,7 @@ def get_sites_on_plane(
     import numpy as np
 
     # 1) Determine axis index
-    idx = {"a": 0, "b": 1, "c": 2}[axis] if isinstance(axis, str) else axis
+    idx = axis_to_index(axis)
 
     if use_fractional:
         # 2a) Get fractional coords in [0,1)

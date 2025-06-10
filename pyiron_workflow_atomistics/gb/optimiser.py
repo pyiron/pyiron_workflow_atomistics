@@ -17,6 +17,7 @@ from pyiron_workflow_atomistics.calculator import (
     fillin_default_calckwargs,
 )
 from typing import List, Tuple
+from pyiron_workflow_atomistics.gb.utils import axis_to_index
 
 
 @pwf.as_function_node
@@ -106,10 +107,8 @@ def extract_energy_volume_data_forloop_node(
     lengths : list of float
         List of cell lengths along the specified axis.
     """
-    axis_map = dict(a=0, b=1, c=2)
-    if axis not in axis_map:
-        raise ValueError("axis must be 'a','b','c'")
-    idx = axis_map[axis]
+    idx = axis_to_index(axis)
+
     energies, structs, lengths = [], [], []
     for _, row in df.iterrows():
         if not row.converged:
@@ -311,7 +310,7 @@ def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
     gamma_GB : float
         Grain boundary energy per unit area.
     """
-    idx = dict(a=0, b=1, c=2)[gb_normal_axis]
+    idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
     normals = [i for i in range(3) if i != idx]
     area = np.linalg.norm(np.cross(cell[normals[0]], cell[normals[1]]))
@@ -339,7 +338,7 @@ def get_GB_exc_volume(atoms, bulk_vol_per_atom, gb_normal_axis="c"):
     excess_volume : float
         Grain boundary excess volume per unit area.
     """
-    idx = dict(a=0, b=1, c=2)[gb_normal_axis]
+    idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
     normals = [i for i in range(3) if i != idx]
     area = np.linalg.norm(np.cross(cell[normals[0]], cell[normals[1]]))
