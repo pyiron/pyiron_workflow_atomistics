@@ -149,7 +149,7 @@ def ase_calculate_structure_node_interface(
     structure: Atoms,
     calc: Calculator,
     optimizer_class = BFGS,
-    optimizer_kwargs: Optional[Dict[str, Any]] = None,
+    optimizer_kwargs: dict[str, Any] | None = None,
     record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10000,
@@ -197,9 +197,10 @@ def ase_calculate_structure_node_interface(
 @pwf.as_function_node("atoms", "results", "converged")
 def calculate_structure_node(
     structure: Atoms,
-    calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: Optional[Dict[str, Any]] = None
-) -> Tuple[Atoms, Dict[str, Any], bool]:
+    # calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
+    calc_structure_fn = ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None
+) -> Tuple[Atoms, dict[str, Any], bool]:
     if calc_structure_fn_kwargs is None:
         calc_structure_fn_kwargs = {}
     atoms, final_results, converged = calc_structure_fn(structure = structure,
@@ -238,30 +239,12 @@ def extract_values(results_list, key):
 
 @pwf.as_function_node("full_calc_kwargs2")
 def fillin_default_calckwargs(
-    calc_kwargs: Dict[str, Any],
-    default_values: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    """
-    Take a partial calc_kwargs dict and fill in any missing entries
-    with the ASE-relaxation defaults (including optimizer settings),
-    allowing optional overrides of the built-ins.
-    
-    The goal is to return a **complete** dictionary of all calc_kwargs so no errors are ever returned by calc
-
-    Parameters
-    ----------
-    calc_kwargs
-        User-provided overrides for this run.
-    default_values
-        Optional overrides for the built-in default settings.
-
-    Returns
-    -------
-    full_calc_kwargs
-        Fully populated kwargs ready for `ase_calc_structure`.
-    """
+    calc_kwargs: dict[str, Any],
+    default_values: dict[str, Any] | None = None,
+    remove_keys: list[str] | None = None,
+) -> dict[str, Any]:
     # 1) define built-in defaults
-    built_in: Dict[str, Any] = {
+    built_in: dict[str, Any] = {
         "optimizer_class": BFGS,
         "optimizer_kwargs": None,
         "record_interval": 1,
@@ -283,15 +266,50 @@ def fillin_default_calckwargs(
     if default_values:
         built_in.update(default_values)
 
-    # 3) build the final dict: user → default_values → built-in
-    full: Dict[str, Any] = {}
-    for key, default in built_in.items():
-        if key in calc_kwargs:
-            full[key] = calc_kwargs[key]
-        else:
-            full[key] = default
+    # 3) start with everything user passed in
+    full: dict[str, Any] = dict(calc_kwargs)
 
-    # 4) ensure properties is a tuple
+    # 4) fill in missing built-ins
+    for key, default in built_in.items():
+        full.setdefault(key, default)
+
+    # 5) ensure properties is a tuple
     full["properties"] = tuple(full["properties"])
 
+    # 6) remove any keys requested
+    if remove_keys:
+        for key in remove_keys:
+            full.pop(key, None)
+
     return full
+
+@pwf.as_function_node("kwargs_variants")
+def generate_kwargs_variants(
+    base_kwargs,
+    key,
+    values,
+):
+    """
+    Given a base kwargs dict, produce one dict per value in `values`,
+    each with `key` set to that value (overriding any existing entry).
+    
+    Parameters
+    ----------
+    base_kwargs
+        The original kwargs to copy.
+    key
+        The dict key whose value you want to vary.
+    values
+        A list of values to assign to `key`.
+    
+    Returns
+    -------
+    List of dicts
+        Each is a shallow copy of base_kwargs with base_kwargs[key] = value.
+    """
+    return_kwargs = [
+        {**base_kwargs, key: v}
+        for v in values
+    ]
+    print(return_kwargs)
+    return return_kwargs

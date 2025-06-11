@@ -16,9 +16,9 @@ from pyiron_workflow_atomistics.calculator import (
     calculate_structure_node,
     fillin_default_calckwargs,
 )
-from typing import List, Tuple
+from typing import List, Tuple, Optional, Dict, Any, Callable
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
-
+from pyiron_workflow_atomistics.calculator import ase_calculate_structure_node_interface
 
 @pwf.as_function_node
 def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
@@ -310,12 +310,15 @@ def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
     gamma_GB : float
         Grain boundary energy per unit area.
     """
+    print(atoms, total_energy, e0_per_atom, gb_normal_axis)
     idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
     normals = [i for i in range(3) if i != idx]
     area = np.linalg.norm(np.cross(cell[normals[0]], cell[normals[1]]))
-    deltaE = total_energy - len(atoms) * e0_per_atom
-    gamma_GB = deltaE / area / 2
+    deltaE = total_energy - (len(atoms) * e0_per_atom)
+    print(f"deltaE: {deltaE}, area: {area}, bulk_reference_energy: {len(atoms) * e0_per_atom}")
+    gamma_GB = deltaE / (2 * area) * 16.021766208 #eV to J/m^2
+    print(f"gamma_GB: {gamma_GB}")
     return gamma_GB
 
 
@@ -399,25 +402,13 @@ def get_extended_names(extensions):
 def gb_length_optimiser(
     wf,
     gb_structure,
-    calc,
-    calc_kwargs,
     equil_bulk_volume,
     equil_bulk_energy,
     extensions,
-    gb_normal_axis="c",
-    calc_kwargs_defaults={
-        "output_dir": "gb_length_opt",
-        "fmax": 0.01,
-        "max_steps": 1000,
-        "properties": ("energy", "forces", "stresses"),
-        "write_to_disk": False,
-        "initial_struct_path": "initial_structure.xyz",
-        "initial_results_path": "initial_results.json",
-        "traj_struct_path": "trajectory.xyz",
-        "traj_results_path": "trajectory_results.json",
-        "final_struct_path": "final_structure.xyz",
-        "final_results_path": "final_results.json",
-    },
+    calc_structure_fn_kwargs,
+    calc_structure_fn = ase_calculate_structure_node_interface,
+    gb_normal_axis: str="c",
+    calc_structure_fn_kwargs_defaults: dict[str, Any] | None = None,
 ):
     """
     Macro node to extend GB structures over a range of lengths, compute energies/volumes, and extract GB excess properties.
@@ -459,43 +450,32 @@ def gb_length_optimiser(
     # 1. Generate extended structures
     wf.extended_GBs = get_extended_struct_list(gb_structure, extensions=extensions)
     wf.extended_GBs_subdirnames = get_extended_names(extensions=extensions)
-    wf.full_calc_kwargs = fillin_default_calckwargs(calc_kwargs, calc_kwargs_defaults)
+    wf.full_calc_kwargs = fillin_default_calckwargs(calc_kwargs = calc_structure_fn_kwargs,
+                                                    default_values = calc_structure_fn_kwargs_defaults)
     wf.extended_GBs_dirnames = get_subdirpaths(
         parent_dir=wf.full_calc_kwargs.outputs.full_calc_kwargs2["output_dir"],
         output_subdirs=wf.extended_GBs_subdirnames,
+    )
+    # TODO: Make the calckwargs contain different output_dir for each structure - need an extra fn to do this
+    wf.full_calc_kwargs_for_fornode = fillin_default_calckwargs(calc_kwargs = wf.full_calc_kwargs.outputs.full_calc_kwargs2,
+                                                    default_values = calc_structure_fn_kwargs_defaults,
+                                                    remove_keys = ["output_dir"])
+    from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
+    wf.kwargs_variants = generate_kwargs_variants(
+        base_kwargs = wf.full_calc_kwargs_for_fornode.outputs.full_calc_kwargs2,
+        key = "output_dir",
+        values = wf.extended_GBs_dirnames,
     )
     # 2. Compute energies/volumes for extended structures
     wf.extended_GBs_calcs = for_node(
         calculate_structure_node,
         # iter_on=("structure",),
-        zip_on=("structure", "output_dir"),
+        zip_on=("structure", "calc_structure_fn_kwargs"),
         structure=wf.extended_GBs.outputs.extended_structure_list,
-        output_dir=wf.extended_GBs_dirnames.outputs.output_dirs,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=wf.kwargs_variants.outputs.kwargs_variants,
         # These args are hardcoded (should be exactly the same as calculate_structure_node excluding structure and output_dir above)
         # because no unzipping of kwargs is possible in a macro
-        calc=calc,
-        fmax=wf.full_calc_kwargs.outputs.full_calc_kwargs2["fmax"],
-        max_steps=wf.full_calc_kwargs.outputs.full_calc_kwargs2["max_steps"],
-        properties=wf.full_calc_kwargs.outputs.full_calc_kwargs2["properties"],
-        write_to_disk=wf.full_calc_kwargs.outputs.full_calc_kwargs2["write_to_disk"],
-        initial_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "initial_struct_path"
-        ],
-        initial_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "initial_results_path"
-        ],
-        traj_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "traj_struct_path"
-        ],
-        traj_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "traj_results_path"
-        ],
-        final_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "final_struct_path"
-        ],
-        final_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "final_results_path"
-        ],
     )
     # 3. Fit and extract minimum-energy structure
     wf.GB_min_energy_struct = get_min_energy_structure_from_forloop_df(
@@ -551,20 +531,20 @@ def get_concat_df(df_list):
 def full_gb_length_optimization(
     wf,
     gb_structure,
-    calc,
-    calc_kwargs,
-    equil_bulk_volume,
     equil_bulk_energy,
+    equil_bulk_volume,
     extensions_stage1,
     extensions_stage2,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None,
+    calc_structure_fn = ase_calculate_structure_node_interface,
     interpolate_min_n_points=5,
     gb_normal_axis="c",
 ):
     # 1. First length-scan + optimise
     wf.stage1_opt = gb_length_optimiser(
         gb_structure=gb_structure,
-        calc=calc,
-        calc_kwargs=calc_kwargs,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage1,
@@ -574,8 +554,8 @@ def full_gb_length_optimization(
     # 2. Second (refined) scan + optimise
     wf.stage2_opt = gb_length_optimiser(
         gb_structure=wf.stage1_opt.outputs.min_interp_energy_GB_struct,
-        calc=calc,
-        calc_kwargs=calc_kwargs,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage2,

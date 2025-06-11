@@ -77,7 +77,7 @@ def equation_of_state(energies, volumes, eos="sj"):
 def evaluate_structures(
     structures: list[Atoms],
     calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: Optional[Dict[str, Any]] = None,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None,
 ):
     """
     Evaluate each structure, writing each one's results under its own subfolder.
@@ -173,8 +173,8 @@ def get_equil_lat_param(eos_output):
 def eos_volume_scan(
     wf,
     base_structure,
-    calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: Optional[Dict[str, Any]] = None,
+    calc_structure_fn = ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None,
     axes=["a", "b", "c"],
     strain_range=(-0.2, 0.2),
     num_points=11,
