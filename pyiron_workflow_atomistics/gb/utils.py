@@ -1,5 +1,6 @@
 import pyiron_workflow as pwf
 
+
 def axis_to_index(axis):
     """
     Convert an axis identifier to a numeric index.

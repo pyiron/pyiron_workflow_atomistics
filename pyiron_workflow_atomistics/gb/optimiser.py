@@ -21,6 +21,7 @@ from typing import List, Tuple, Optional, Dict, Any, Callable
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
 from pyiron_workflow_atomistics.calculator import ase_calculate_structure_node_interface
 
+
 @pwf.as_function_node
 def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
     """
@@ -320,7 +321,7 @@ def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
     area = np.linalg.norm(np.cross(cell[normals[0]], cell[normals[1]]))
     deltaE = total_energy - (len(atoms) * e0_per_atom)
     # print(f"deltaE: {deltaE}, area: {area}, bulk_reference_energy: {len(atoms) * e0_per_atom}")
-    gamma_GB = deltaE / (2 * area) * 16.021766208 #eV to J/m^2
+    gamma_GB = deltaE / (2 * area) * 16.021766208  # eV to J/m^2
     # print(f"gamma_GB: {gamma_GB}")
     return gamma_GB
 
@@ -377,8 +378,8 @@ def gb_length_optimiser(
     equil_bulk_energy,
     extensions,
     calc_structure_fn_kwargs: dict[str, Any],
-    calc_structure_fn = ase_calculate_structure_node_interface,
-    gb_normal_axis: str="c",
+    calc_structure_fn=ase_calculate_structure_node_interface,
+    gb_normal_axis: str = "c",
     calc_structure_fn_kwargs_defaults: dict[str, Any] | None = None,
 ):
     """
@@ -425,21 +426,27 @@ def gb_length_optimiser(
     # 1. Generate extended structures
     wf.extended_GBs = get_extended_struct_list(gb_structure, extensions=extensions)
     wf.extended_GBs_subdirnames = get_extended_names(extensions=extensions)
-    wf.full_calc_kwargs = fillin_default_calckwargs(calc_kwargs = calc_structure_fn_kwargs,
-                                                    default_values = calc_structure_fn_kwargs_defaults)
+    wf.full_calc_kwargs = fillin_default_calckwargs(
+        calc_kwargs=calc_structure_fn_kwargs,
+        default_values=calc_structure_fn_kwargs_defaults,
+    )
     from pyiron_workflow_atomistics.utils import get_subdirpaths
+
     wf.extended_GBs_dirnames = get_subdirpaths(
         parent_dir=wf.full_calc_kwargs.outputs.full_calc_kwargs2["working_directory"],
         output_subdirs=wf.extended_GBs_subdirnames,
     )
-    wf.full_calc_kwargs_for_fornode = fillin_default_calckwargs(calc_kwargs = wf.full_calc_kwargs.outputs.full_calc_kwargs2,
-                                                    default_values = calc_structure_fn_kwargs_defaults,
-                                                    remove_keys = ["working_directory"])
+    wf.full_calc_kwargs_for_fornode = fillin_default_calckwargs(
+        calc_kwargs=wf.full_calc_kwargs.outputs.full_calc_kwargs2,
+        default_values=calc_structure_fn_kwargs_defaults,
+        remove_keys=["working_directory"],
+    )
     from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
+
     wf.kwargs_variants = generate_kwargs_variants(
-        base_kwargs = wf.full_calc_kwargs_for_fornode.outputs.full_calc_kwargs2,
-        key = "working_directory",
-        values = wf.extended_GBs_dirnames,
+        base_kwargs=wf.full_calc_kwargs_for_fornode.outputs.full_calc_kwargs2,
+        key="working_directory",
+        values=wf.extended_GBs_dirnames,
     )
     # 2. Compute energies/volumes for extended structures
     wf.extended_GBs_calcs = for_node(
@@ -486,10 +493,16 @@ def gb_length_optimiser(
 def get_concat_df(df_list):
     concat_df = pd.concat(df_list)
     return concat_df
+
+
 from copy import deepcopy
+
+
 @pwf.as_function_node("generic_output")
 def generate_deepcopy(input_obj):
     return deepcopy(input_obj)
+
+
 @Workflow.wrap.as_macro_node(
     "stage1_opt_struct",
     "stage1_opt_excvol",
@@ -511,8 +524,8 @@ def full_gb_length_optimization(
     extensions_stage1,
     extensions_stage2,
     calc_structure_fn_kwargs: dict[str, Any] | None = None,
-    calc_structure_fn = ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs_defaults = None,
+    calc_structure_fn=ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs_defaults=None,
     interpolate_min_n_points=5,
     gb_normal_axis="c",
 ):
@@ -536,23 +549,25 @@ def full_gb_length_optimization(
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage2,
-        gb_normal_axis=gb_normal_axis,  
+        gb_normal_axis=gb_normal_axis,
         calc_structure_fn_kwargs_defaults=calc_structure_fn_kwargs_defaults,
     )
-    wf.stage2_opt_struct_copy= generate_deepcopy(wf.stage2_opt.outputs.min_interp_energy_GB_struct)
+    wf.stage2_opt_struct_copy = generate_deepcopy(
+        wf.stage2_opt.outputs.min_interp_energy_GB_struct
+    )
     wf.stage1_plot_len = pwf.api.std.Length(extensions_stage1)
     # 3. Plot each stage
     wf.stage1_plot = get_gb_length_optimiser_plot(
         df=wf.stage1_opt.outputs.extended_GB_results,
         n_points=wf.stage1_plot_len,
-        working_directory = calc_structure_fn_kwargs["working_directory"],
+        working_directory=calc_structure_fn_kwargs["working_directory"],
         save_filename="gb_optimiser_stage1.jpg",
     )
     wf.stage2_plot_len = pwf.api.std.Length(extensions_stage2)
     wf.stage2_plot = get_gb_length_optimiser_plot(
         df=wf.stage2_opt.outputs.extended_GB_results,
         n_points=wf.stage2_plot_len,
-        working_directory = calc_structure_fn_kwargs["working_directory"],
+        working_directory=calc_structure_fn_kwargs["working_directory"],
         save_filename="gb_optimiser_stage2.jpg",
     )
 
@@ -567,7 +582,7 @@ def full_gb_length_optimization(
     wf.combined_plot = get_gb_length_optimiser_plot(
         df=wf.concat_df,
         n_points=interpolate_min_n_points,
-        working_directory = calc_structure_fn_kwargs["working_directory"],
+        working_directory=calc_structure_fn_kwargs["working_directory"],
         save_filename="gb_optimiser_combined.jpg",
     )
 
@@ -597,7 +612,7 @@ def get_gb_length_optimiser_plot(
     plot_label="run",
     degree=2,
     n_points=None,
-    save_filename = None,
+    save_filename=None,
     dpi=300,
     figsize=(6, 4),
     working_directory=None,

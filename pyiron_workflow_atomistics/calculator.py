@@ -9,10 +9,11 @@ import numpy as np
 from typing import Callable, Tuple, Dict, Any, Optional, List
 import pandas as pd
 
+
 def ase_calc_structure(
     structure: Atoms,
     calc: Calculator,
-    optimizer_class = BFGS,
+    optimizer_class=BFGS,
     optimizer_kwargs: Optional[Dict[str, Any]] = None,
     record_interval: int = 1,
     fmax: float = 0.01,
@@ -107,6 +108,7 @@ def ase_calc_structure(
 
     # Trajectory recording
     trajectory: List[Dict[str, Any]] = []
+
     def record_step():
         snap = atoms.copy()
         snap_res = gather(atoms)
@@ -137,18 +139,23 @@ def ase_calc_structure(
             json.dump(final_res, f, indent=2)
 
     # Build DataFrame including structures
-    df = pd.DataFrame([
-        {"structure": step["structure"], **step["results"]}
-        for step in trajectory
-    ])
+    df = pd.DataFrame(
+        [{"structure": step["structure"], **step["results"]} for step in trajectory]
+    )
     df.to_pickle(os.path.join(output_dir, data_pickle), compression="gzip")
 
-    return {"initial": initial, "trajectory": trajectory, "final": final, "converged": bool(converged)}
+    return {
+        "initial": initial,
+        "trajectory": trajectory,
+        "final": final,
+        "converged": bool(converged),
+    }
+
 
 def ase_calculate_structure_node_interface(
     structure: Atoms,
     calc: Calculator,
-    optimizer_class = BFGS,
+    optimizer_class=BFGS,
     optimizer_kwargs: dict[str, Any] | None = None,
     record_interval: int = 1,
     fmax: float = 0.01,
@@ -163,7 +170,7 @@ def ase_calculate_structure_node_interface(
     final_struct_path: Optional[str] = "final_structure.xyz",
     final_results_path: Optional[str] = "final_results.json",
     data_pickle: str = "job_data.pkl.gz",
-    calc_structure_fn: Callable[..., Any] = ase_calc_structure
+    calc_structure_fn: Callable[..., Any] = ase_calc_structure,
 ) -> Tuple[Atoms, Dict[str, Any], bool]:
     """
     Node wrapper to call calc_structure_fn (default: ase_calc_structure)
@@ -186,7 +193,7 @@ def ase_calculate_structure_node_interface(
         traj_results_path=traj_results_path,
         final_struct_path=final_struct_path,
         final_results_path=final_results_path,
-        data_pickle=data_pickle
+        data_pickle=data_pickle,
     )
     atoms = out["final"]["structure"]
     final_results = out["final"]["results"]
@@ -194,18 +201,21 @@ def ase_calculate_structure_node_interface(
     converged = bool(converged)
     return atoms, final_results, converged
 
+
 @pwf.as_function_node("atoms", "results", "converged")
 def calculate_structure_node(
     structure: Atoms,
     # calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn = ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: dict[str, Any] | None = None
+    calc_structure_fn=ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None,
 ) -> Tuple[Atoms, dict[str, Any], bool]:
     if calc_structure_fn_kwargs is None:
         calc_structure_fn_kwargs = {}
-    atoms, final_results, converged = calc_structure_fn(structure = structure,
-                                                        **calc_structure_fn_kwargs)
+    atoms, final_results, converged = calc_structure_fn(
+        structure=structure, **calc_structure_fn_kwargs
+    )
     return atoms, final_results, converged
+
 
 @pwf.as_function_node("output")
 def extract_values(results_list, key):
@@ -285,6 +295,7 @@ def fillin_default_calckwargs(
 
     return full
 
+
 @pwf.as_function_node("kwargs_variants")
 def generate_kwargs_variants(
     base_kwargs,
@@ -294,7 +305,7 @@ def generate_kwargs_variants(
     """
     Given a base kwargs dict, produce one dict per value in `values`,
     each with `key` set to that value (overriding any existing entry).
-    
+
     Parameters
     ----------
     base_kwargs
@@ -303,15 +314,12 @@ def generate_kwargs_variants(
         The dict key whose value you want to vary.
     values
         A list of values to assign to `key`.
-    
+
     Returns
     -------
     List of dicts
         Each is a shallow copy of base_kwargs with base_kwargs[key] = value.
     """
-    return_kwargs = [
-        {**base_kwargs, key: v}
-        for v in values
-    ]
+    return_kwargs = [{**base_kwargs, key: v} for v in values]
     # print(return_kwargs)
     return return_kwargs

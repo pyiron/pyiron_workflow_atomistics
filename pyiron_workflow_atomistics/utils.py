@@ -2,6 +2,7 @@ import pyiron_workflow as pwf
 from typing import List
 import os
 
+
 @pwf.as_function_node
 def update_dataclass(dataclass_instance, key, value):
     from dataclasses import replace, asdict
