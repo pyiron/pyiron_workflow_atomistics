@@ -59,7 +59,7 @@ def generate_structures(
                     # ignore unknown axis labels
                     continue
         s.set_cell(new_cell, scale_atoms=True)
-        print(s)
+        #print(s)
         structure_list.append(s)
 
     return structure_list
@@ -85,7 +85,7 @@ def evaluate_structures(
     - structures: list of ASE Atoms
     - calc: ASE calculator
     - calc_kwargs: base kwargs for calc_structure_with_trajectory
-    - output_dir: top‐level directory to dump each strain’s files into
+    - working_directory: top‐level directory to dump each strain’s files into
     - write_to_disk: whether to write outputs to disk
 
     Returns
@@ -98,7 +98,7 @@ def evaluate_structures(
         Convergence flag for each calculation.
     """
     
-    os.makedirs(calc_structure_fn_kwargs["output_dir"], exist_ok=True)
+    os.makedirs(calc_structure_fn_kwargs["working_directory"], exist_ok=True)
 
     rel_structs_lst = []
     results_lst = []
@@ -108,11 +108,12 @@ def evaluate_structures(
         # per-structure subfolder
         local_kwargs = calc_structure_fn_kwargs.copy()
         
-        strain_dir = os.path.join(local_kwargs["output_dir"], f"strain_{i:03d}")
-        print(struct)
+        strain_dir = os.path.join(local_kwargs["working_directory"], f"strain_{i:03d}")
+        #print(s)
         # start from the user’s calc_kwargs, preserving any keys they set
-        local_kwargs["output_dir"] = strain_dir
+        local_kwargs["working_directory"] = strain_dir
         # run the full trajectory-enabled calculation
+        #print(local_kwargs)
         atoms, final_results, converged = calculate_structure_node.node_function(structure = struct,
                                                      calc_structure_fn = calc_structure_fn,
                                                      calc_structure_fn_kwargs = local_kwargs)
@@ -188,7 +189,7 @@ def eos_volume_scan(
         num_points=num_points,
     )
 
-    # 2) evaluate them in subfolders under output_dir
+    # 2) evaluate them in subfolders under working_directory
     wf.evaluation = evaluate_structures(
         structures=wf.structures_list,
         calc_structure_fn=calc_structure_fn,

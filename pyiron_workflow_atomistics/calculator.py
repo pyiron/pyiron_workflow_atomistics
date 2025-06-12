@@ -240,30 +240,31 @@ def extract_values(results_list, key):
 @pwf.as_function_node("full_calc_kwargs2")
 def fillin_default_calckwargs(
     calc_kwargs: dict[str, Any],
-    default_values: dict[str, Any] | None = None,
+    default_values: dict[str, Any] | None | str = None,
     remove_keys: list[str] | None = None,
 ) -> dict[str, Any]:
     # 1) define built-in defaults
-    built_in: dict[str, Any] = {
-        "optimizer_class": BFGS,
-        "optimizer_kwargs": None,
-        "record_interval": 1,
-        "fmax": 0.01,
-        "max_steps": 10000,
-        "properties": ("energy", "forces", "stresses"),
-        "write_to_disk": False,
-        "output_dir": "calc_output",
-        "initial_struct_path": "initial_structure.xyz",
-        "initial_results_path": "initial_results.json",
-        "traj_struct_path": "trajectory.xyz",
-        "traj_results_path": "trajectory_results.json",
-        "final_struct_path": "final_structure.xyz",
-        "final_results_path": "final_results.json",
-        "data_pickle": "job_data.pkl.gz",
-    }
+    # built_in: dict[str, Any] = {
+    #     "optimizer_class": BFGS,
+    #     "optimizer_kwargs": None,
+    #     "record_interval": 1,
+    #     "fmax": 0.01,
+    #     "max_steps": 10000,
+    #     "properties": ("energy", "forces", "stresses"),
+    #     "write_to_disk": False,
+    #     "working_directory": "calc_output",
+    #     "initial_struct_path": "initial_structure.xyz",
+    #     "initial_results_path": "initial_results.json",
+    #     "traj_struct_path": "trajectory.xyz",
+    #     "traj_results_path": "trajectory_results.json",
+    #     "final_struct_path": "final_structure.xyz",
+    #     "final_results_path": "final_results.json",
+    #     "data_pickle": "job_data.pkl.gz",
+    # }
 
     # 2) overlay any user-supplied default overrides
-    if default_values:
+    built_in = {}
+    if isinstance(default_values, dict):
         built_in.update(default_values)
 
     # 3) start with everything user passed in
@@ -274,7 +275,8 @@ def fillin_default_calckwargs(
         full.setdefault(key, default)
 
     # 5) ensure properties is a tuple
-    full["properties"] = tuple(full["properties"])
+    if "properties" in full:
+        full["properties"] = tuple(full["properties"])
 
     # 6) remove any keys requested
     if remove_keys:
@@ -311,5 +313,5 @@ def generate_kwargs_variants(
         {**base_kwargs, key: v}
         for v in values
     ]
-    print(return_kwargs)
+    # print(return_kwargs)
     return return_kwargs
