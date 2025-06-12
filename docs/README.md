@@ -1,114 +1,107 @@
-# pyiron_module_template
+# pyiron_workflow_atomistics
 
 ## Overview
 
-This repository is a template for new pyiron modules similar to the existing modules of the 
-pyiron framework, e.g. 
-[pyiron_workflow](https://github.com/pyiron/pyiron_workflow),
-[pyiron_ontology](https://github.com/pyiron/pyiron_ontology),
-etc.
+This repository contains a pyiron module for atomistic simulation workflows, providing tools and utilities for working with atomic structures, grain boundaries, and various atomistic calculations.
 
-Within this repository, the new module is called `pyiron_module_template` which should be renamed to `pyiron_IntendedModuleName`. 
-This can be easily achieved by modifying and running `bash ./update_module_name.sh` script.
+## Features
 
-The licence is free to choose, but as a default the BSD3 licence packed here.
+- **Grain Boundary Analysis**: Tools for analyzing and manipulating grain boundaries, including:
+  - GB plane detection and analysis
+  - Cleavage plane identification
+  - Structure manipulation for GB studies
 
-## Continuous Integration
+- **Structure Manipulation**: Utilities for working with atomic structures:
+  - Bulk structure handling
+  - Structure featurization
+  - Calculator integration
 
-We collect all files relevant for the continuous integration (CI) pipelines in `.ci_support`, 
-while the actual CI workflows are handled by GitHub and stored in `.github`.
-If you are cloning this template *inside* the pyiron GitHub organization, the full CI should work out-of-the-box by calling reusable workflows from [pyiron/actions](github.com/pyiron/actions) and inheriting organization-wide secrets.
-Otherwise, you will either need to modify the CI workflow files, or give your repository the following secrets:
-- `DEPENDABOT_WORKFLOW_TOKEN` (GitHub token for an account that has permissions to your repository -- needs to differ from the default `github_token` already available though! In pyiron we have a special [@pyiron_runner account](https://github.com/pyiron-runner) for this purpose.)
-- `PYPI_PASSWORD` (Token generated on PyPi to give access to your account there)
-- `CODACY_PROJECT_TOKEN` (Token generated on Codacy to give access to your account there)
+- **Workflow Integration**: Seamless integration with pyiron workflow system for:
+  - Automated structure calculations
+  - Data processing and analysis
+  - Results visualization
 
-Make sure to go to [Codacy](https://www.codacy.com) and [Coverall](https://coveralls.io) to register your repository.
+## Installation
 
-The default CI setup from [pyiron/actions](github.com/pyiron/actions) makes some assumptions about your directory structure.
-The most important one is that your environment should be specified in `.ci_support/environment.yml`.
-There is a base environment there already, giving dependence on `pyiron_base`.
-The CI will automatically keep environment files read by readthedocs (which will look at `.readthedocs.yml`) and MyBinder (which looks in `.binder`) up-to-date based on this environment file.
+The package can be installed via pip:
 
-In case you need extra environment files for some setups, you can modify the workflows in `.github/workflows`, which accept input variables for the docs, tests, and notebooks environments.
-For example, it's typically good to not make your project depend on the `lammps` package, since this is not available for windows.
-However, you might want to give some demo notebooks that run on MyBinder (a linux environment) and use LAMMPS calculations.
-In this case, you could add a new file `.ci_support/environment-notebooks.yml`, and then edit `.github/workflows/push-pull.yml` so that instead of reading 
-
-```yaml
-jobs:
-  pyiron:
-    uses: pyiron/actions/.github/workflows/push-pull.yml@actions-3.3.3
-    secrets: inherit
-    # All the environment files variables point to .ci_support/environment.yml by default
+```bash
+pip install pyiron_workflow_atomistics
 ```
 
-It instead reads
+Or via conda:
 
-```yaml
-jobs:
-  pyiron:
-    uses: pyiron/actions/.github/workflows/push-pull.yml@actions-3.3.3
-    secrets: inherit
-    with:
-      notebooks-env-files: .ci_support/environment.yml .ci_support/environment-notebooks.yml
+```bash
+conda install -c conda-forge pyiron_workflow_atomistics
 ```
 
-Where `.ci_support/environment-notebooks.yml` looks like:
+## Dependencies
 
-```yaml
-channels:
-  - conda-forge
-dependencies:
-  - lammps
+The package requires:
+- Python >= 3.9, < 3.13
+- numpy < 2.0.0
+- pandas >= 1.3.0
+- matplotlib >= 3.4.0
+- ase >= 3.22.0
+- scipy >= 1.7.0
+- pyiron_workflow
+- pymatgen >= 2024.8.8
+- pyiron_snippets
+- scikit-learn >= 1.0.0
+
+## Usage
+
+### Grain Boundary Analysis
+
+```python
+from pyiron_workflow_atomistics.gb.analysis import find_GB_plane
+from pyiron_workflow_atomistics.gb.cleavage import cleave_gb_structure
+
+# Find GB plane in a structure
+gb_info = find_GB_plane(atoms, featuriser, axis="c")
+
+# Cleave structure at GB
+cleaved_structures, cleavage_planes = cleave_gb_structure(
+    base_structure=atoms,
+    axis_to_cleave="c",
+    target_coord=target_coord
+)
 ```
 
-### Dependencies
+### Structure Calculations
 
-The CI for making new releases expects all the `pyproject.toml` dependencies to be fully specified with `==` and the conda dependencies to have their versions specified by `=`, i.e. precisely specifying the version the code here is intended to run on.
-At release time, these dependencies can be relaxed so that new users installing your code may have access to a wider variety of environment possibilities.
-For exact details on this relaxation, check documentation in the [centralized CI](https://github.com/pyiron/actions).
+```python
+from pyiron_workflow_atomistics.calculator import calculate_structure_node
 
-### Label-based CI
-
-Some CI triggers when labels get applied to a PR. 
-In a new repository, you will need to define these labels:
-- `format_black`: Runs black analyis and creates a bot-generated commit to fix any format violations
-- `run_CodeQL`: Runs the external CodeQL analysis (expensive, only do at the end)
-- `run_coverage`: Run all the tests in `tests` and use coveralls to generate a coverage report (also expensive, only run near the end of your PR)
+# Run structure calculations
+results = calculate_structure_node(
+    structure=atoms,
+    calc=calculator,
+    output_dir="calculations"
+)
+```
 
 ## Documentation
 
-You should modify this README to reflect the purpose of your new package.
-You can look at the other pyiron modules to get a hint for what sort of information to include, and how to link badges at the head of your README file.
+For detailed documentation, visit our [ReadTheDocs page](https://pyiron_workflow_atomistics.readthedocs.io).
 
-At a minimum, we suggest creating a meaningful example notebook in the `notebooks/` directory and creating a MyBinder badge so that people can quickly and easily explore your work.
+## Contributing
 
-You can also edit the docs for your package by modifying `docs/index.rst`.
-By default, this README is used as the landing page, and a simple API section is automatically generated.
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.rst) for details.
 
-## Tests
+## License
 
-There is space for "benchmark", "integration", and "unit" tests in the `tests/` directory, with dummy tests for each.
-These are run by the default CI, so modify them to suit your needs.
+This project is licensed under the BSD License - see the [LICENSE](LICENSE) file for details.
 
-Additionally, the standard CI will attempt to execute all notebooks in the `notebooks/` directory.
-See [`pyiron/actions`](https://github.com/pyiron/actions) and the reusable workflows there to learn about modifying the environment for the CI, e.g. to use a different env for notebook runs than for the tests in `tests/`.
+## Citation
 
-Finally, `tests/integration/test_readme.py` shows how example code in the documentation gets tested against its claimed output.
-E.g. if you change this:
+If you use this package in your research, please cite:
 
-```python
->>> print(2 + 2)
-4
-
+```bibtex
+@software{pyiron_workflow_atomistics,
+  author = {pyiron team},
+  title = {pyiron_workflow_atomistics},
+  year = {2024},
+  url = {https://github.com/pyiron/pyiron_workflow_atomistics}
+}
 ```
-
-To read `5` instead, those tests should fail.
-
-## Publishing your package
-
-If you are inside the pyiron organization or have your own `PYPI_PASSWORD` secret configured, your package will be published on PyPI automatically when you make a new "release" on GitHub -- *as long as* that tag matches the pattern specified in `setup.cfg`; by default any tag that `pyiron_module_template-`, where `pyiron_module_template` is replaced with the name of your module. We recommend using semantic versioning so that your first release looks like `pyiron_module_template-0.0.1`.
-
-Releasing your package on Conda-Forge is slightly more involved, but not too hard (at least for pure python packages).
-See [conda-forge/staged-recipes](https://github.com/conda-forge/staged-recipes) for how to publish it there.

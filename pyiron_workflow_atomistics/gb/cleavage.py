@@ -601,7 +601,8 @@ def get_results_df(
     relaxed_structures = df.atoms.tolist()
     energies = [res["energy"] for res in df.results.tolist()]
 
-    axis_index = {"a": 0, "b": 1, "c": 2}[cleavage_axis.lower()]
+    axis_index = axis_to_index(cleavage_axis)
+
     cleavage_energies = []
 
     for E, struct in zip(energies, relaxed_structures):
