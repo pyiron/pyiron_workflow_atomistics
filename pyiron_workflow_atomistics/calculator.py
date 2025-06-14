@@ -214,6 +214,7 @@ def calculate_structure_node(
     atoms, final_results, converged = calc_structure_fn(
         structure=structure, **calc_structure_fn_kwargs
     )
+    # print(calc_structure_fn_kwargs["working_directory"])
     return atoms, final_results, converged
 
 
@@ -298,9 +299,9 @@ def fillin_default_calckwargs(
 
 @pwf.as_function_node("kwargs_variants")
 def generate_kwargs_variants(
-    base_kwargs,
-    key,
-    values,
+    base_kwargs: dict[str, Any],
+    key: str,
+    values: list[Any],
 ):
     """
     Given a base kwargs dict, produce one dict per value in `values`,
