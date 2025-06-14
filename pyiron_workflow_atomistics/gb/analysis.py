@@ -5,7 +5,7 @@ from ase import Atoms
 import pyiron_workflow as pwf
 import matplotlib.pyplot as plt
 from .utils import axis_to_index
-
+import os
 
 @pwf.as_function_node("gb_plane_analysis_dict")
 def find_GB_plane(
@@ -238,7 +238,8 @@ def plot_GB_plane(
     extended_only_color="r",
     plane_linestyles=("--", "-"),
     axis=2,
-    save_path=None,
+    save_filename=None,
+    working_directory=None,
     dpi=300,
 ):
     """
@@ -421,8 +422,9 @@ def plot_GB_plane(
     ax.legend(by_label.values(), by_label.keys(), loc="upper left")
 
     # Save if requested
-    if save_path:
-        fig.savefig(save_path, dpi=dpi)
+    if save_filename:
+        os.makedirs(working_directory, exist_ok=True)
+        fig.savefig(os.path.join(working_directory, save_filename), dpi=dpi)
 
     plt.show()
     return fig, ax
