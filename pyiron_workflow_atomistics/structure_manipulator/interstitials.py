@@ -1,3 +1,17 @@
+"""Module for calculating and analyzing interstitial positions in crystal structures.
+
+Authors
+-------
+Abril Azocar Guzman (ORCiD: 0000-0001-7564-7990)
+Rebecca Janisch (ORCiD: 0000-0003-2136-0788)
+
+Reference
+---------
+Azócar Guzmán, A., & Janisch, R. (2024). Effects of mechanical stress, chemical potential, 
+and coverage on hydrogen solubility during hydrogen-enhanced decohesion of ferritic steel 
+grain boundaries: A first-principles study. Phys. Rev. Mater., 8, 073601. 
+doi:10.1103/PhysRevMaterials.8.073601
+"""
 from pyscal3 import System, Atoms
 import numpy as np
 from copy import copy
