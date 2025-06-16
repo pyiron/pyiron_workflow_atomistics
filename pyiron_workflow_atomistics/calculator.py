@@ -20,7 +20,7 @@ def ase_calc_structure(
     max_steps: int = 10000,
     properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
     write_to_disk: bool = False,
-    output_dir: str = "calc_output",
+    working_directory: str = "calc_output",
     initial_struct_path: Optional[str] = "initial_structure.xyz",
     initial_results_path: Optional[str] = "initial_results.json",
     traj_struct_path: Optional[str] = "trajectory.xyz",
@@ -44,7 +44,7 @@ def ase_calc_structure(
     """
     # Setup
     props = [p.strip() for p in properties]
-    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(working_directory, exist_ok=True)
     optimizer_kwargs = optimizer_kwargs or {}
 
     def gather(atoms: Atoms) -> Dict[str, Any]:
@@ -101,9 +101,9 @@ def ase_calc_structure(
     initial_atoms = attach_props(atoms.copy(), initial_res)
     initial = {"structure": initial_atoms, "results": initial_res}
     if write_to_disk and initial_struct_path:
-        ase_write(os.path.join(output_dir, initial_struct_path), initial_atoms)
+        ase_write(os.path.join(working_directory, initial_struct_path), initial_atoms)
     if write_to_disk and initial_results_path:
-        with open(os.path.join(output_dir, initial_results_path), "w") as f:
+        with open(os.path.join(working_directory, initial_results_path), "w") as f:
             json.dump(initial_res, f, indent=2)
 
     # Trajectory recording
@@ -115,7 +115,7 @@ def ase_calc_structure(
         snap_att = attach_props(snap, snap_res)
         trajectory.append({"structure": snap_att, "results": snap_res})
         if write_to_disk and traj_struct_path:
-            ase_write(os.path.join(output_dir, traj_struct_path), snap_att, append=True)
+            ase_write(os.path.join(working_directory, traj_struct_path), snap_att, append=True)
 
     # Optimize
     optimizer = optimizer_class(atoms, **optimizer_kwargs)
@@ -125,7 +125,7 @@ def ase_calc_structure(
     # Write trajectory results JSON
     if write_to_disk and traj_results_path:
         traj_res_list = [step["results"] for step in trajectory]
-        with open(os.path.join(output_dir, traj_results_path), "w") as f:
+        with open(os.path.join(working_directory, traj_results_path), "w") as f:
             json.dump(traj_res_list, f, indent=2)
 
     # Final snapshot
@@ -133,16 +133,16 @@ def ase_calc_structure(
     final_atoms = attach_props(atoms.copy(), final_res)
     final = {"structure": final_atoms, "results": final_res}
     if write_to_disk and final_struct_path:
-        ase_write(os.path.join(output_dir, final_struct_path), final_atoms)
+        ase_write(os.path.join(working_directory, final_struct_path), final_atoms)
     if write_to_disk and final_results_path:
-        with open(os.path.join(output_dir, final_results_path), "w") as f:
+        with open(os.path.join(working_directory, final_results_path), "w") as f:
             json.dump(final_res, f, indent=2)
 
     # Build DataFrame including structures
     df = pd.DataFrame(
         [{"structure": step["structure"], **step["results"]} for step in trajectory]
     )
-    df.to_pickle(os.path.join(output_dir, data_pickle), compression="gzip")
+    df.to_pickle(os.path.join(working_directory, data_pickle), compression="gzip")
 
     return {
         "initial": initial,
@@ -162,7 +162,7 @@ def ase_calculate_structure_node_interface(
     max_steps: int = 10000,
     properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
     write_to_disk: bool = False,
-    output_dir: str = "calc_output",
+    working_directory: str = "calc_output",
     initial_struct_path: Optional[str] = "initial_structure.xyz",
     initial_results_path: Optional[str] = "initial_results.json",
     traj_struct_path: Optional[str] = "trajectory.xyz",
@@ -186,7 +186,7 @@ def ase_calculate_structure_node_interface(
         max_steps=max_steps,
         properties=properties,
         write_to_disk=write_to_disk,
-        output_dir=output_dir,
+        working_directory=working_directory,
         initial_struct_path=initial_struct_path,
         initial_results_path=initial_results_path,
         traj_struct_path=traj_struct_path,
