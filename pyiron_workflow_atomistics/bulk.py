@@ -66,12 +66,13 @@ def generate_structures(
 
 
 @pwf.as_function_node("e0", "v0", "B")
-def equation_of_state(energies, volumes, eos="sj"):
+def equation_of_state(energies, volumes, eos_type="sj"):
     from ase.eos import EquationOfState
 
-    eos = EquationOfState(volumes, energies, eos=eos)
+    eos = EquationOfState(volumes, energies, eos=eos_type)
     v0, e0, B = eos.fit()  # v0, e0, B
-    return e0, v0, B  # eos_results
+    B_GPa = B * 160.21766208 #eV to GPa
+    return e0, v0, B_GPa  # eos_results
 
 
 @pwf.as_function_node("structures", "results_dict", "convergence_lst")
@@ -174,7 +175,7 @@ def get_equil_lat_param(eos_output):
     return a0
 
 
-@Workflow.wrap.as_macro_node("v0", "e0", "B", "volumes", "energies")
+@Workflow.wrap.as_macro_node("v0", "e0", "B", "volumes", "structures", "energies")
 def eos_volume_scan(
     wf,
     base_structure,
@@ -183,6 +184,7 @@ def eos_volume_scan(
     axes=["a", "b", "c"],
     strain_range=(-0.2, 0.2),
     num_points=11,
+    eos_type="birchmurnaghan",
 ):
     # 1) generate strained structures
     wf.structures_list = generate_structures(
@@ -213,7 +215,7 @@ def eos_volume_scan(
     wf.eos = equation_of_state(
         wf.energies,
         wf.volumes,
-        eos="birchmurnaghan",
+        eos_type=eos_type,
     )
 
     return (
@@ -221,5 +223,6 @@ def eos_volume_scan(
         wf.eos.outputs.e0,
         wf.eos.outputs.B,
         wf.volumes,
+        wf.evaluation.outputs.structures,
         wf.energies,
     )

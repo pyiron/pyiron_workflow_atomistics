@@ -18,7 +18,7 @@ def ase_calc_structure(
     record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10000,
-    properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
+    properties: Tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
     write_to_disk: bool = False,
     working_directory: str = "calc_output",
     initial_struct_path: Optional[str] = "initial_structure.xyz",
@@ -131,6 +131,7 @@ def ase_calc_structure(
     # Final snapshot
     final_res = gather(atoms)
     final_atoms = attach_props(atoms.copy(), final_res)
+    # print(final_res)
     final = {"structure": final_atoms, "results": final_res}
     if write_to_disk and final_struct_path:
         ase_write(os.path.join(working_directory, final_struct_path), final_atoms)
@@ -199,6 +200,7 @@ def ase_calculate_structure_node_interface(
     final_results = out["final"]["results"]
     converged = out["converged"]
     converged = bool(converged)
+    # print(atoms, final_results, converged)
     return atoms, final_results, converged
 
 
@@ -243,6 +245,7 @@ def extract_values(results_list, key):
     try:
         extracted_values = [entry[key] for entry in results_list]
     except Exception as e:
+        # print(results_list, key)
         print(f"Error {e} when trying to parse output")
         extracted_values = np.nan
     return extracted_values
