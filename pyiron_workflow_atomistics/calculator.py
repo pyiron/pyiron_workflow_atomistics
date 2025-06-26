@@ -6,12 +6,16 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 import pyiron_workflow as pwf
 import numpy as np
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Callable, Tuple, Dict, Any, Optional, List
+import pandas as pd
 
 
-def calc_structure(
+def ase_calc_structure(
     structure: Atoms,
     calc: Calculator,
+    optimizer_class=BFGS,
+    optimizer_kwargs: Optional[Dict[str, Any]] = None,
+    record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10000,
     properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
@@ -23,61 +27,25 @@ def calc_structure(
     traj_results_path: Optional[str] = "trajectory_results.json",
     final_struct_path: Optional[str] = "final_structure.xyz",
     final_results_path: Optional[str] = "final_results.json",
-):
+    data_pickle: str = "job_data.pkl.gz",
+) -> Dict[str, Any]:
     """
-    Relax an ASE Atoms object and optionally write snapshots to disk.
-
-    Parameters
-    ----------
-    structure : Atoms
-        Initial ASE Atoms object to be relaxed.
-    calc : Calculator
-        ASE calculator to assign to the atoms.
-    fmax : float, optional
-        Force convergence criterion (default: 0.01).
-    max_steps : int, optional
-        Maximum number of optimizer steps (default: 10000).
-    properties : tuple of str, optional
-        Properties to gather, e.g., ('energy', 'forces', 'stresses').
-    write_to_disk : bool, optional
-        If True, write snapshots and results to disk under `output_dir`.
-    output_dir : str, optional
-        Directory to create for output files (default: 'calc_output').
-    initial_struct_path : str or None, optional
-        Filename for initial structure snapshot in extended XYZ format.
-        If `None`, no initial‐structure file is written (default: 'initial_structure.xyz').
-    initial_results_path : str or None, optional
-        Filename for initial results JSON.
-        If `None`, no initial‐results file is written (default: 'initial_results.json').
-    traj_struct_path : str or None, optional
-        Filename for trajectory extended XYZ file.
-        If `None`, no trajectory‐structure file is written (default: 'trajectory.xyz').
-    traj_results_path : str or None, optional
-        Filename for trajectory results JSON.
-        If `None`, no trajectory‐results file is written (default: 'trajectory_results.json').
-    final_struct_path : str or None, optional
-        Filename for final structure snapshot in extended XYZ format.
-        If `None`, no final‐structure file is written (default: 'final_structure.xyz').
-    final_results_path : str or None, optional
-        Filename for final results JSON.
-        If `None`, no final‐results file is written (default: 'final_results.json').
+    Relax an ASE Atoms object with a customizable optimizer and recording interval,
+    attach properties to each snapshot and write extended XYZ,
+    and store trajectory data as a pickled DataFrame including structures.
 
     Returns
     -------
-    dict
-        Dictionary with keys:
-        - 'initial': {'structure': Atoms, 'results': dict}
-        - 'trajectory': list of {'structure': Atoms, 'results': dict}
-        - 'final': {'structure': Atoms, 'results': dict}
-        - 'converged': bool
-
-    Raises
-    ------
-    KeyError
-        If a requested property is not available on the Atoms object.
+    dict with keys:
+      - initial: {{structure, results}}
+      - trajectory: list of {{structure, results}}
+      - final: {{structure, results}}
+      - converged: bool
     """
-    # Clean up property names
+    # Setup
     props = [p.strip() for p in properties]
+    os.makedirs(output_dir, exist_ok=True)
+    optimizer_kwargs = optimizer_kwargs or {}
 
     def gather(atoms: Atoms) -> Dict[str, Any]:
         all_results: Dict[str, Any] = {
@@ -113,112 +81,107 @@ def calc_structure(
             raise KeyError(f"Requested properties not available: {missing}")
         return {p: all_results[p] for p in props}
 
+    def attach_props(atoms: Atoms, results: Dict[str, Any]):
+        # Attach energy
+        if "energy" in results:
+            atoms.info["energy"] = results["energy"]
+        # Attach forces
+        if "forces" in results:
+            atoms.set_array("forces", np.array(results["forces"]))
+        # Attach stresses
+        if "stresses" in results:
+            atoms.info["stresses"] = results["stresses"]
+        return atoms
+
     atoms = structure.copy()
     atoms.calc = calc
 
-    os.makedirs(output_dir, exist_ok=True)
+    # Initial snapshot
+    initial_res = gather(atoms)
+    initial_atoms = attach_props(atoms.copy(), initial_res)
+    initial = {"structure": initial_atoms, "results": initial_res}
+    if write_to_disk and initial_struct_path:
+        ase_write(os.path.join(output_dir, initial_struct_path), initial_atoms)
+    if write_to_disk and initial_results_path:
+        with open(os.path.join(output_dir, initial_results_path), "w") as f:
+            json.dump(initial_res, f, indent=2)
 
-    # 1) Initial snapshot
-    initial = {"structure": atoms.copy(), "results": gather(atoms)}
-    if write_to_disk:
-        if initial_struct_path is not None:
-            ase_write(
-                os.path.join(output_dir, initial_struct_path), initial["structure"]
-            )
-        if initial_results_path is not None:
-            with open(os.path.join(output_dir, initial_results_path), "w") as f:
-                json.dump(initial["results"], f, indent=2)
-
-    # 2) Trajectory
+    # Trajectory recording
     trajectory: List[Dict[str, Any]] = []
 
     def record_step():
         snap = atoms.copy()
         snap_res = gather(atoms)
-        trajectory.append({"structure": snap, "results": snap_res})
-        if write_to_disk and traj_struct_path is not None:
-            ase_write(os.path.join(output_dir, traj_struct_path), snap, append=True)
+        snap_att = attach_props(snap, snap_res)
+        trajectory.append({"structure": snap_att, "results": snap_res})
+        if write_to_disk and traj_struct_path:
+            ase_write(os.path.join(output_dir, traj_struct_path), snap_att, append=True)
 
-    # Prepare output directory
-    if write_to_disk:
-        optimizer = BFGS(
-            atoms,
-            trajectory=f"{output_dir}/opt.asecalc.traj",
-            logfile=f"{output_dir}/opt.asecalc.log",
-        )
-    else:
-        optimizer = BFGS(atoms)
-
-    optimizer.attach(record_step, interval=1)
+    # Optimize
+    optimizer = optimizer_class(atoms, **optimizer_kwargs)
+    optimizer.attach(record_step, interval=record_interval)
     converged = optimizer.run(fmax=fmax, steps=max_steps)
 
-    if write_to_disk and traj_results_path is not None:
+    # Write trajectory results JSON
+    if write_to_disk and traj_results_path:
         traj_res_list = [step["results"] for step in trajectory]
         with open(os.path.join(output_dir, traj_results_path), "w") as f:
             json.dump(traj_res_list, f, indent=2)
 
-    # 3) Final snapshot
-    final = {"structure": atoms.copy(), "results": gather(atoms)}
-    if write_to_disk:
-        if final_struct_path is not None:
-            ase_write(os.path.join(output_dir, final_struct_path), final["structure"])
-        if final_results_path is not None:
-            with open(os.path.join(output_dir, final_results_path), "w") as f:
-                json.dump(final["results"], f, indent=2)
+    # Final snapshot
+    final_res = gather(atoms)
+    final_atoms = attach_props(atoms.copy(), final_res)
+    final = {"structure": final_atoms, "results": final_res}
+    if write_to_disk and final_struct_path:
+        ase_write(os.path.join(output_dir, final_struct_path), final_atoms)
+    if write_to_disk and final_results_path:
+        with open(os.path.join(output_dir, final_results_path), "w") as f:
+            json.dump(final_res, f, indent=2)
+
+    # Build DataFrame including structures
+    df = pd.DataFrame(
+        [{"structure": step["structure"], **step["results"]} for step in trajectory]
+    )
+    df.to_pickle(os.path.join(output_dir, data_pickle), compression="gzip")
 
     return {
         "initial": initial,
         "trajectory": trajectory,
         "final": final,
-        "converged": converged,
+        "converged": bool(converged),
     }
 
 
-@pwf.as_function_node("atoms", "results", "converged")
-def calculate_structure_node(
-    # structure: Atoms,
-    # calc: Calculator,
-    # fmax: float = 0.01,
-    # max_steps: int = 1000,
-    # properties: Tuple[str, ...] = ('energy', 'forces', 'stresses'),
-    # write_to_disk: bool = False,
-    # output_dir: str = "calc_output",
-    # initial_struct_path: Optional[str] = 'initial_structure.xyz',
-    # initial_results_path: Optional[str] = 'initial_results.json',
-    # traj_struct_path: Optional[str] = 'trajectory.xyz',
-    # traj_results_path: Optional[str] = 'trajectory_results.json',
-    # final_struct_path: Optional[str] = 'final_structure.xyz',
-    # final_results_path: Optional[str] = 'final_results.json',
-    structure,
-    calc,
-    fmax=0.01,
-    max_steps=10000,
-    properties=("energy", "forces", "stresses"),
-    write_to_disk=False,
-    output_dir="calc_output",
-    initial_struct_path="initial_structure.xyz",
-    initial_results_path="initial_results.json",
-    traj_struct_path="trajectory.xyz",
-    traj_results_path="trajectory_results.json",
-    final_struct_path="final_structure.xyz",
-    final_results_path="final_results.json",
-):
+def ase_calculate_structure_node_interface(
+    structure: Atoms,
+    calc: Calculator,
+    optimizer_class=BFGS,
+    optimizer_kwargs: dict[str, Any] | None = None,
+    record_interval: int = 1,
+    fmax: float = 0.01,
+    max_steps: int = 10000,
+    properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
+    write_to_disk: bool = False,
+    output_dir: str = "calc_output",
+    initial_struct_path: Optional[str] = "initial_structure.xyz",
+    initial_results_path: Optional[str] = "initial_results.json",
+    traj_struct_path: Optional[str] = "trajectory.xyz",
+    traj_results_path: Optional[str] = "trajectory_results.json",
+    final_struct_path: Optional[str] = "final_structure.xyz",
+    final_results_path: Optional[str] = "final_results.json",
+    data_pickle: str = "job_data.pkl.gz",
+    calc_structure_fn: Callable[..., Any] = ase_calc_structure,
+) -> Tuple[Atoms, Dict[str, Any], bool]:
     """
-    ASE relaxation with full disk‐writing under output_dir of initial, trajectory, and final data;
-    any path set to `None` will simply not be written.
-
-    Returns
-    -------
-    atoms : ase.Atoms
-        The final relaxed structure.
-    final_results : dict
-        The final requested properties.
-    converged : bool
-        Whether the relaxation converged.
+    Node wrapper to call calc_structure_fn (default: ase_calc_structure)
+    with all ASE kwargs forwarded from node inputs.
     """
-    out = calc_structure(
+    out = calc_structure_fn(
         structure=structure,
         calc=calc,
+        optimizer_class=optimizer_class,
+        optimizer_kwargs=optimizer_kwargs,
+        record_interval=record_interval,
         fmax=fmax,
         max_steps=max_steps,
         properties=properties,
@@ -230,11 +193,27 @@ def calculate_structure_node(
         traj_results_path=traj_results_path,
         final_struct_path=final_struct_path,
         final_results_path=final_results_path,
+        data_pickle=data_pickle,
     )
-
     atoms = out["final"]["structure"]
     final_results = out["final"]["results"]
     converged = out["converged"]
+    converged = bool(converged)
+    return atoms, final_results, converged
+
+
+@pwf.as_function_node("atoms", "results", "converged")
+def calculate_structure_node(
+    structure: Atoms,
+    # calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
+    calc_structure_fn=ase_calculate_structure_node_interface,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None,
+) -> Tuple[Atoms, dict[str, Any], bool]:
+    if calc_structure_fn_kwargs is None:
+        calc_structure_fn_kwargs = {}
+    atoms, final_results, converged = calc_structure_fn(
+        structure=structure, **calc_structure_fn_kwargs
+    )
     return atoms, final_results, converged
 
 
@@ -269,53 +248,78 @@ def extract_values(results_list, key):
 
 
 @pwf.as_function_node("full_calc_kwargs2")
-def fillin_default_calckwargs(calc_kwargs, default_values=None):
+def fillin_default_calckwargs(
+    calc_kwargs: dict[str, Any],
+    default_values: dict[str, Any] | None | str = None,
+    remove_keys: list[str] | None = None,
+) -> dict[str, Any]:
+    # 1) define built-in defaults
+    # built_in: dict[str, Any] = {
+    #     "optimizer_class": BFGS,
+    #     "optimizer_kwargs": None,
+    #     "record_interval": 1,
+    #     "fmax": 0.01,
+    #     "max_steps": 10000,
+    #     "properties": ("energy", "forces", "stresses"),
+    #     "write_to_disk": False,
+    #     "working_directory": "calc_output",
+    #     "initial_struct_path": "initial_structure.xyz",
+    #     "initial_results_path": "initial_results.json",
+    #     "traj_struct_path": "trajectory.xyz",
+    #     "traj_results_path": "trajectory_results.json",
+    #     "final_struct_path": "final_structure.xyz",
+    #     "final_results_path": "final_results.json",
+    #     "data_pickle": "job_data.pkl.gz",
+    # }
+
+    # 2) overlay any user-supplied default overrides
+    built_in = {}
+    if isinstance(default_values, dict):
+        built_in.update(default_values)
+
+    # 3) start with everything user passed in
+    full: dict[str, Any] = dict(calc_kwargs)
+
+    # 4) fill in missing built-ins
+    for key, default in built_in.items():
+        full.setdefault(key, default)
+
+    # 5) ensure properties is a tuple
+    if "properties" in full:
+        full["properties"] = tuple(full["properties"])
+
+    # 6) remove any keys requested
+    if remove_keys:
+        for key in remove_keys:
+            full.pop(key, None)
+
+    return full
+
+
+@pwf.as_function_node("kwargs_variants")
+def generate_kwargs_variants(
+    base_kwargs,
+    key,
+    values,
+):
     """
-    Take a partial calc_kwargs dict and fill in any missing entries
-    with the standard defaults, but allow an optional `default_values`
-    dict to override any of those built-in defaults.
+    Given a base kwargs dict, produce one dict per value in `values`,
+    each with `key` set to that value (overriding any existing entry).
 
     Parameters
     ----------
-    calc_kwargs : dict
-        User-provided kwargs for the calculation (may be partial).
-    default_values : dict, optional
-        If provided, these key→value pairs will override the built-in defaults.
+    base_kwargs
+        The original kwargs to copy.
+    key
+        The dict key whose value you want to vary.
+    values
+        A list of values to assign to `key`.
 
     Returns
     -------
-    full_calc_kwargs : dict
-        A dict containing every argument, using user values when present,
-        then `default_values`, then the built-in defaults.
+    List of dicts
+        Each is a shallow copy of base_kwargs with base_kwargs[key] = value.
     """
-    # 1) define your built-in defaults
-    built_in = {
-        "output_dir": "calc_dir",
-        "fmax": 0.01,
-        "max_steps": 1000,
-        "properties": ("energy", "forces", "stresses"),
-        "write_to_disk": False,
-        "initial_struct_path": "initial_structure.xyz",
-        "initial_results_path": "initial_results.json",
-        "traj_struct_path": "trajectory.xyz",
-        "traj_results_path": "trajectory_results.json",
-        "final_struct_path": "final_structure.xyz",
-        "final_results_path": "final_results.json",
-    }
-
-    # 2) overlay any user-supplied default overrides
-    if default_values:
-        built_in.update(default_values)
-
-    # 3) build the final dict: user → default_values → built-in
-    full = {}
-    for key, default in built_in.items():
-        if key in calc_kwargs:
-            full[key] = calc_kwargs[key]
-        else:
-            full[key] = default
-
-    # 4) ensure tuple for properties
-    full["properties"] = tuple(full["properties"])
-
-    return full
+    return_kwargs = [{**base_kwargs, key: v} for v in values]
+    # print(return_kwargs)
+    return return_kwargs
