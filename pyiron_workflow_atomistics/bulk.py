@@ -71,7 +71,7 @@ def equation_of_state(energies, volumes, eos_type="sj"):
 
     eos = EquationOfState(volumes, energies, eos=eos_type)
     v0, e0, B = eos.fit()  # v0, e0, B
-    B_GPa = B * 160.21766208 #eV to GPa
+    B_GPa = B * 160.21766208  # eV to GPa
     return e0, v0, B_GPa  # eos_results
 
 

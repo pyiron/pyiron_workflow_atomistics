@@ -115,7 +115,9 @@ def ase_calc_structure(
         snap_att = attach_props(snap, snap_res)
         trajectory.append({"structure": snap_att, "results": snap_res})
         if write_to_disk and traj_struct_path:
-            ase_write(os.path.join(working_directory, traj_struct_path), snap_att, append=True)
+            ase_write(
+                os.path.join(working_directory, traj_struct_path), snap_att, append=True
+            )
 
     # Optimize
     optimizer = optimizer_class(atoms, **optimizer_kwargs)

@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from .utils import axis_to_index
 import os
 
+
 @pwf.as_function_node("gb_plane_analysis_dict")
 def find_GB_plane(
     atoms: Atoms,
