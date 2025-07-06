@@ -1,6 +1,5 @@
 [build-system]
 requires = [
-    "pyiron_base",
     "setuptools",
     "versioneer[toml]==0.29",
 ]
