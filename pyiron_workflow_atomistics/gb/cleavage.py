@@ -641,7 +641,8 @@ from pyiron_workflow_atomistics.gb.dataclass_storage import (
     CleaveGBStructureInput,
     PlotCleaveInput,
 )
-
+from typing import Callable, Any
+from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
 
 @pwf.as_macro_node(
     "cleaved_structure_list",
@@ -654,10 +655,10 @@ def calc_cleavage_GB(
     wf,
     structure: Atoms,
     energy,
-    calc,
+    calc_structure_fn: Callable[..., Any],
+    calc_structure_fn_kwargs: dict[str, Any],
     input_cleave_gb_structure: CleaveGBStructureInput,
     input_plot_cleave: PlotCleaveInput,
-    input_calc_structure: dict,
     parent_dir: str = "gb_cleavage",
     rigid=True,
 ):
@@ -686,45 +687,24 @@ def calc_cleavage_GB(
         show_fractional_axes=input_plot_cleave.show_fractional_axes,
         ylims=input_plot_cleave.ylims,
     )
-
-    wf.full_calc_kwargs = fillin_default_calckwargs(
-        calc_kwargs=input_calc_structure, default_values=None
-    )
     wf.cleave_structure_foldernames = get_cleavage_calc_names(
         parent_dir=parent_dir,
         cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords,
     )
-    wf.toggle_rigid_calc = toggle_rigid_calc(
-        rigid=rigid, calc_kwargs=wf.full_calc_kwargs.outputs.full_calc_kwargs2
+    wf.kwargs_removed_working_directory = fillin_default_calckwargs(
+        calc_kwargs=calc_structure_fn_kwargs, default_values=None, remove_keys=["working_directory"]
+    )
+    wf.cleavage_calcs_kwargs = generate_kwargs_variants(
+        base_kwargs=wf.kwargs_removed_working_directory.outputs.full_calc_kwargs2,
+        key="working_directory",
+        values=wf.cleave_structure_foldernames,
     )
     wf.calculate_cleaved = pwf.api.for_node(
         calculate_structure_node,
-        zip_on=("structure", "output_dir"),
+        zip_on=("structure", "calc_structure_fn_kwargs"),
         structure=wf.cleave_setup.outputs.cleaved_structures,
-        output_dir=wf.cleave_structure_foldernames,
-        calc=calc,
-        fmax=wf.full_calc_kwargs.outputs.full_calc_kwargs2["fmax"],
-        max_steps=wf.toggle_rigid_calc.outputs.max_steps,
-        properties=wf.full_calc_kwargs.outputs.full_calc_kwargs2["properties"],
-        write_to_disk=wf.full_calc_kwargs.outputs.full_calc_kwargs2["write_to_disk"],
-        initial_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "initial_struct_path"
-        ],
-        initial_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "initial_results_path"
-        ],
-        traj_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "traj_struct_path"
-        ],
-        traj_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "traj_results_path"
-        ],
-        final_struct_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "final_struct_path"
-        ],
-        final_results_path=wf.full_calc_kwargs.outputs.full_calc_kwargs2[
-            "final_results_path"
-        ],
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=wf.cleavage_calcs_kwargs,
     )
     wf.collate_results = get_results_df(
         df=wf.calculate_cleaved.outputs.df,
