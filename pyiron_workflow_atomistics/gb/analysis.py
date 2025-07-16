@@ -7,6 +7,36 @@ import matplotlib.pyplot as plt
 from .utils import axis_to_index
 import os
 
+@pwf.as_function_node("atom")
+def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
+    """
+    Return the index of the atom whose coordinate along the given axis
+    is closest to the mid-plane of the cell.
+    
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        The supercell.
+    axis : int or {'x','y','z'}, default=2
+        Which axis to slice along. 0='x', 1='y', 2='z'.
+    
+    Returns
+    -------
+    idx : int
+        Index of the atom closest to the center along that axis.
+    """
+    # allow strings 'x','y','z'
+    if isinstance(axis, str):
+        axis = {'x':0, 'y':1, 'z':2}[axis.lower()]
+    
+    # get fractional positions along axis (handles PBC nicely)
+    scaled = atoms.get_scaled_positions()[:, axis]
+    # the mid-plane in fractional coords is always 0.5
+    target = 0.5
+    # find atom nearest to that plane
+    idx = int(np.argmin(np.abs(scaled - target)))
+    return atoms[idx]
+
 
 @pwf.as_function_node("gb_plane_analysis_dict")
 def find_GB_plane(

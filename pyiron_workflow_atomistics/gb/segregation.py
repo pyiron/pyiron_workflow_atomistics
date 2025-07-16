@@ -24,8 +24,6 @@ def create_seg_structure_and_output_dir(
     seg_structure[defect_site].symbol = element
     structure_name = f"{structure_basename}_{element}_{defect_site}"
     output_dir = os.path.join(parent_dir, structure_name)
-    print(os.getcwd())
-    print(output_dir)
     return seg_structure, output_dir
 
 

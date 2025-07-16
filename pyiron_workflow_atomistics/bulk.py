@@ -7,6 +7,7 @@ from .calculator import extract_values, calculate_structure_node
 import os
 from typing import Callable, Tuple, Dict, Any, Optional, List
 from .calculator import ase_calculate_structure_node_interface
+from pyiron_workflow_atomistics.utils import get_per_atom_quantity
 
 
 @pwf.as_function_node("structure_list")
@@ -168,9 +169,93 @@ def get_bulk_structure(
     )
     return equil_struct
 
+import ase
+@pwf.api.as_function_node("rattle_structure")
+def rattle_structure(structure, rattle=None):
+    if rattle:
+        base_structure = structure.copy()
+        base_structure.rattle(rattle)
+    else:
+        base_structure = structure.copy()    
+    return base_structure
+
+
+from pyiron_workflow_atomistics.bulk import get_bulk_structure, get_cubic_equil_lat_param, eos_volume_scan
+@pwf.api.as_macro_node("a0", "B", "equil_energy_per_atom", "equil_volume_per_atom", "volumes", "structures", "energies")
+def optimise_cubic_lattice_parameter(wf,
+                                structure: Atoms,
+                                crystalstructure: str,
+                                name: str,
+                                rattle: float,
+                                calc_structure_fn=ase_calculate_structure_node_interface,
+                                calc_structure_fn_kwargs=None,
+                                strain_range=(-0.02, 0.02),
+                                num_points=11,
+                                 ):
+    """
+    Optimise the cubic lattice parameter of a bulk structure.
+    
+    Parameters
+    ----------
+    element_name : str
+        The name of the element to optimise the lattice parameter for.
+    crystalstructure : str
+        The crystal structure of the element.
+    rattle : float
+        The amount to rattle the structure by.
+    initial_lattice_parameter : float
+        The initial lattice parameter to use for the optimisation.
+    calc_structure_fn : callable
+        The function to use to calculate the structure.
+    calc_structure_fn_kwargs : dict
+        The keyword arguments to pass to the calc_structure_fn.
+    strain_range : tuple
+        The range of strains to use for the optimisation.
+    num_points : int
+        The number of points to use for the optimisation.
+        
+    Returns
+    -------
+    a0 : float
+        The optimised lattice parameter.
+    B : float
+        The bulk modulus.
+    equil_energy_per_atom : float
+        The equilibrium energy per atom.
+    equil_volume_per_atom : float
+        The equilibrium volume per atom.
+    volumes : list
+        The volumes of the strained structures.
+    structures : list[ase.Atoms]
+        The strained structures (ase Atoms)
+    energies : list
+        The energies of the strained structures.
+    """
+
+    wf.rattle_structure = rattle_structure(structure, rattle)
+    
+    # 3. Attach the macro node to the workflow, capturing all outputs
+    wf.eos = eos_volume_scan(
+        base_structure = wf.rattle_structure,
+        calc_structure_fn = calc_structure_fn,
+        calc_structure_fn_kwargs = calc_structure_fn_kwargs,
+        axes           = ["a", "b", "c"],
+        strain_range   = strain_range,
+        num_points     = num_points,
+    )
+    wf.a0 = get_cubic_equil_lat_param(wf.eos.outputs.v0)
+    wf.eq_bulk_struct = get_bulk_structure(name=name,
+                                    crystalstructure=crystalstructure,
+                                    a=wf.a0,
+                                    cubic=True)
+        
+    wf.equil_energy_per_atom = get_per_atom_quantity(wf.eos.outputs.e0, wf.eq_bulk_struct.outputs.equil_struct)
+    wf.equil_volume_per_atom = get_per_atom_quantity(wf.eos.outputs.v0, wf.eq_bulk_struct.outputs.equil_struct)
+    
+    return wf.a0.outputs.a0, wf.eos.outputs.B, wf.equil_energy_per_atom, wf.equil_volume_per_atom, wf.eos.outputs.volumes, wf.eos.outputs.structures, wf.eos.outputs.energies
 
 @pwf.as_function_node("a0")
-def get_equil_lat_param(eos_output):
+def get_cubic_equil_lat_param(eos_output):
     a0 = eos_output ** (1 / 3)
     return a0
 

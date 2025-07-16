@@ -289,7 +289,7 @@ def get_interp_min_energy_structure_from_forloop_df(
     unit_vec = cell[idx] / np.linalg.norm(cell[idx])
     cell[idx] = unit_vec * length_min
     interpolated_structure = get_modified_cell_structure.node_function(ref_struct, cell)
-    print(interpolated_structure, energies, structs, lengths, interpolated_energy)
+    #print(interpolated_structure, energies, structs, lengths, interpolated_energy)
     return interpolated_structure, interpolated_energy
 
 
@@ -510,9 +510,10 @@ def generate_deepcopy(input_obj):
     "stage2_opt_struct",
     "stage2_opt_excvol",
     "stage2_opt_GBEnergy",
+    "stage2_opt_totenergy",
     "stage1_plot",
     "stage2_plot",
-    "concat_results",
+    "results_df",
     "combined_plot",
     "gb_structure_final",
 )
@@ -592,6 +593,7 @@ def full_gb_length_optimization(
         wf.stage1_opt.outputs.exc_volume,
         wf.stage1_opt.outputs.gb_energy,
         wf.stage2_opt.outputs.min_interp_energy_GB_struct,
+        wf.stage2_opt.outputs.min_interp_energy_GB_energy,
         wf.stage2_opt.outputs.exc_volume,
         wf.stage2_opt.outputs.gb_energy,
         wf.stage1_plot,

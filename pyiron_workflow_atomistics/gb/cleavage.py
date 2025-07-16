@@ -660,7 +660,6 @@ def calc_cleavage_GB(
     input_cleave_gb_structure: CleaveGBStructureInput,
     input_plot_cleave: PlotCleaveInput,
     parent_dir: str = "gb_cleavage",
-    rigid=True,
 ):
     wf.cleave_setup = cleave_gb_structure(
         base_structure=structure,

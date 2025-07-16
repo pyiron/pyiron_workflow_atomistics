@@ -4,16 +4,20 @@ import os
 
 
 @pwf.as_function_node
-def update_dataclass(dataclass_instance, key, value):
-    from dataclasses import replace, asdict
+def modify_dataclass(dataclass_instance, **kwargs):
+    from dataclasses import asdict
+    from copy import deepcopy
 
-    if key not in asdict(dataclass_instance):
-        raise KeyError(
-            f"Field '{key}' not in dataclass {type(dataclass_instance).__name__}"
-        )
+    data = deepcopy(asdict(dataclass_instance))   # deep-copies nested containers
+    bad  = set(kwargs) - data.keys()
+    if bad:
+        raise KeyError(f"Unknown field(s): {sorted(bad)}")
 
-    updated_dataclass = replace(dataclass_instance, **{key: value})
-    return updated_dataclass
+    data.update(kwargs)
+    # re-construct a brand-new instance from the dict
+    return type(dataclass_instance)(**data)
+
+
 
 
 @pwf.as_function_node("output_dirs")
@@ -38,3 +42,8 @@ def get_subdirpaths(parent_dir: str, output_subdirs: List[str]):
         output_subdir = os.path.join(parent_dir, sub)
         dirpaths.append(output_subdir)
     return dirpaths
+
+@pwf.as_function_node("per_atom_quantity")
+def get_per_atom_quantity(quantity, structure):
+    per_atom_quantity = quantity/len(structure)
+    return per_atom_quantity
