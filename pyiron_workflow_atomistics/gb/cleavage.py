@@ -659,7 +659,7 @@ def calc_cleavage_GB(
     calc_structure_fn_kwargs: dict[str, Any],
     input_cleave_gb_structure: CleaveGBStructureInput,
     input_plot_cleave: PlotCleaveInput,
-    parent_dir: str = "gb_cleavage",
+    # parent_dir: str = "gb_cleavage",
 ):
     wf.cleave_setup = cleave_gb_structure(
         base_structure=structure,
@@ -687,7 +687,7 @@ def calc_cleavage_GB(
         ylims=input_plot_cleave.ylims,
     )
     wf.cleave_structure_foldernames = get_cleavage_calc_names(
-        parent_dir=parent_dir,
+        parent_dir=calc_structure_fn_kwargs["working_directory"],
         cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords,
     )
     wf.kwargs_removed_working_directory = fillin_default_calckwargs(

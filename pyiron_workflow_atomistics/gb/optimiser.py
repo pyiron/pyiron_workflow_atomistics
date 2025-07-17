@@ -502,7 +502,6 @@ from copy import deepcopy
 def generate_deepcopy(input_obj):
     return deepcopy(input_obj)
 
-
 @Workflow.wrap.as_macro_node(
     "stage1_opt_struct",
     "stage1_opt_excvol",
@@ -510,12 +509,12 @@ def generate_deepcopy(input_obj):
     "stage2_opt_struct",
     "stage2_opt_excvol",
     "stage2_opt_GBEnergy",
-    "stage2_opt_totenergy",
     "stage1_plot",
     "stage2_plot",
     "results_df",
     "combined_plot",
     "gb_structure_final",
+    "gb_structure_final_energy",
 )
 def full_gb_length_optimization(
     wf,
@@ -593,7 +592,6 @@ def full_gb_length_optimization(
         wf.stage1_opt.outputs.exc_volume,
         wf.stage1_opt.outputs.gb_energy,
         wf.stage2_opt.outputs.min_interp_energy_GB_struct,
-        wf.stage2_opt.outputs.min_interp_energy_GB_energy,
         wf.stage2_opt.outputs.exc_volume,
         wf.stage2_opt.outputs.gb_energy,
         wf.stage1_plot,
@@ -601,8 +599,8 @@ def full_gb_length_optimization(
         wf.concat_df,
         wf.combined_plot,
         wf.stage2_opt_struct_copy,
+        wf.stage2_opt.outputs.min_interp_energy_GB_energy,
     )
-
 
 import numpy as np
 import matplotlib.pyplot as plt

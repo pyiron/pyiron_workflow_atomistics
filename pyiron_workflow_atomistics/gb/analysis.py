@@ -2,9 +2,10 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import DBSCAN
 from ase import Atoms
+from ase.atoms import Atom
 import pyiron_workflow as pwf
 import matplotlib.pyplot as plt
-from .utils import axis_to_index
+from pyiron_workflow_atomistics.gb.utils import axis_to_index
 import os
 
 @pwf.as_function_node("atom")
@@ -220,7 +221,10 @@ def find_GB_plane(
         mid_frac = 0.5 * (start_frac + end_frac) % 1.0
 
     mid_cart = mid_frac * cell_len
-
+    frac_diffs = np.abs(sel_fracs - mid_frac)
+    i_mid = np.argmin(frac_diffs)
+    mid_index = sel_indices[i_mid]
+    
     # 9) optionally extend selection by extend_frac (Å → fraction)
     if extend_region_length > 0 and start_frac is not None and end_frac is not None:
         # Convert Cartesian extend_frac into fractional units
@@ -247,6 +251,7 @@ def find_GB_plane(
     return {
         "gb_frac": mid_frac,
         "gb_cart": mid_cart,
+        "mid_index": mid_index,
         "sel_indices": sel_indices.tolist(),
         "bulk_indices": bulk_indices.tolist(),
         "sel_fracs": sel_fracs,

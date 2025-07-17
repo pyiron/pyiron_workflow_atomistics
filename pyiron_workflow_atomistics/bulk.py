@@ -178,9 +178,7 @@ def rattle_structure(structure, rattle=None):
     else:
         base_structure = structure.copy()    
     return base_structure
-
-
-from pyiron_workflow_atomistics.bulk import get_bulk_structure, get_cubic_equil_lat_param, eos_volume_scan
+from pyiron_workflow_atomistics.utils import modify_dict, add_string
 @pwf.api.as_macro_node("a0", "B", "equil_energy_per_atom", "equil_volume_per_atom", "volumes", "structures", "energies")
 def optimise_cubic_lattice_parameter(wf,
                                 structure: Atoms,
@@ -233,12 +231,15 @@ def optimise_cubic_lattice_parameter(wf,
     """
 
     wf.rattle_structure = rattle_structure(structure, rattle)
-    
+    from pyiron_workflow_atomistics.utils import get_working_subdir
+    wf.calc_structure_fn_kwargs_opt_cubic_cell = get_working_subdir(calc_structure_fn_kwargs = calc_structure_fn_kwargs,
+                                                                        base_working_directory = calc_structure_fn_kwargs["working_directory"],
+                                                                        new_working_directory = "opt_cubic_cell")
     # 3. Attach the macro node to the workflow, capturing all outputs
     wf.eos = eos_volume_scan(
         base_structure = wf.rattle_structure,
         calc_structure_fn = calc_structure_fn,
-        calc_structure_fn_kwargs = calc_structure_fn_kwargs,
+        calc_structure_fn_kwargs = wf.calc_structure_fn_kwargs_opt_cubic_cell,
         axes           = ["a", "b", "c"],
         strain_range   = strain_range,
         num_points     = num_points,
