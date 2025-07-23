@@ -179,7 +179,7 @@ def rattle_structure(structure, rattle=None):
         base_structure = structure.copy()    
     return base_structure
 from pyiron_workflow_atomistics.utils import modify_dict, add_string
-@pwf.api.as_macro_node("a0", "B", "equil_energy_per_atom", "equil_volume_per_atom", "volumes", "structures", "energies")
+@pwf.api.as_macro_node("equil_struct", "a0", "B", "equil_energy_per_atom", "equil_volume_per_atom", "volumes", "structures", "energies")
 def optimise_cubic_lattice_parameter(wf,
                                 structure: Atoms,
                                 crystalstructure: str,
@@ -253,7 +253,7 @@ def optimise_cubic_lattice_parameter(wf,
     wf.equil_energy_per_atom = get_per_atom_quantity(wf.eos.outputs.e0, wf.eq_bulk_struct.outputs.equil_struct)
     wf.equil_volume_per_atom = get_per_atom_quantity(wf.eos.outputs.v0, wf.eq_bulk_struct.outputs.equil_struct)
     
-    return wf.a0.outputs.a0, wf.eos.outputs.B, wf.equil_energy_per_atom, wf.equil_volume_per_atom, wf.eos.outputs.volumes, wf.eos.outputs.structures, wf.eos.outputs.energies
+    return wf.eq_bulk_struct.outputs.equil_struct, wf.a0.outputs.a0, wf.eos.outputs.B, wf.equil_energy_per_atom, wf.equil_volume_per_atom, wf.eos.outputs.volumes, wf.eos.outputs.structures, wf.eos.outputs.energies
 
 @pwf.as_function_node("a0")
 def get_cubic_equil_lat_param(eos_output):

@@ -8,7 +8,7 @@ import pyiron_workflow as pwf
 import numpy as np
 from typing import Callable, Tuple, Dict, Any, Optional, List
 import pandas as pd
-
+from pyiron_workflow_atomistics.dataclass_storage import Engine
 
 def ase_calc_structure(
     structure: Atoms,
@@ -204,22 +204,28 @@ def ase_calculate_structure_node_interface(
     converged = bool(converged)
     # print(atoms, final_results, converged)
     return atoms, final_results, converged
+    
 
 
-@pwf.as_function_node("atoms", "results", "converged")
+
+@pwf.as_function_node("calc_output")
 def calculate_structure_node(
     structure: Atoms,
-    # calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn=ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: dict[str, Any] | None = None,
-) -> Tuple[Atoms, dict[str, Any], bool]:
-    if calc_structure_fn_kwargs is None:
-        calc_structure_fn_kwargs = {}
-    atoms, final_results, converged = calc_structure_fn(
+    calculation_engine: Optional[Engine] = None,
+    _calc_structure_fn=None,
+    _calc_structure_fn_kwargs: dict[str, Any] | None = None,
+) -> Any:
+    if calculation_engine is not None:
+        calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.calculate_fn(structure = structure)
+    else:
+        calc_structure_fn = _calc_structure_fn
+        calc_structure_fn_kwargs = _calc_structure_fn_kwargs
+    output = calc_structure_fn(
         structure=structure, **calc_structure_fn_kwargs
     )
-    # print(calc_structure_fn_kwargs["working_directory"])
-    return atoms, final_results, converged
+    return output
+
+
 
 
 @pwf.as_function_node("output")
@@ -259,48 +265,39 @@ def fillin_default_calckwargs(
     default_values: dict[str, Any] | None | str = None,
     remove_keys: list[str] | None = None,
 ) -> dict[str, Any]:
-    # 1) define built-in defaults
-    # built_in: dict[str, Any] = {
-    #     "optimizer_class": BFGS,
-    #     "optimizer_kwargs": None,
-    #     "record_interval": 1,
-    #     "fmax": 0.01,
-    #     "max_steps": 10000,
-    #     "properties": ("energy", "forces", "stresses"),
-    #     "write_to_disk": False,
-    #     "working_directory": "calc_output",
-    #     "initial_struct_path": "initial_structure.xyz",
-    #     "initial_results_path": "initial_results.json",
-    #     "traj_struct_path": "trajectory.xyz",
-    #     "traj_results_path": "trajectory_results.json",
-    #     "final_struct_path": "final_structure.xyz",
-    #     "final_results_path": "final_results.json",
-    #     "data_pickle": "job_data.pkl.gz",
-    # }
-
-    # 2) overlay any user-supplied default overrides
+    # 1) overlay any user-supplied default overrides
     built_in = {}
     if isinstance(default_values, dict):
         built_in.update(default_values)
 
-    # 3) start with everything user passed in
+    # 2) start with everything user passed in
     full: dict[str, Any] = dict(calc_kwargs)
 
-    # 4) fill in missing built-ins
+    # 3) fill in missing built-ins
     for key, default in built_in.items():
         full.setdefault(key, default)
 
-    # 5) ensure properties is a tuple
+    # 4) ensure properties is a tuple
     if "properties" in full:
         full["properties"] = tuple(full["properties"])
 
-    # 6) remove any keys requested
+    # 5) remove any keys requested
     if remove_keys:
         for key in remove_keys:
             full.pop(key, None)
 
     return full
 
+@pwf.as_function_node("kwargs_variant")
+def generate_kwargs_variant(
+    base_kwargs: dict[str, Any],
+    key: str,
+    value: Any,
+):
+    from copy import deepcopy
+    kwargs_variant = deepcopy(base_kwargs)
+    kwargs_variant[key] = value
+    return kwargs_variant
 
 @pwf.as_function_node("kwargs_variants")
 def generate_kwargs_variants(

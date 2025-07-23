@@ -26,6 +26,21 @@ def modify_dataclass(dataclass_instance, entry_name: str, entry_value: Any):
     # re-construct a brand-new instance from the dict
     return dataclass_instance
 
+@pwf.as_function_node("modded_dataclass_multi")
+def modify_dataclass_multi(dataclass_instance, entry_names, entry_values):
+    """
+    Wraps your single-entry node so you can pass lists of names & values.
+    Usage:
+      new = modify_dataclass_multi(old, ["a","b"], [1,2])
+    """
+    if len(entry_names) != len(entry_values):
+        raise ValueError("entry_names and entry_values must have the same length")
+
+    ds = dataclass_instance
+    for name, val in zip(entry_names, entry_values):
+        ds = modify_dataclass.node_function(ds, name, val)
+    return ds
+
 @pwf.as_function_node("modded_dict")
 def modify_dict(dict_instance: dict, updates: dict):
     from copy import deepcopy
