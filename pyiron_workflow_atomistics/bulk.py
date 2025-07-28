@@ -3,12 +3,12 @@ from ase import Atoms
 import pyiron_workflow as pwf
 from pyiron_workflow import Workflow
 
-from .calculator import extract_values, calculate_structure_node
+from .calculator import calculate_structure_node
 import os
 from typing import Callable, Tuple, Dict, Any, Optional, List
-from .calculator import ase_calculate_structure_node_interface
 from pyiron_workflow_atomistics.utils import get_per_atom_quantity
-
+from pyiron_workflow_atomistics.dataclass_storage import Engine
+from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
 
 @pwf.as_function_node("structure_list")
 def generate_structures(
@@ -17,25 +17,6 @@ def generate_structures(
     strain_range: tuple[float, float] = (-0.2, 0.2),
     num_points: int = 11,
 ) -> list[Atoms]:
-    """
-    Generate a list of strained ASE Atoms structures.
-
-    Parameters
-    ----------
-    base_structure
-        ASE Atoms object to be strained.
-    axes
-        List of axes to strain simultaneously: any combination of "a", "b", "c".
-        Use ["iso"] for isotropic (all axes) by default.
-    strain_range
-        (min_strain, max_strain), e.g. (-0.2, 0.2) for ±20%.
-    num_points
-        Number of steps in the strain grid.
-
-    Returns
-    -------
-    List of ASE Atoms, one per epsilon value with specified axes strained.
-    """
     structure_list: list[Atoms] = []
     start, end = strain_range
 
@@ -76,59 +57,49 @@ def equation_of_state(energies, volumes, eos_type="sj"):
     return e0, v0, B_GPa  # eos_results
 
 
-@pwf.as_function_node("structures", "results_dict", "convergence_lst")
+@pwf.as_function_node("engine_output_lst")
 def evaluate_structures(
     structures: list[Atoms],
-    calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: dict[str, Any] | None = None,
+    calculation_engine: Optional[Engine] = None,
+    calc_structure_fn: Optional[Callable[..., Any]] = None,
+    calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
 ):
-    """
-    Evaluate each structure, writing each one's results under its own subfolder.
+    validate_calculation_inputs(
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+        calculation_engine=calculation_engine,
+    )
+    if calculation_engine is not None:
+        working_directory = calculation_engine.working_directory
+        os.makedirs(working_directory, exist_ok=True)
+        calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.calculate_fn(structure = structures[0])
+    else:
+        working_directory = calc_structure_fn_kwargs["working_directory"]
+        os.makedirs(working_directory, exist_ok=True)
+        calc_structure_fn_kwargs = calc_structure_fn_kwargs.copy()
 
-    - structures: list of ASE Atoms
-    - calc: ASE calculator
-    - calc_kwargs: base kwargs for calc_structure_with_trajectory
-    - working_directory: top‐level directory to dump each strain’s files into
-    - write_to_disk: whether to write outputs to disk
 
-    Returns
-    -------
-    rel_structs_lst : list of ASE Atoms
-        The final relaxed structure for each input.
-    results_lst : list of dict
-        The final-results dict for each input.
-    convergence_lst : list of bool
-        Convergence flag for each calculation.
-    """
-
-    os.makedirs(calc_structure_fn_kwargs["working_directory"], exist_ok=True)
-
-    rel_structs_lst = []
-    results_lst = []
-    convergence_lst = []
-
+    engine_output_lst = []
     for i, struct in enumerate(structures):
         # per-structure subfolder
         local_kwargs = calc_structure_fn_kwargs.copy()
-
-        strain_dir = os.path.join(local_kwargs["working_directory"], f"strain_{i:03d}")
+        
+        strain_dir = os.path.join(working_directory, f"strain_{i:03d}")
         # print(s)
         # start from the user’s calc_kwargs, preserving any keys they set
         local_kwargs["working_directory"] = strain_dir
         # run the full trajectory-enabled calculation
         # print(local_kwargs)
-        atoms, final_results, converged = calculate_structure_node.node_function(
+        engine_output = calculate_structure_node.node_function(
             structure=struct,
-            calc_structure_fn=calc_structure_fn,
-            calc_structure_fn_kwargs=local_kwargs,
+            _calc_structure_fn=calc_structure_fn,
+            _calc_structure_fn_kwargs=local_kwargs,
         )
 
         # unpack final results
-        rel_structs_lst.append(atoms)
-        results_lst.append(final_results)
-        convergence_lst.append(converged)
+        engine_output_lst.append(engine_output)
 
-    return rel_structs_lst, results_lst, convergence_lst
+    return engine_output_lst
 
 
 # @pwf.as_function_node("energies", "volumes")
@@ -178,68 +149,38 @@ def rattle_structure(structure, rattle=None):
     else:
         base_structure = structure.copy()    
     return base_structure
+
 from pyiron_workflow_atomistics.utils import modify_dict, add_string
 @pwf.api.as_macro_node("equil_struct", "a0", "B", "equil_energy_per_atom", "equil_volume_per_atom", "volumes", "structures", "energies")
 def optimise_cubic_lattice_parameter(wf,
                                 structure: Atoms,
-                                crystalstructure: str,
                                 name: str,
-                                rattle: float,
-                                calc_structure_fn=ase_calculate_structure_node_interface,
-                                calc_structure_fn_kwargs=None,
+                                crystalstructure: str,
+                                calculation_engine = None,
+                                calc_structure_fn: Optional[Callable[..., Any]] = None,
+                                calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
+                                rattle: float = 0.0,
                                 strain_range=(-0.02, 0.02),
                                 num_points=11,
+                                parent_working_directory: str = "opt_cubic_cell",
                                  ):
-    """
-    Optimise the cubic lattice parameter of a bulk structure.
-    
-    Parameters
-    ----------
-    element_name : str
-        The name of the element to optimise the lattice parameter for.
-    crystalstructure : str
-        The crystal structure of the element.
-    rattle : float
-        The amount to rattle the structure by.
-    initial_lattice_parameter : float
-        The initial lattice parameter to use for the optimisation.
-    calc_structure_fn : callable
-        The function to use to calculate the structure.
-    calc_structure_fn_kwargs : dict
-        The keyword arguments to pass to the calc_structure_fn.
-    strain_range : tuple
-        The range of strains to use for the optimisation.
-    num_points : int
-        The number of points to use for the optimisation.
-        
-    Returns
-    -------
-    a0 : float
-        The optimised lattice parameter.
-    B : float
-        The bulk modulus.
-    equil_energy_per_atom : float
-        The equilibrium energy per atom.
-    equil_volume_per_atom : float
-        The equilibrium volume per atom.
-    volumes : list
-        The volumes of the strained structures.
-    structures : list[ase.Atoms]
-        The strained structures (ase Atoms)
-    energies : list
-        The energies of the strained structures.
-    """
-
     wf.rattle_structure = rattle_structure(structure, rattle)
-    from pyiron_workflow_atomistics.utils import get_working_subdir
-    wf.calc_structure_fn_kwargs_opt_cubic_cell = get_working_subdir(calc_structure_fn_kwargs = calc_structure_fn_kwargs,
-                                                                        base_working_directory = calc_structure_fn_kwargs["working_directory"],
-                                                                        new_working_directory = "opt_cubic_cell")
+    from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
+    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
+                                                                                                    structure = wf.rattle_structure,
+                                                                                                    calc_structure_fn = calc_structure_fn,
+                                                                                                    calc_structure_fn_kwargs = calc_structure_fn_kwargs)
+    from pyiron_workflow_atomistics.utils import get_working_subdir_kwargs
+    wf.calc_fn_kwargs = get_working_subdir_kwargs(calc_structure_fn_kwargs = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
+                                            base_working_directory = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
+                                            new_working_directory = parent_working_directory)
+    print(wf.calc_fn_kwargs)
     # 3. Attach the macro node to the workflow, capturing all outputs
     wf.eos = eos_volume_scan(
         base_structure = wf.rattle_structure,
-        calc_structure_fn = calc_structure_fn,
-        calc_structure_fn_kwargs = wf.calc_structure_fn_kwargs_opt_cubic_cell,
+        # calculation_engine = calculation_engine,
+        calc_structure_fn = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
+        calc_structure_fn_kwargs = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
         axes           = ["a", "b", "c"],
         strain_range   = strain_range,
         num_points     = num_points,
@@ -265,8 +206,9 @@ def get_cubic_equil_lat_param(eos_output):
 def eos_volume_scan(
     wf,
     base_structure,
-    calc_structure_fn=ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: dict[str, Any] | None = None,
+    calculation_engine: Optional[Engine] = None,
+    calc_structure_fn: Optional[Callable[..., Any]] = None,
+    calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
     axes=["a", "b", "c"],
     strain_range=(-0.2, 0.2),
     num_points=11,
@@ -283,20 +225,24 @@ def eos_volume_scan(
     # 2) evaluate them in subfolders under working_directory
     wf.evaluation = evaluate_structures(
         structures=wf.structures_list,
+        calculation_engine=calculation_engine,
         calc_structure_fn=calc_structure_fn,
         calc_structure_fn_kwargs=calc_structure_fn_kwargs,
     )
-
+    from pyiron_workflow_atomistics.calculator import extract_output_values_from_EngineOutput
     # 3) extract energies and volumes
-    wf.energies = extract_values(
-        wf.evaluation.outputs.results_dict,
-        key="energy",
+    wf.energies = extract_output_values_from_EngineOutput(
+        wf.evaluation.outputs.engine_output_lst,
+        key="final_energy",
     )
-    wf.volumes = extract_values(
-        wf.evaluation.outputs.results_dict,
-        key="volume",
+    wf.volumes = extract_output_values_from_EngineOutput(
+        wf.evaluation.outputs.engine_output_lst,
+        key="final_volume",
     )
-
+    wf.structures = extract_output_values_from_EngineOutput(
+        wf.evaluation.outputs.engine_output_lst,
+        key="final_structure",
+    )
     # 4) fit EOS
     wf.eos = equation_of_state(
         wf.energies,
@@ -309,6 +255,6 @@ def eos_volume_scan(
         wf.eos.outputs.e0,
         wf.eos.outputs.B,
         wf.volumes,
-        wf.evaluation.outputs.structures,
+        wf.structures,
         wf.energies,
     )

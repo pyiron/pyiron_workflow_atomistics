@@ -1,10 +1,62 @@
 import pyiron_workflow as pwf
-from typing import List
+from typing import List, Callable
 import os
+from pyiron_workflow_atomistics.dataclass_storage import Engine
+from ase import Atoms
+from pymatgen.io.ase import AseAtomsAdaptor
+
+@pwf.as_function_node
+def convert_structure(structure, target="ase"):
+    if target == "ase":
+        converted_structure = AseAtomsAdaptor.get_atoms(structure)
+    elif target in ("pmg", "pymatgen"):
+        converted_structure = AseAtomsAdaptor.get_structure(structure)
+    else:
+        raise ValueError(f"Unknown target: {target}")
+    return converted_structure
+
+def extract_outputs_from_EngineOutputs(engine_outputs: list, keys: list[str], only_converged=True):
+    """
+    Extract specified keys from a list of EngineOutput objects.
+
+    Parameters
+    ----------
+    engine_outputs : list of EngineOutput
+        The list of outputs from which to extract values.
+    keys : list of str
+        The attribute names to extract from each EngineOutput.
+    only_converged : bool
+        Whether to only include outputs that are converged.
+
+    Returns
+    -------
+    extracted : dict[str, list]
+        Dictionary where each key maps to a list of values extracted from EngineOutput.
+    """
+    extracted = {key: [] for key in keys}
+
+    for output in engine_outputs:
+        if only_converged and not getattr(output, "convergence", False):
+            continue
+        for key in keys:
+            value = getattr(output, key, None)
+            extracted[key].append(value)
+
+    return extracted
 
 @pwf.api.as_function_node("dict_with_adjusted_working_directory")
-def get_working_subdir(calc_structure_fn_kwargs: dict, base_working_directory: str, new_working_directory: str):
+def get_working_subdir_kwargs(calc_structure_fn_kwargs: dict, base_working_directory: str, new_working_directory: str):
     return modify_dict.node_function(calc_structure_fn_kwargs, {"working_directory": os.path.join(base_working_directory, new_working_directory)})
+
+@pwf.api.as_function_node("calc_fn", "calc_fn_kwargs")
+def get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine, structure, calc_structure_fn, calc_structure_fn_kwargs):
+    if calculation_engine:
+        calc_fn, calc_fn_kwargs = calculation_engine.calculate_fn(structure)
+    else:
+        calc_fn = calc_structure_fn
+        calc_fn_kwargs = calc_structure_fn_kwargs
+    print(calc_fn_kwargs["working_directory"])
+    return calc_fn, calc_fn_kwargs
 
 @pwf.as_function_node("new_string")
 def add_string(base_string: str, new_string: str):

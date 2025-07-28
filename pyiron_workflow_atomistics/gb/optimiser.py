@@ -19,28 +19,11 @@ from pyiron_workflow_atomistics.calculator import (
 )
 from typing import List, Tuple, Optional, Dict, Any, Callable
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
-from pyiron_workflow_atomistics.calculator import ase_calculate_structure_node_interface
-
-
+from pyiron_workflow_atomistics.dataclass_storage import Engine
+from pyiron_workflow_atomistics.utils import extract_outputs_from_EngineOutputs
 @pwf.as_function_node
 def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
-    """
-    Generate ASE structures with varied cell lengths along the specified axis.
 
-    Parameters:
-    -----------
-    structure : ASE Atoms
-        Reference ASE Atoms object.
-    extensions : array-like of float, optional
-        Offsets to add to the 'c' vector. Default is np.linspace(-0.2, 0.8, 11).
-
-    Returns:
-    --------
-    extended_structure_list : list of ASE Atoms
-        List of extended ASE structures.
-    extensions : array-like of float
-        The array of extensions applied.
-    """
     base_structure = structure.copy()
     extended_structure_list = []
     for ext in extensions:
@@ -50,137 +33,23 @@ def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
         extended_structure_list.append(structure)
     return extended_structure_list, extensions
 
-
 @pwf.as_function_node
-def convert_structure(structure, target="ase"):
-    """
-    Convert structure between ASE Atoms and Pymatgen Structure.
-
-    Parameters:
-    -----------
-    structure : ASE Atoms or Pymatgen Structure
-        Input structure to convert.
-    target : str, optional
-        Target format: 'ase' for ASE Atoms, 'pmg' or 'pymatgen' for Pymatgen Structure. Default is 'ase'.
-
-    Returns:
-    --------
-    result : ASE Atoms or Pymatgen Structure
-        Converted structure.
-
-    Raises:
-    -------
-    ValueError
-        If the target format is unknown.
-    """
-    if target == "ase":
-        converted_structure = AseAtomsAdaptor.get_atoms(structure)
-    elif target in ("pmg", "pymatgen"):
-        converted_structure = AseAtomsAdaptor.get_structure(structure)
-    else:
-        raise ValueError(f"Unknown target: {target}")
-    return converted_structure
-
-
-@pwf.as_function_node
-def extract_energy_volume_data_forloop_node(
-    df, axis="c", check_orthorhombic=False, tol=1e-6
-):
-    """
-    Extract energies, structures, and cell lengths for a specified axis from calculation results.
-
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame containing calculation results with 'converged', 'structure', and 'results' columns.
-    axis : {'a','b','c'}, optional
-        Cell axis to extract lengths along. Default is 'c'.
-    check_orthorhombic : bool, optional
-        If True, verify the cell is orthogonal within tolerance. Default is False.
-    tol : float, optional
-        Tolerance for orthogonality check. Default is 1e-6.
-
-    Returns:
-    --------
-    energies : list of float
-        List of total energies for converged runs.
-    structs : list of Structure
-        List of Pymatgen Structure objects for converged runs.
-    lengths : list of float
-        List of cell lengths along the specified axis.
-    """
-    idx = axis_to_index(axis)
-
-    energies, structs, lengths = [], [], []
-    for _, row in df.iterrows():
-        if not row.converged:
-            continue
-        struct = row.structure
-        cell = np.array(struct.cell)
-        if check_orthorhombic:
-            for i in range(3):
-                for j in range(i):
-                    if abs(cell[i] @ cell[j]) > tol:
-                        raise ValueError("Non-orthogonal cell")
-        energies.append(row.results["energy"])
-        structs.append(struct)
-        lengths.append(np.linalg.norm(cell[idx]))
-    return energies, structs, lengths
-
-
-@pwf.as_function_node
-def get_min_energy_structure_from_forloop_df(df, axis="c"):
-    """
-    Identify the structure with minimum energy from a results DataFrame.
-
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame with calculation results.
-    axis : {'a','b','c'}, optional
-        Cell axis used for length extraction. Default is 'c'.
-
-    Returns:
-    --------
-    min_energy_structure : Structure
-        Pymatgen Structure with the lowest energy.
-    min_energy : float
-        Minimum energy value.
-
-    Raises:
-    -------
-    ValueError
-        If no converged runs are found.
-    """
-    # print(df)
-    energies, structs, _ = extract_energy_volume_data_forloop_node.node_function(
-        df, axis
+def get_min_energy_structure_from_forloop_df(df):
+    extracted_dict = extract_outputs_from_EngineOutputs(
+        engine_outputs=df.calc_output,
+        keys=["final_energy", "final_structure", "final_volume"]
     )
-    if not energies:
+    if not extracted_dict["final_energy"]:
         raise ValueError("No converged runs.")
+    energies = extracted_dict["final_energy"]
     i = int(np.argmin(energies))
-    min_energy_structure = structs[i]
+    min_energy_structure = extracted_dict["final_structure"][i]
     min_energy = energies[i]
     return min_energy_structure, min_energy
 
 
 @pwf.as_function_node("modified_structure")
 def get_modified_cell_structure(structure, cell):
-    """
-    Update a structure's cell parameters preserving fractional coordinates.
-
-    Parameters:
-    -----------
-    structure : ASE Atoms or Pymatgen Structure
-        Reference structure to modify.
-    cell : array-like
-        New cell matrix or lengths and angles.
-
-    Returns:
-    --------
-    atoms : ASE Atoms or Pymatgen Structure
-        Structure with updated cell.
-    """
     modified_structure = structure.copy()
     modified_structure.set_cell(cell, scale_atoms=True)
     return modified_structure
@@ -188,36 +57,6 @@ def get_modified_cell_structure(structure, cell):
 
 @pwf.as_function_node()
 def fit_polynomial_extremum(x_vals, y_vals, degree=2, num_points=None, extremum="min"):
-    """
-    Fit a polynomial to data and find its extremum.
-
-    Parameters:
-    -----------
-    x_vals : array-like of float
-        Independent variable data.
-    y_vals : array-like of float
-        Dependent variable data.
-    degree : int, optional
-        Degree of the polynomial fit (>=2). Default is 2.
-    num_points : int, optional
-        Number of points to use for fitting. Default is None.
-    extremum : {'min','max'}, optional
-        Type of extremum to find. Default is 'min'.
-
-    Returns:
-    --------
-    ext_val : tuple (float, float)
-        Extremum location and polynomial value at that point.
-    coeffs : ndarray
-        Coefficients of the fitted polynomial.
-
-    Raises:
-    -------
-    ValueError
-        If degree < 2.
-    RuntimeError
-        If no extremum is found.
-    """
     x = np.array(x_vals, float)
     y = np.array(y_vals, float)
     if degree < 2:
@@ -251,34 +90,13 @@ def fit_polynomial_extremum(x_vals, y_vals, degree=2, num_points=None, extremum=
 def get_interp_min_energy_structure_from_forloop_df(
     df, axis="c", check_orthorhombic=False, tol=1e-6, degree=2, num_points=None
 ):
-    """
-    Interpolate to find the minimum-energy structure from a dataset.
-
-    Parameters:
-    -----------
-    df : pandas.DataFrame
-        DataFrame with calculation results.
-    axis : {'a','b','c'}, optional
-        Axis for cell length interpolation. Default is 'c'.
-    check_orthorhombic : bool, optional
-        Verify the cell is orthogonal within tolerance. Default is False.
-    tol : float, optional
-        Tolerance for orthogonality check. Default is 1e-6.
-    degree : int, optional
-        Degree of polynomial for fitting. Default is 2.
-    num_points : int, optional
-        Number of data points to include in fit. Default is None.
-
-    Returns:
-    --------
-    interpolated_structure : ASE Atoms or Pymatgen Structure
-        Structure with cell set to interpolated minimum-energy.
-    interpolated_energy : float
-        Interpolated minimum energy value.
-    """
-    energies, structs, lengths = extract_energy_volume_data_forloop_node.node_function(
-        df, axis, check_orthorhombic, tol
+    extracted_dict = extract_outputs_from_EngineOutputs(
+        engine_outputs=df.calc_output,
+        keys=["final_energy", "final_structure", "final_volume"]
     )
+    energies = extracted_dict["final_energy"]
+    structs = extracted_dict["final_structure"]
+    lengths = [np.linalg.norm(np.array(struct.cell)[axis_to_index(axis)]) for struct in structs]
     (length_min, interpolated_energy), _ = fit_polynomial_extremum.node_function(
         lengths, energies, degree, num_points, extremum="min"
     )
@@ -295,25 +113,6 @@ def get_interp_min_energy_structure_from_forloop_df(
 
 @pwf.as_function_node("GB_energy")
 def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
-    """
-    Compute grain boundary energy per unit area for a bicrystal.
-
-    Parameters:
-    -----------
-    atoms : ASE Atoms
-        Bicrystal atoms object.
-    total_energy : float
-        Total energy of the bicrystal.
-    e0_per_atom : float
-        Bulk reference energy per atom.
-    gb_normal_axis : {'a','b','c'}, optional
-        Axis normal to grain boundary plane. Default is 'c'.
-
-    Returns:
-    --------
-    gamma_GB : float
-        Grain boundary energy per unit area.
-    """
     # print(atoms, total_energy, e0_per_atom, gb_normal_axis)
     idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
@@ -328,23 +127,6 @@ def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
 
 @pwf.as_function_node("excess_volume")
 def get_GB_exc_volume(atoms, bulk_vol_per_atom, gb_normal_axis="c"):
-    """
-    Compute grain boundary excess volume per unit area.
-
-    Parameters:
-    -----------
-    atoms : ASE Atoms
-        Bicrystal atoms object.
-    bulk_vol_per_atom : float
-        Bulk reference volume per atom.
-    gb_normal_axis : {'a','b','c'}, optional
-        Axis normal to grain boundary plane. Default is 'c'.
-
-    Returns:
-    --------
-    excess_volume : float
-        Grain boundary excess volume per unit area.
-    """
     idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
     normals = [i for i in range(3) if i != idx]
@@ -377,57 +159,26 @@ def gb_length_optimiser(
     equil_bulk_volume,
     equil_bulk_energy,
     extensions,
-    calc_structure_fn_kwargs: dict[str, Any],
-    calc_structure_fn=ase_calculate_structure_node_interface,
+    calculation_engine: Engine | None = None,
+    calc_structure_fn_kwargs: dict[str, Any] | None = None,
+    calc_structure_fn: Callable | None = None,
     gb_normal_axis: str = "c",
     calc_structure_fn_kwargs_defaults: dict[str, Any] | None = None,
 ):
-    """
-    Macro node to extend GB structures over a range of lengths, compute energies/volumes, and extract GB excess properties.
-
-    Parameters:
-    -----------
-    wf : pwf.Workflow
-        The Workflow to which nodes are added.
-    gb_structure : Structure
-        (Ideally) Bulk-equilibrated GB structure.
-    calc_structure_fn : callable
-        Function to use for structure calculations.
-    calc_structure_fn_kwargs : dict
-        Keyword arguments for the calculation function. Must include 'working_directory'.
-    equil_bulk_volume : float
-        Equilibrium volume per atom for GB excess volume calculation.
-    equil_bulk_energy : float
-        Bulk reference energy per atom for GB energy calculation.
-    extensions : array-like of float
-        Relative extensions to apply (e.g., [-0.2, 0.2, ...]).
-    gb_normal_axis : {'a','b','c'}, optional
-        Axis normal to the GB plane. Default is 'c'.
-    calc_structure_fn_kwargs_defaults : dict, optional
-        Default values for calculation function kwargs.
-
-    Returns:
-    --------
-    extended_GBs_calcs : Node
-        Node with calculation DataFrame for extended GBs.
-    min_energy_GB_struct : Node
-        Minimum-energy GB structure from scan.
-    min_energy_GB_energy : Node
-        Energy of the minimum-energy GB.
-    min_interp_energy_GB_struct : Node
-        Interpolated minimum-energy structure.
-    min_interp_energy_GB_energy : Node
-        Interpolated minimum energy value.
-    exc_volume : Node
-        Grain boundary excess volume per area node.
-    gb_energy : Node
-        Grain boundary energy per area node.
-    """
+    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs   
+    wf.validate = validate_calculation_inputs(calculation_engine = calculation_engine,
+                                              calc_structure_fn = calc_structure_fn,
+                                              calc_structure_fn_kwargs = calc_structure_fn_kwargs)
+    from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
+    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
+                                                                                   structure = gb_structure,
+                                                                                   calc_structure_fn = calc_structure_fn,
+                                                                                   calc_structure_fn_kwargs = calc_structure_fn_kwargs)
     # 1. Generate extended structures
     wf.extended_GBs = get_extended_struct_list(gb_structure, extensions=extensions)
     wf.extended_GBs_subdirnames = get_extended_names(extensions=extensions)
     wf.full_calc_kwargs = fillin_default_calckwargs(
-        calc_kwargs=calc_structure_fn_kwargs,
+        calc_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
         default_values=calc_structure_fn_kwargs_defaults,
     )
     from pyiron_workflow_atomistics.utils import get_subdirpaths
@@ -451,10 +202,10 @@ def gb_length_optimiser(
     # 2. Compute energies/volumes for extended structures
     wf.extended_GBs_calcs = for_node(
         calculate_structure_node,
-        zip_on=("structure", "calc_structure_fn_kwargs"),
+        zip_on=("structure", "_calc_structure_fn_kwargs"),
         structure=wf.extended_GBs.outputs.extended_structure_list,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=wf.kwargs_variants.outputs.kwargs_variants,
+        _calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
+        _calc_structure_fn_kwargs=wf.kwargs_variants.outputs.kwargs_variants,
     )
 
     # 4. Fit and extract minimum-energy structure
@@ -500,8 +251,13 @@ from copy import deepcopy
 
 @pwf.as_function_node("generic_output")
 def generate_deepcopy(input_obj):
+    print("In generate_deepcopy executing")
     return deepcopy(input_obj)
 
+@pwf.as_function_node("length")
+def get_length(extensions):
+    print("In get_length executing")
+    return len(extensions)
 @Workflow.wrap.as_macro_node(
     "stage1_opt_struct",
     "stage1_opt_excvol",
@@ -523,17 +279,27 @@ def full_gb_length_optimization(
     equil_bulk_volume,
     extensions_stage1,
     extensions_stage2,
+    calculation_engine: Engine | None = None,
     calc_structure_fn_kwargs: dict[str, Any] | None = None,
-    calc_structure_fn=ase_calculate_structure_node_interface,
+    calc_structure_fn: Callable | None = None,
     calc_structure_fn_kwargs_defaults=None,
     interpolate_min_n_points=5,
     gb_normal_axis="c",
 ):
+    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
+    wf.validate = validate_calculation_inputs(calculation_engine = calculation_engine,
+                                              calc_structure_fn = calc_structure_fn,
+                                              calc_structure_fn_kwargs = calc_structure_fn_kwargs)
+    from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
+    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
+                                                                                   structure = gb_structure,
+                                                                                   calc_structure_fn = calc_structure_fn,
+                                                                                   calc_structure_fn_kwargs = calc_structure_fn_kwargs)
     # 1. First length-scan + optimise
     wf.stage1_opt = gb_length_optimiser(
         gb_structure=gb_structure,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+        calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
+        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage1,
@@ -544,8 +310,8 @@ def full_gb_length_optimization(
     # 2. Second (refined) scan + optimise
     wf.stage2_opt = gb_length_optimiser(
         gb_structure=wf.stage1_opt.outputs.min_interp_energy_GB_struct,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+        calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
+        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage2,
@@ -555,19 +321,19 @@ def full_gb_length_optimization(
     wf.stage2_opt_struct_copy = generate_deepcopy(
         wf.stage2_opt.outputs.min_interp_energy_GB_struct
     )
-    wf.stage1_plot_len = pwf.api.std.Length(extensions_stage1)
+    wf.stage1_plot_len = get_length(extensions_stage1)
     # 3. Plot each stage
     wf.stage1_plot = get_gb_length_optimiser_plot(
         df=wf.stage1_opt.outputs.extended_GB_results,
         n_points=wf.stage1_plot_len,
-        working_directory=calc_structure_fn_kwargs["working_directory"],
+        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
         save_filename="gb_optimiser_stage1.jpg",
     )
-    wf.stage2_plot_len = pwf.api.std.Length(extensions_stage2)
+    wf.stage2_plot_len = get_length(extensions_stage2)
     wf.stage2_plot = get_gb_length_optimiser_plot(
         df=wf.stage2_opt.outputs.extended_GB_results,
         n_points=wf.stage2_plot_len,
-        working_directory=calc_structure_fn_kwargs["working_directory"],
+        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
         save_filename="gb_optimiser_stage2.jpg",
     )
 
@@ -582,7 +348,7 @@ def full_gb_length_optimization(
     wf.combined_plot = get_gb_length_optimiser_plot(
         df=wf.concat_df,
         n_points=interpolate_min_n_points,
-        working_directory=calc_structure_fn_kwargs["working_directory"],
+        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
         save_filename="gb_optimiser_combined.jpg",
     )
 
@@ -639,10 +405,11 @@ def get_gb_length_optimiser_plot(
     figsize : tuple, optional
         Figure size in inches (width, height).
     """
+    print("In get_gb_length_optimiser_plot executing")
     # Prepare data
     df_copy = df.copy()
-    df_copy["c"] = df_copy.atoms.apply(lambda x: x.cell[-1][-1])
-    df_copy["energy"] = df_copy.results.apply(lambda r: r["energy"])
+    df_copy["c"] = df_copy.structure.apply(lambda x: x.cell[-1][-1])
+    df_copy["energy"] = df_copy.calc_output.apply(lambda r: r.final_energy)
 
     # Optionally select only the n smallest energy points
     if isinstance(n_points, int) and n_points > 0:
