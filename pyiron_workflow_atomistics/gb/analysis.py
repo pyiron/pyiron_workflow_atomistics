@@ -2,9 +2,41 @@ import numpy as np
 import pandas as pd
 from sklearn.cluster import DBSCAN
 from ase import Atoms
+from ase.atoms import Atom
 import pyiron_workflow as pwf
 import matplotlib.pyplot as plt
-from .utils import axis_to_index
+from pyiron_workflow_atomistics.gb.utils import axis_to_index
+import os
+
+@pwf.as_function_node("atom")
+def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
+    """
+    Return the index of the atom whose coordinate along the given axis
+    is closest to the mid-plane of the cell.
+    
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        The supercell.
+    axis : int or {'x','y','z'}, default=2
+        Which axis to slice along. 0='x', 1='y', 2='z'.
+    
+    Returns
+    -------
+    idx : int
+        Index of the atom closest to the center along that axis.
+    """
+    # allow strings 'x','y','z'
+    if isinstance(axis, str):
+        axis = {'x':0, 'y':1, 'z':2}[axis.lower()]
+    
+    # get fractional positions along axis (handles PBC nicely)
+    scaled = atoms.get_scaled_positions()[:, axis]
+    # the mid-plane in fractional coords is always 0.5
+    target = 0.5
+    # find atom nearest to that plane
+    idx = int(np.argmin(np.abs(scaled - target)))
+    return atoms[idx]
 
 
 @pwf.as_function_node("gb_plane_analysis_dict")
@@ -189,7 +221,10 @@ def find_GB_plane(
         mid_frac = 0.5 * (start_frac + end_frac) % 1.0
 
     mid_cart = mid_frac * cell_len
-
+    frac_diffs = np.abs(sel_fracs - mid_frac)
+    i_mid = np.argmin(frac_diffs)
+    mid_index = sel_indices[i_mid]
+    
     # 9) optionally extend selection by extend_frac (Å → fraction)
     if extend_region_length > 0 and start_frac is not None and end_frac is not None:
         # Convert Cartesian extend_frac into fractional units
@@ -216,6 +251,7 @@ def find_GB_plane(
     return {
         "gb_frac": mid_frac,
         "gb_cart": mid_cart,
+        "mid_index": mid_index,
         "sel_indices": sel_indices.tolist(),
         "bulk_indices": bulk_indices.tolist(),
         "sel_fracs": sel_fracs,
@@ -238,7 +274,8 @@ def plot_GB_plane(
     extended_only_color="r",
     plane_linestyles=("--", "-"),
     axis=2,
-    save_path=None,
+    save_filename=None,
+    working_directory=None,
     dpi=300,
 ):
     """
@@ -421,8 +458,9 @@ def plot_GB_plane(
     ax.legend(by_label.values(), by_label.keys(), loc="upper left")
 
     # Save if requested
-    if save_path:
-        fig.savefig(save_path, dpi=dpi)
+    if save_filename:
+        os.makedirs(working_directory, exist_ok=True)
+        fig.savefig(os.path.join(working_directory, save_filename), dpi=dpi)
 
     plt.show()
     return fig, ax
