@@ -93,7 +93,6 @@ def extract_values_from_dict(output_dict: dict[str, Any], key: str):
     KeyError
         If any entry in results_list is missing the specified key.
     """
-    import numpy as np
     try:
         extracted_values = [entry[key] for entry in output_dict]
     except Exception as e:

@@ -12,6 +12,7 @@ import glob
 from pyiron_workflow import Workflow
 from pymatgen.io.ase import AseAtomsAdaptor
 
+from pyiron_snippets.logger import logger
 
 @pwf.as_function_node("wrapped_sorted_structure")
 def wrap_and_sort_structure(structure, axis=2):
@@ -70,6 +71,8 @@ def _write_and_load_structure(my_gb, extend_by=1):
     """
     Writes the GB to a temporary file, loads it as a pymatgen Structure, and cleans up the file.
     """
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning)
     with tempfile.NamedTemporaryFile(suffix=".vasp", delete=False) as tmpfile:
         filename = my_gb.WriteGB(
             filename=tmpfile.name,
@@ -210,7 +213,7 @@ def get_realigned_structure(
         matcher = StructureMatcher()
         is_equal = matcher.fit(struct, reordered_struct)
         # print("Reordered and aligned lattice:\n", reordered.lattice)
-        print("Are structures equivalent?", is_equal)
+        logger.info(f"Are structures equivalent? {is_equal}")
 
     return reordered_struct
 
@@ -261,7 +264,7 @@ def get_gbstruct_from_gbcode(
 def merge_structure_sites(structure, merge_dist_tolerance=1.3, merge_mode="average"):
     structure_merged = structure.copy()
     structure_merged.merge_sites(tol=merge_dist_tolerance, mode=merge_mode)
-    print(len(structure) - len(structure_merged))
+    logger.info(f"Merged {len(structure) - len(structure_merged)} sites")
     return structure_merged
 
 
@@ -269,16 +272,23 @@ def merge_structure_sites(structure, merge_dist_tolerance=1.3, merge_mode="avera
 def get_expected_equilibrium_c_struct(struct, v0_per_atom, axis=2):
     from pymatgen.core.lattice import Lattice
 
-    # The amount to adjust the axis perp to gb plane by (direction of excess volume expansion)
+    # Calculate the new lattice parameter along the specified axis to achieve the target volume per atom
     adj_equilibrium_vol = v0_per_atom * len(struct)
-    adj_c = adj_equilibrium_vol / (struct.lattice.a * struct.lattice.b)
+    # Get the current lattice parameters
+    abc = list(struct.lattice.abc)
+    # Indices of the two axes orthogonal to the specified axis
+    axes_orth = [i for i in range(3) if i != axis]
+    # Product of the two orthogonal lattice parameters
+    orth_product = abc[axes_orth[0]] * abc[axes_orth[1]]
+    # Compute the new lattice parameter along the specified axis
+    adj_axis_length = adj_equilibrium_vol / orth_product
+    # Prepare new lattice parameters
+    new_abc = abc.copy()
+    new_abc[axis] = adj_axis_length
+    # Assume orthogonal cell (all angles 90)
     struct_eq = struct.copy()
-    a = struct_eq.lattice.a
-    b = struct_eq.lattice.b
-    c = adj_c
-    struct_eq.lattice = Lattice.from_parameters(a, b, c, 90, 90, 90)
-    # print(type(struct_eq), adj_c)
-    return struct_eq, adj_c
+    struct_eq.lattice = Lattice.from_parameters(*new_abc, 90, 90, 90)
+    return struct_eq, adj_axis_length
 
 
 @pwf.as_function_node
@@ -363,14 +373,10 @@ def construct_GB_from_GBCode(
 
     Returns:
     --------
-    gbcode_GBstruct : Structure
-        Raw GB structure from code.
-    gbplane_normal_aligned_c_struct : Structure
-        GB structure realigned with plane normal along c.
-    merged_gbcode_GBstruct : Structure
-        Merged sites GB structure.
-    merged_gbcode_GBstruct_equilibrated_bulkvol : Structure
-        GB structure with bulk-equilibrated cell volume.
+        wf.structure : ase.Atoms
+            The final GB structure.
+        wf.sorted_structure : ase.Atoms
+            The final GB structure sorted by the specified axis.
     """
     wf.gbcode_GBstruct = get_gbstruct_from_gbcode(
         axis=axis,
