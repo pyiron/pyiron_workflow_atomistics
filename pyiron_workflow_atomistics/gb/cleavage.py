@@ -491,11 +491,20 @@ def cleave_gb_structure(
         tol=tol,
         use_fractional=use_fractional,
     )
+    # if len(mid_site_indices) == 0:
+    #     raise RuntimeError(
+    #         f"No atoms found within tol={tol} of {axis_to_cleave}={target_coord}."
+    #     )
+    
     if len(mid_site_indices) == 0:
-        raise RuntimeError(
-            f"No atoms found within tol={tol} of {axis_to_cleave}={target_coord}."
-        )
-    mid_site_idx = int(mid_site_indices[0])
+        # fallback: compute distance along the chosen axis for every atom
+        positions = np.array(base_structure.get_positions())
+        axis_map = {"x": 0, "y": 1, "z": 2}
+        ai = axis_map[axis_to_cleave.lower()]
+        distances = np.abs(positions[:, ai] - target_coord)
+        mid_site_idx = int(np.argmin(distances))
+    else:
+        mid_site_idx = int(mid_site_indices[0])
 
     # 3) Find all viable cleavage planes around that site index.
     cleavage_plane_coords = find_viable_cleavage_planes_around_site.node_function(
