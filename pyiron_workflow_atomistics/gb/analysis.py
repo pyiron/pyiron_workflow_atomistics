@@ -7,7 +7,7 @@ import pyiron_workflow as pwf
 import matplotlib.pyplot as plt
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
 import os
-
+from pyiron_snippets.logger import logger
 @pwf.as_function_node("atom")
 def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
@@ -166,12 +166,12 @@ def find_GB_plane(
 
     # If multiple equal peaks exist:
     if len(i_peaks) >= 2:
-        print("double peak detected")
+        logger.info("double peak detected")
 
         # Define first and last peak positions
         i_peak_min = i_peaks.min()
         i_peak_max = i_peaks.max()
-        print(i_peak_min, i_peak_max)
+        logger.info(f"i_peak_min: {i_peak_min}, i_peak_max: {i_peak_max}")
         p_min = fs[i_peak_min]
         p_max = fs[i_peak_max]
 
@@ -198,7 +198,7 @@ def find_GB_plane(
         mid_frac = (0.5 * (p_min + p_max)) % 1.0
 
     else:
-        print("single peak detected")
+        logger.info("single peak detected")
         # Only one clear peak → treat it as a single index
         i_peak = i_peaks[0]
 

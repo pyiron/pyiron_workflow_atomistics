@@ -480,9 +480,10 @@ def cleave_gb_structure(
     cleavage_plane_coords : list of float
         The coordinates of each viable cleavage plane found.
     """
+    # print("trying to find axis_to_index")
     # Convert axis letter ("a"/"b"/"c") to numeric index
     ax = axis_to_index(axis_to_cleave)
-
+    # print("trying to find get_sites_on_plane")
     # 2) Identify which atom index sits “on/near” the GB plane.
     mid_site_indices = get_sites_on_plane.node_function(
         atoms=base_structure,
@@ -491,21 +492,27 @@ def cleave_gb_structure(
         tol=tol,
         use_fractional=use_fractional,
     )
+    # print("succeeded")
     # if len(mid_site_indices) == 0:
     #     raise RuntimeError(
     #         f"No atoms found within tol={tol} of {axis_to_cleave}={target_coord}."
     #     )
-    
+    # print("trying to find mid_site_idx")
     if len(mid_site_indices) == 0:
         # fallback: compute distance along the chosen axis for every atom
+        # print("fallback: computing distance along the chosen axis for every atom")
         positions = np.array(base_structure.get_positions())
-        axis_map = {"x": 0, "y": 1, "z": 2}
-        ai = axis_map[axis_to_cleave.lower()]
-        distances = np.abs(positions[:, ai] - target_coord)
+        # print("positions", positions)
+        # print("ax", ax)
+        distances = np.abs(positions[:, ax] - target_coord)
+        # print("distances", distances)
         mid_site_idx = int(np.argmin(distances))
+        # print("mid_site_idx", mid_site_idx)
     else:
+        # print("using mid_site_indices")
         mid_site_idx = int(mid_site_indices[0])
-
+    # print("finished finding mid_site_idx")
+    # print("trying to find viable cleavage planes")
     # 3) Find all viable cleavage planes around that site index.
     cleavage_plane_coords = find_viable_cleavage_planes_around_site.node_function(
         structure=base_structure,
@@ -515,7 +522,8 @@ def cleave_gb_structure(
         layer_tolerance=layer_tolerance,
         fractional=use_fractional,
     )
-
+    # print("finished finding viable cleavage planes")
+    # print("trying to cleave structure")
     # 4) For each plane coord, call cleave_axis_aligned to get a “cleaved” slab.
     cleaved_structures = []
     for plane_c in cleavage_plane_coords:
@@ -527,7 +535,7 @@ def cleave_gb_structure(
             use_fractional=use_fractional,
         )
         cleaved_structures.append(slab_structure)
-
+    # print("finished cleaving structure")
     return cleaved_structures, cleavage_plane_coords
 
 

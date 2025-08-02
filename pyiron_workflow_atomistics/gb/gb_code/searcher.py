@@ -152,11 +152,7 @@ def get_gbcode_df(axis: np.ndarray,
                   basis: str,
                   sigma_limit: int,
                   lim_plane_index: int,
-                  lattice_param: float | None = None,
                   max_atoms: int = 100,
-                  remove_duplicates: bool = True,
-                  max_search_duplicate_atoms_limit: int = 100,
-                  equil_volume_per_atom: float | None = None,
                   max_workers: int = None) -> pd.DataFrame:
     sigma_list, theta_list, m_list, n_list = [], [], [], []
 
@@ -186,7 +182,8 @@ def get_gbcode_df(axis: np.ndarray,
     all_gb_df = all_gb_df[all_gb_df["n_atoms"] <= max_atoms]
     return all_gb_df
 
-def get_gbcode_df_with_structures(df: pd.DataFrame,
+def get_gbcode_df_with_structures(
+    df: pd.DataFrame,
     basis: str,
     lattice_param: float,
     equil_volume_per_atom: float,
@@ -197,7 +194,7 @@ def get_gbcode_df_with_structures(df: pd.DataFrame,
     max_workers: int = None
 ) -> pd.DataFrame:
     """
-    Construct GB structures for each row in the DataFrame in parallel.
+    Construct GB structures for each row in the DataFrame in parallel, with a tqdm progress bar.
 
     Parameters
     ----------
@@ -225,6 +222,7 @@ def get_gbcode_df_with_structures(df: pd.DataFrame,
     pd.DataFrame
         DataFrame with an added 'structure' column of constructed GBs.
     """
+    from tqdm import tqdm
     entries = df.to_dict('records')
     args_list = [
         (
@@ -240,10 +238,16 @@ def get_gbcode_df_with_structures(df: pd.DataFrame,
         for entry in entries
     ]
     n_workers = max_workers if max_workers is not None else cpu_count()
-    from concurrent.futures import ProcessPoolExecutor
+    from concurrent.futures import ProcessPoolExecutor, as_completed
     from pyiron_workflow_atomistics.gb.gb_code.searcher import _construct_structure_for_entry
+
+    structures = [None] * len(args_list)
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        structures = list(executor.map(_construct_structure_for_entry, args_list))
+        futures = {executor.submit(_construct_structure_for_entry, arg): idx for idx, arg in enumerate(args_list)}
+        for future in tqdm(as_completed(futures), total=len(args_list), desc="Constructing GB structures"):
+            idx = futures[future]
+            structures[idx] = future.result()
+
     df_out = df.copy()
     df_out['structure'] = structures    
     df_out["structure_natoms"] = df_out["structure"].apply(len)
@@ -358,11 +362,7 @@ def get_gbcode_df_multiple_axes(
     basis: str = "fcc",
     sigma_limit: int = 100,
     lim_plane_index: int = 3,
-    lattice_param: float | None = None,
-    equil_volume_per_atom: float | None = None,
     max_atoms: int = 100,
-    remove_duplicates: bool = True,
-    max_search_duplicate_atoms_limit: int = 100,
     max_workers: int = None
 ) -> pd.DataFrame:
     """
@@ -376,11 +376,7 @@ def get_gbcode_df_multiple_axes(
                             basis,
                             sigma_limit,
                             lim_plane_index,
-                            lattice_param,
                             max_atoms,
-                            remove_duplicates,
-                            max_search_duplicate_atoms_limit,
-                            equil_volume_per_atom,
                             max_workers)
             for axis in axes_list
         ]

@@ -251,12 +251,12 @@ from copy import deepcopy
 
 @pwf.as_function_node("generic_output")
 def generate_deepcopy(input_obj):
-    print("In generate_deepcopy executing")
+    # print("In generate_deepcopy executing")
     return deepcopy(input_obj)
 
 @pwf.as_function_node("length")
 def get_length(extensions):
-    print("In get_length executing")
+    # print("In get_length executing")
     return len(extensions)
 @Workflow.wrap.as_macro_node(
     "stage1_opt_struct",
@@ -405,7 +405,7 @@ def get_gb_length_optimiser_plot(
     figsize : tuple, optional
         Figure size in inches (width, height).
     """
-    print("In get_gb_length_optimiser_plot executing")
+    # print("In get_gb_length_optimiser_plot executing")
     # Prepare data
     df_copy = df.copy()
     df_copy["c"] = df_copy.structure.apply(lambda x: x.cell[-1][-1])
