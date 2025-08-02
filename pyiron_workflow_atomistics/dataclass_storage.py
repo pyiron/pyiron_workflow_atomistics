@@ -2,6 +2,7 @@ from dataclasses import dataclass
 import ase
 from ase import Atoms
 from typing import Literal, Union, Optional, Any
+from copy import deepcopy
 class PrintableClass:
     def __str__(self):
         items = [f"{k}={repr(v)}" for k, v in self.to_dict().items()]
@@ -19,6 +20,8 @@ class PrintableClass:
                 for k in dir(self)
                 if not k.startswith("_") and not callable(getattr(self, k))
             }
+    def copy(self):
+        return deepcopy(self)
 
 
 @dataclass

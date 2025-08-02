@@ -174,7 +174,7 @@ def optimise_cubic_lattice_parameter(wf,
     wf.calc_fn_kwargs = get_working_subdir_kwargs(calc_structure_fn_kwargs = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
                                             base_working_directory = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
                                             new_working_directory = parent_working_directory)
-    print(wf.calc_fn_kwargs)
+    # print(wf.calc_fn_kwargs)
     # 3. Attach the macro node to the workflow, capturing all outputs
     wf.eos = eos_volume_scan(
         base_structure = wf.rattle_structure,

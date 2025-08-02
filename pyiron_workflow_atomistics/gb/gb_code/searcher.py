@@ -5,7 +5,7 @@ import pandas as pd
 from math import degrees
 from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
-from pyiron_snippets import logger
+from pyiron_snippets.logger import logger
 
 def _construct_gb_for_sigma(args):
     """
@@ -129,7 +129,7 @@ def _construct_structure_for_entry(args):
     Top-level helper for picklable structure construction.
     """
     from pyiron_workflow_atomistics.gb.gb_code.constructor import construct_GB_from_GBCode
-    entry, basis, lattice_param, equil_volume_per_atom, element, req_length_grain, grain_length_axis = args
+    entry, basis, lattice_param, equil_volume_per_atom, element, req_length_grain, grain_length_axis, min_inplane_gb_length = args
     fn = construct_GB_from_GBCode(
         axis=entry['Axis'],
         basis=basis,
@@ -142,18 +142,17 @@ def _construct_structure_for_entry(args):
         equil_volume=equil_volume_per_atom,
         grain_length_axis=grain_length_axis
     )()
+    from pyiron_workflow_atomistics.structure_manipulator.tools import create_supercell_with_min_dimensions
+    supercell = create_supercell_with_min_dimensions(fn["final_structure"], 
+                                                min_dimensions=[min_inplane_gb_length, min_inplane_gb_length, None])()
     #print(type(fn))
-    return fn["final_structure"]
+    return supercell
 
 def get_gbcode_df(axis: np.ndarray,
                   basis: str,
                   sigma_limit: int,
                   lim_plane_index: int,
-                  lattice_param: float | None = None,
                   max_atoms: int = 100,
-                  remove_duplicates: bool = True,
-                  max_search_duplicate_atoms_limit: int = 100,
-                  equil_volume_per_atom: float | None = None,
                   max_workers: int = None) -> pd.DataFrame:
     sigma_list, theta_list, m_list, n_list = [], [], [], []
 
@@ -181,30 +180,78 @@ def get_gbcode_df(axis: np.ndarray,
         max_workers=max_workers
     )
     all_gb_df = all_gb_df[all_gb_df["n_atoms"] <= max_atoms]
-    all_gb_df = _rid_negative_duplicates(all_gb_df)
-    if remove_duplicates:
-        # Ensure required parameters
-        if lattice_param is None:
-            raise ValueError("Lattice parameter is required to construct the GB structures.")
-        if equil_volume_per_atom is None:
-            raise ValueError("Equilibrium volume per atom must be provided for structure construction.")
-
-        # Parallel construction of GB structures
-        all_gb_df = _construct_gbcode_structures_from_df(
-            df=all_gb_df,
-            basis=basis,
-            lattice_param=lattice_param,
-            equil_volume_per_atom=equil_volume_per_atom,
-            max_workers=max_workers
-        )
-
-        # Remove duplicates based on structure matching
-        all_gb_df = _remove_duplicate_structures(
-            all_gb_df,
-            max_atoms=max_search_duplicate_atoms_limit,
-            max_workers=max_workers
-        )
     return all_gb_df
+
+def get_gbcode_df_with_structures(
+    df: pd.DataFrame,
+    basis: str,
+    lattice_param: float,
+    equil_volume_per_atom: float,
+    element: str = "Fe",
+    min_inplane_gb_length: float = 10,
+    req_length_grain: float = 15,
+    grain_length_axis: float = 0,
+    max_workers: int = None
+) -> pd.DataFrame:
+    """
+    Construct GB structures for each row in the DataFrame in parallel, with a tqdm progress bar.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame containing GB metadata columns: 'Axis', 'm', 'n', 'GB1'.
+    basis : str
+        Crystal basis type passed to the constructor.
+    lattice_param : float
+        Lattice parameter for GB construction.
+    equil_volume_per_atom : float
+        Equilibrium volume per atom for GB construction.
+    element : str, default='Fe'
+        Element symbol for GB construction.
+    min_inplane_gb_length : float, default=10
+        Minimum in-plane GB length parameter.
+    req_length_grain : float, default=15
+        Required grain length parameter.
+    grain_length_axis : float, default=0
+        Grain length along the axis.
+    max_workers : int or None, optional
+        Number of parallel workers; defaults to cpu_count().
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with an added 'structure' column of constructed GBs.
+    """
+    from tqdm import tqdm
+    entries = df.to_dict('records')
+    args_list = [
+        (
+            entry,
+            basis,
+            lattice_param,
+            equil_volume_per_atom,
+            element,
+            req_length_grain,
+            grain_length_axis,
+            min_inplane_gb_length
+        )
+        for entry in entries
+    ]
+    n_workers = max_workers if max_workers is not None else cpu_count()
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    from pyiron_workflow_atomistics.gb.gb_code.searcher import _construct_structure_for_entry
+
+    structures = [None] * len(args_list)
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
+        futures = {executor.submit(_construct_structure_for_entry, arg): idx for idx, arg in enumerate(args_list)}
+        for future in tqdm(as_completed(futures), total=len(args_list), desc="Constructing GB structures"):
+            idx = futures[future]
+            structures[idx] = future.result()
+
+    df_out = df.copy()
+    df_out['structure'] = structures    
+    df_out["structure_natoms"] = df_out["structure"].apply(len)
+    return df_out
 
 def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -310,75 +357,12 @@ def _remove_duplicate_structures(
     indices_to_drop = {idx for sublist in results for idx in sublist}
     return df.drop(index=indices_to_drop)#.drop(columns=["n_atoms"])
 
-def _construct_gbcode_structures_from_df(
-    df: pd.DataFrame,
-    basis: str,
-    lattice_param: float,
-    equil_volume_per_atom: float,
-    element: str = "Fe",
-    req_length_grain: float = 15,
-    grain_length_axis: float = 0,
-    max_workers: int = None
-) -> pd.DataFrame:
-    """
-    Construct GB structures for each row in the DataFrame in parallel.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        DataFrame containing GB metadata columns: 'Axis', 'm', 'n', 'GB1'.
-    basis : str
-        Crystal basis type passed to the constructor.
-    lattice_param : float
-        Lattice parameter for GB construction.
-    equil_volume_per_atom : float
-        Equilibrium volume per atom for GB construction.
-    element : str, default='Fe'
-        Element symbol for GB construction.
-    req_length_grain : float, default=15
-        Required grain length parameter.
-    grain_length_axis : float, default=0
-        Grain length along the axis.
-    max_workers : int or None, optional
-        Number of parallel workers; defaults to cpu_count().
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame with an added 'structure' column of constructed GBs.
-    """
-    entries = df.to_dict('records')
-    args_list = [
-        (
-            entry,
-            basis,
-            lattice_param,
-            equil_volume_per_atom,
-            element,
-            req_length_grain,
-            grain_length_axis
-        )
-        for entry in entries
-    ]
-    n_workers = max_workers if max_workers is not None else cpu_count()
-    from concurrent.futures import ProcessPoolExecutor
-    from pyiron_workflow_atomistics.gb.gb_code.searcher import _construct_structure_for_entry
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        structures = list(executor.map(_construct_structure_for_entry, args_list))
-    df_out = df.copy()
-    df_out['structure'] = structures    
-    return df_out
-
 def get_gbcode_df_multiple_axes(
     axes_list: list[np.ndarray],
     basis: str = "fcc",
     sigma_limit: int = 100,
     lim_plane_index: int = 3,
-    lattice_param: float | None = None,
-    equil_volume_per_atom: float | None = None,
     max_atoms: int = 100,
-    remove_duplicates: bool = True,
-    max_search_duplicate_atoms_limit: int = 100,
     max_workers: int = None
 ) -> pd.DataFrame:
     """
@@ -392,11 +376,7 @@ def get_gbcode_df_multiple_axes(
                             basis,
                             sigma_limit,
                             lim_plane_index,
-                            lattice_param,
                             max_atoms,
-                            remove_duplicates,
-                            max_search_duplicate_atoms_limit,
-                            equil_volume_per_atom,
                             max_workers)
             for axis in axes_list
         ]
