@@ -16,7 +16,7 @@ def calculate_structure_node(
     structure: Atoms,
     calculation_engine = None, # Optional[Engine] = None,
     _calc_structure_fn=None,
-    _calc_structure_fn_kwargs: dict[str, Any] | None = None,
+    _calc_structure_fn_kwargs = None,
 ) -> Any:
     if calculation_engine is not None:
         calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.calculate_fn(structure = structure)
@@ -167,4 +167,33 @@ def generate_kwargs_variants(
     """
     return_kwargs = [{**base_kwargs, key: v} for v in values]
     # print(return_kwargs)
+    return return_kwargs
+
+@pwf.as_function_node("kwargs_variants_with_remove")
+def add_arg_to_kwargs_list(
+    kwargs_list: list[dict[str, Any]],
+    key: str,
+    value: Any | list[Any],
+    remove_if_exists: bool = False,
+):
+    """
+    Given a list of kwargs dicts, add a key-value pair to each dict.
+    If `value` is a list, the value of the key is the i-th element of the list.
+    If `remove_if_exists` is True, the key is removed from the dict if it exists.
+
+    Parameters
+    ----------
+    kwargs_list: list[dict[str, Any]]
+    """
+    from copy import deepcopy
+    return_kwargs = [deepcopy(kwargs) for kwargs in kwargs_list]
+    for i, kwargs in enumerate(return_kwargs):
+        if remove_if_exists:
+            kwargs.pop(key, None)
+        if key in kwargs.keys():
+            raise ValueError(f"Key {key} already exists in kwargs dict")
+        if isinstance(value, list):
+            kwargs[key] = value[i]
+        else:
+            kwargs[key] = value
     return return_kwargs
