@@ -19,7 +19,7 @@ def calculate_structure_node(
     _calc_structure_fn_kwargs = None,
 ) -> Any:
     if calculation_engine is not None:
-        calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.calculate_fn(structure = structure)
+        calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.get_calculate_fn(structure = structure)
     else:
         calc_structure_fn = _calc_structure_fn
         calc_structure_fn_kwargs = _calc_structure_fn_kwargs
