@@ -9,6 +9,7 @@ from typing import Callable, Tuple, Dict, Any, Optional, List
 from pyiron_workflow_atomistics.utils import get_per_atom_quantity
 from pyiron_workflow_atomistics.dataclass_storage import Engine
 from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
+import warnings
 
 @pwf.as_function_node("structure_list")
 def generate_structures(
@@ -38,6 +39,7 @@ def generate_structures(
                 elif ax_lower == "c":
                     new_cell[2] = cell[2] * (1 + epsilon)
                 else:
+                    warnings.warn(f"Unknown axis label: {ax}")
                     # ignore unknown axis labels
                     continue
         s.set_cell(new_cell, scale_atoms=True)

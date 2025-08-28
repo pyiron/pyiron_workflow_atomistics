@@ -51,11 +51,11 @@ def get_working_subdir_kwargs(calc_structure_fn_kwargs: dict, base_working_direc
 @pwf.api.as_function_node("calc_fn", "calc_fn_kwargs")
 def get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine, structure, calc_structure_fn, calc_structure_fn_kwargs):
     if calculation_engine:
-        calc_fn, calc_fn_kwargs = calculation_engine.calculate_fn(structure)
+        calc_fn, calc_fn_kwargs = calculation_engine.get_calculate_fn(structure)
     else:
         calc_fn = calc_structure_fn
         calc_fn_kwargs = calc_structure_fn_kwargs
-    print(calc_fn_kwargs["working_directory"])
+    # print(calc_fn_kwargs["working_directory"])
     return calc_fn, calc_fn_kwargs
 
 @pwf.as_function_node("new_string")
