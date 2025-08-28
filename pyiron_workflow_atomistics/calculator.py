@@ -72,7 +72,7 @@ def extract_output_values_from_EngineOutput(EngineOutput: Any, key: str):
     return output_dict
 
 @pwf.as_function_node("output")
-def extract_values_from_dict(output_dict: dict[str, Any], key: str):
+def extract_values_from_dict(output_dict: list[dict[str, Any]], key: str):
     """
     Extract a list of values for a specified key from a list of result dictionaries.
 
