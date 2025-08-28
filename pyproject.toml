@@ -47,8 +47,8 @@ Repository = "https://github.com/pyiron/pyiron_workflow_atomistics"
 
 [tool.versioneer]
 VCS = "git"
-style = "pep440"
-tag_prefix = "v"  # <-- must match your tags like v0.0.2a0
+style = "pep440-pre"
+tag_prefix = "pyiron_workflow_atomistics-"  # <-- must match your tags like v0.0.2a0
 versionfile_source = "pyiron_workflow_atomistics/_version.py"
 parentdir_prefix = "pyiron_workflow_atomistics-"
 
