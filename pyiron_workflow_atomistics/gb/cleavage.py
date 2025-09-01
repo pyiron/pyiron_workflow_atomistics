@@ -586,16 +586,6 @@ def get_results_df(
         }
     )
 
-
-@pwf.as_function_node
-def toggle_rigid_calc(rigid, calc_kwargs):
-    if rigid:
-        max_steps = 0
-    else:
-        max_steps = calc_kwargs["max_steps"]
-    return max_steps
-
-
 from pyiron_workflow_atomistics.gb.dataclass_storage import (
     CleaveGBStructureInput,
     PlotCleaveInput,
