@@ -7,7 +7,7 @@ import numpy as np
 import tempfile
 import os
 from unittest.mock import Mock, patch, MagicMock
-from ase import Atoms
+from ase import Atoms, read
 from ase.atoms import Atom
 
 import pyiron_workflow_atomistics.gb.analysis as gb_analysis_module
@@ -19,12 +19,9 @@ class TestGBAnalysisFunctions(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create a simple test structure with atoms at different z positions
-        positions = [
-            [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],  # z=0 layer
-            [0, 0, 2], [1, 0, 2], [0, 1, 2], [1, 1, 2],  # z=2 layer
-            [0, 0, 4], [1, 0, 4], [0, 1, 4], [1, 1, 4],  # z=4 layer
-        ]
-        self.test_atoms = Atoms('H12', positions=positions, cell=[2, 2, 6])
+        test_dir = os.path.dirname(__file__)
+        resource_path = os.path.join(test_dir, "..", "resources", "GB.vasp")
+        self.test_atoms = read(resource_path)
         
         # Create a mock featuriser
         self.mock_featuriser = Mock()
