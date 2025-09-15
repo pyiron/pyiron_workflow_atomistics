@@ -1,8 +1,9 @@
+from copy import deepcopy
 from dataclasses import dataclass
+from typing import Any, Literal, Optional, Union
+
 import ase
 from ase import Atoms
-from typing import Literal, Union, Optional, Any
-from copy import deepcopy
 
 
 class PrintableClass:

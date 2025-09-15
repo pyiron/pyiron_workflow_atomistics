@@ -3,15 +3,13 @@ Unit tests for pyiron_workflow_atomistics.bulk module.
 """
 
 import unittest
+import warnings
+
 import numpy as np
-import tempfile
-import os
-from unittest.mock import Mock, patch, MagicMock
 from ase import Atoms
 from ase.build import bulk
 
 import pyiron_workflow_atomistics.bulk as bulk_module
-import warnings
 
 
 class TestBulkFunctions(unittest.TestCase):

@@ -1,8 +1,7 @@
-import pyiron_workflow as pwf
-from typing import List, Callable
 import os
-from pyiron_workflow_atomistics.dataclass_storage import Engine
-from ase import Atoms
+from typing import List
+
+import pyiron_workflow as pwf
 from pymatgen.io.ase import AseAtomsAdaptor
 
 
@@ -88,8 +87,8 @@ from typing import Any
 
 @pwf.as_function_node("modded_dataclass")
 def modify_dataclass(dataclass_instance, entry_name: str, entry_value: Any):
-    from dataclasses import asdict
     from copy import deepcopy
+    from dataclasses import asdict
 
     kwarg_dict = {entry_name: entry_value}
     data = deepcopy(asdict(dataclass_instance))  # deep-copies nested containers

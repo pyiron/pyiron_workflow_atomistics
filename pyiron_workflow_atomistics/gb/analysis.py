@@ -1,13 +1,14 @@
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.cluster import DBSCAN
+import pyiron_workflow as pwf
 from ase import Atoms
 from ase.atoms import Atom
-import pyiron_workflow as pwf
-import matplotlib.pyplot as plt
-from pyiron_workflow_atomistics.gb.utils import axis_to_index
-import os
 from pyiron_snippets.logger import logger
+
+from pyiron_workflow_atomistics.gb.utils import axis_to_index
 
 
 @pwf.as_function_node("atom")
@@ -106,7 +107,6 @@ def find_GB_plane(
         All atoms within [region_start_frac – extend_frac_frac, region_end_frac + extend_frac_frac].
     """
     import numpy as np
-    import pandas as pd
 
     if featuriser_kwargs is None:
         featuriser_kwargs = {}
@@ -321,8 +321,8 @@ def plot_GB_plane(
     dpi : int
         Resolution in dots per inch when saving.
     """
-    import numpy as np
     import matplotlib.pyplot as plt
+    import numpy as np
 
     # Unpack projection and cell
     p0, p1 = projection
@@ -539,8 +539,6 @@ def get_sites_on_plane(
     return matched_indices
 
 
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 def plot_structure_2d(

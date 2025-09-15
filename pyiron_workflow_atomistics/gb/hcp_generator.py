@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
+import argparse
 import os
+
 import numpy as np
 import pandas as pd
-import argparse
-
-from ase import Atom, Atoms
-from ase.io.vasp import read_vasp, write_vasp
-from ase.io.lammpsdata import write_lammps_data
-from ase.lattice.hexagonal import HexagonalClosedPacked
+from ase import Atom
 from ase.build import rotate
-
-from pymatgen.core import Structure, Lattice
+from ase.io.lammpsdata import write_lammps_data
+from ase.io.vasp import read_vasp, write_vasp
+from ase.lattice.hexagonal import HexagonalClosedPacked
+from pymatgen.core import Lattice, Structure
 from pymatgen.transformations.standard_transformations import SupercellTransformation
 
 Z_THRESH = 0.00005

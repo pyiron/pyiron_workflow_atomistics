@@ -1,14 +1,13 @@
-import pyiron_workflow as pwf
 import os
+from typing import Any, Callable
+
+import pyiron_workflow as pwf
 from ase import Atoms
 from pyiron_workflow.api import for_node
+
 from pyiron_workflow_atomistics.calculator import (
-    fillin_default_calckwargs,
-    generate_kwargs_variants,
+    calculate_structure_node,
 )
-from typing import Any, Callable
-from pyiron_workflow_atomistics.calculator import calculate_structure_node
-from os import getcwd
 from pyiron_workflow_atomistics.dataclass_storage import Engine
 
 
@@ -109,8 +108,8 @@ def get_unique_sites_SOAP(
     similarity_threshold: float = 0.99999,
 ):
     from pyiron_workflow_atomistics.featurisers import (
-        soapSiteFeaturiser,
         pca_whiten,
+        soapSiteFeaturiser,
         summarize_cosine_groups,
     )
 

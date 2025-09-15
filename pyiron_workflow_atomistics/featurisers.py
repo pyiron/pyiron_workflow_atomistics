@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from ase import Atoms
-from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
+from pymatgen.io.ase import AseAtomsAdaptor
 
 
 def voronoiSiteFeaturiser(atoms: Atoms, site_index: int) -> dict:
@@ -176,7 +176,6 @@ def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=Tru
     return pd.DataFrame({"rep": reps, "same": sames})
 
 
-import numpy as np
 
 
 def pca_whiten(

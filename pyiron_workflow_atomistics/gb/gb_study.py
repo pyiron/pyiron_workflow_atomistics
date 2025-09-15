@@ -1,8 +1,8 @@
 # Standard library imports
-from typing import Callable, Any
 
 # Local imports
 import pyiron_workflow as pwf
+
 from pyiron_workflow_atomistics.featurisers import voronoiSiteFeaturiser
 
 
@@ -195,7 +195,7 @@ def pure_gb_study(
         working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
             "working_directory"
         ],
-        save_filename=f"pureGB_plane_identifier.jpg",
+        save_filename="pureGB_plane_identifier.jpg",
     )
     wf.calc_structure_fn_kwargs_cleavage_study = get_working_subdir_kwargs(
         calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,

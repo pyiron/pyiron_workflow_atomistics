@@ -1,20 +1,18 @@
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from ase import Atoms
-import matplotlib.pyplot as plt
-
 import pyiron_workflow as pwf
-
-from pyiron_workflow_atomistics.gb.analysis import get_sites_on_plane
+from ase import Atoms
+from pyiron_snippets.logger import logger
 
 from pyiron_workflow_atomistics.calculator import (
-    fillin_default_calckwargs,
     calculate_structure_node,
+    fillin_default_calckwargs,
 )
+from pyiron_workflow_atomistics.gb.analysis import get_sites_on_plane
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
-
-from pyiron_snippets.logger import logger
 
 
 # Wrap‐aware difference in fractional space:
@@ -326,7 +324,6 @@ def plot_structure_with_cleavage(
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
     import numpy as np
-    import matplotlib.pyplot as plt
 
     # Unpack projection
     p0, p1 = projection
@@ -593,13 +590,14 @@ def get_results_df(
     )
 
 
+from typing import Any, Callable
+
+from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
+from pyiron_workflow_atomistics.dataclass_storage import Engine
 from pyiron_workflow_atomistics.gb.dataclass_storage import (
     CleaveGBStructureInput,
     PlotCleaveInput,
 )
-from typing import Callable, Any
-from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
-from pyiron_workflow_atomistics.dataclass_storage import Engine
 
 
 @pwf.as_macro_node(
@@ -746,7 +744,7 @@ def rigid_and_relaxed_cleavage_study(
         ],
         new_working_directory="cleavage_rigid",
     )
-    from pyiron_workflow_atomistics.gb.cleavage import calc_cleavage_GB, PlotCleaveInput
+    from pyiron_workflow_atomistics.gb.cleavage import calc_cleavage_GB
     from pyiron_workflow_atomistics.utils import modify_dataclass
 
     wf.CleaveGBStructureInput = modify_dataclass(

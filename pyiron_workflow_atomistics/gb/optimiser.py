@@ -1,25 +1,18 @@
 import os
-import sys
-import glob
-import tempfile
+from typing import Any, Callable
+
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-import warnings
-from pymatgen.core import Structure, Lattice
-from pymatgen.analysis.structure_matcher import StructureMatcher
-from pymatgen.io.ase import AseAtomsAdaptor
 import pyiron_workflow as pwf
-from pyiron_workflow_atomistics.gb.gb_code import gb_generator as gbc
 from pyiron_workflow import Workflow
 from pyiron_workflow.api import for_node
+
 from pyiron_workflow_atomistics.calculator import (
     calculate_structure_node,
     fillin_default_calckwargs,
 )
-from typing import List, Tuple, Optional, Dict, Any, Callable
-from pyiron_workflow_atomistics.gb.utils import axis_to_index
 from pyiron_workflow_atomistics.dataclass_storage import Engine
+from pyiron_workflow_atomistics.gb.utils import axis_to_index
 from pyiron_workflow_atomistics.utils import extract_outputs_from_EngineOutputs
 
 
@@ -145,7 +138,7 @@ def get_GB_exc_volume(atoms, bulk_vol_per_atom, gb_normal_axis="c"):
 def get_extended_names(extensions):
     extended_names = []
     for extension in extensions:
-        extended_names.append((f"ext_{extension:.3f}"))
+        extended_names.append(f"ext_{extension:.3f}")
     return extended_names
 
 
@@ -399,8 +392,8 @@ def full_gb_length_optimization(
     )
 
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 @pwf.as_function_node
@@ -464,7 +457,7 @@ def get_gb_length_optimiser_plot(
 
     # Plot with fixed figure size
     fig, ax = plt.subplots(figsize=figsize)
-    ax.scatter(df_copy["c"], df_copy["energy"], alpha=0.3, label=f"all points")
+    ax.scatter(df_copy["c"], df_copy["energy"], alpha=0.3, label="all points")
     ax.scatter(x, y, label=f"{plot_label} (n={len(x)})")
     ax.plot(x_fit, y_fit, label=f"fit {plot_label}")
 

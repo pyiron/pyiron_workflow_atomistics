@@ -1,5 +1,5 @@
-import pyiron_workflow as pwf
 import numpy as np
+import pyiron_workflow as pwf
 from ase import Atoms
 
 
@@ -95,7 +95,6 @@ def substitutional_swap_one_site(
     return structure
 
 
-import itertools
 
 
 # Because it is really fucking annoying to have to access the data from the dataframe when all I want is a list.
