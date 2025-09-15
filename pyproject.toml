@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
     "numpy==1.26.4",
     "pandas==2.3.2",
-    "matplotlib==3.8.4",
+    "matplotlib==3.10.6",
     "ase==3.26.0",
     "scipy==1.16.2",
     "pyiron_workflow==0.15.2",
