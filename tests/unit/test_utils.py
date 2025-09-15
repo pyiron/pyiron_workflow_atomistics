@@ -99,7 +99,7 @@ class TestUtilsFunctions(unittest.TestCase):
 
     def test_get_calc_fn_calc_fn_kwargs_from_calculation_engine_with_engine(self):
         """Test getting calc function and kwargs from calculation engine."""
-        from pyiron_workflow_atomistics.calculator import Engine
+        from pyiron_workflow_atomistics.dataclass_storage import Engine
 
         class MockEngine(Engine):
             def __init__(self):
