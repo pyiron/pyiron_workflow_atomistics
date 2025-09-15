@@ -27,9 +27,9 @@ dependencies = [
     "matplotlib==3.8.4",
     "ase==3.23.0",
     "scipy==1.13.1",
-    "pyiron_workflow",
+    "pyiron_workflow==0.15.2",
     "pymatgen==2024.8.8",
-    "pyiron_snippets",
+    "pyiron_snippets==0.2.0",
     "scikit-learn==1.4.2"
 ]
 dynamic = ["version"]
