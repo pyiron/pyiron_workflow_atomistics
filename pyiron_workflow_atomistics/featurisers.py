@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from ase import Atoms
-from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.analysis.local_env import VoronoiNN
+from pymatgen.io.ase import AseAtomsAdaptor
 
 
 def voronoiSiteFeaturiser(atoms: Atoms, site_index: int) -> dict:
@@ -61,17 +61,22 @@ def distanceMatrixSiteFeaturiser(atoms: Atoms, site_index: int, k: int = 6) -> d
     )
     return feats
 
-def soapSiteFeaturiser(atoms: Atoms,
-                       site_indices: list[int],
-                       r_cut: float = 6.0,
-                       n_max: int = 10,
-                       l_max: int = 10,
-                       n_jobs: int = -1,
-                       periodic: bool = False) -> dict:
+
+def soapSiteFeaturiser(
+    atoms: Atoms,
+    site_indices: list[int],
+    r_cut: float = 6.0,
+    n_max: int = 10,
+    l_max: int = 10,
+    n_jobs: int = -1,
+    periodic: bool = False,
+) -> dict:
     try:
         from dscribe.descriptors import SOAP
     except ImportError:
-        raise ImportError("dscribe is not installed. Please install it using `pip install dscribe`.")
+        raise ImportError(
+            "dscribe is not installed. Please install it using `pip install dscribe`."
+        )
     soap_descriptor = SOAP(
         species=atoms.get_chemical_symbols(),
         r_cut=r_cut,
@@ -84,6 +89,8 @@ def soapSiteFeaturiser(atoms: Atoms,
 
 ## Similarity functions
 from collections import defaultdict
+
+
 def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=True):
     """
     Groups rows of A by cosine similarity >= threshold and returns a 2-column DataFrame:
@@ -168,7 +175,8 @@ def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=Tru
 
     return pd.DataFrame({"rep": reps, "same": sames})
 
-import numpy as np
+
+
 
 def pca_whiten(
     X,
@@ -217,32 +225,43 @@ def pca_whiten(
 
         # SVD of centered data: Xc = U S V^T
         U, S, Vt = np.linalg.svd(Xc, full_matrices=False)
-        eigvals = (S**2) / max(n - 1, 1)   # eigenvalues of covariance; length = min(n,d)
-        V_full = Vt.T                      # principal axes (d x r), r=min(n,d)
+        eigvals = (S**2) / max(n - 1, 1)  # eigenvalues of covariance; length = min(n,d)
+        V_full = Vt.T  # principal axes (d x r), r=min(n,d)
 
         # choose k
         if isinstance(n_components, float) and 0 < n_components <= 1:
-            cumvar = np.cumsum(eigvals) / np.sum(eigvals) if np.sum(eigvals) > 0 else np.ones_like(eigvals)
+            cumvar = (
+                np.cumsum(eigvals) / np.sum(eigvals)
+                if np.sum(eigvals) > 0
+                else np.ones_like(eigvals)
+            )
             k = int(np.searchsorted(cumvar, n_components) + 1)
         elif isinstance(n_components, int) and n_components >= 1:
             k = min(n_components, V_full.shape[1])
         else:
             raise ValueError("n_components must be float in (0,1] or int >= 1")
 
-        V = V_full[:, :k]                 # d x k
-        lam = eigvals[:k]                 # (k,)
+        V = V_full[:, :k]  # d x k
+        lam = eigvals[:k]  # (k,)
         inv_sqrt = 1.0 / np.sqrt(lam + eps)  # (k,)
 
         if method.lower() == "pca":
             # PCA scores then scale to unit variance
-            Z = (Xc @ V) * inv_sqrt       # (n x k)
+            Z = (Xc @ V) * inv_sqrt  # (n x k)
         elif method.lower() == "zca":
             # ZCA: project -> scale -> rotate back
             Z = Xc @ (V @ (inv_sqrt[:, None] * V.T))  # (n x d) truncated ZCA if k<d
         else:
             raise ValueError("method must be 'pca' or 'zca'")
 
-        model_out = {"mu": mu, "V": V, "eigvals": eigvals, "k": k, "method": method.lower(), "eps": eps}
+        model_out = {
+            "mu": mu,
+            "V": V,
+            "eigvals": eigvals,
+            "k": k,
+            "method": method.lower(),
+            "eps": eps,
+        }
         return Z, model_out
 
     # ---------- transform using existing model ----------
@@ -265,4 +284,3 @@ def pca_whiten(
         raise ValueError("Invalid method in model.")
 
     return Z, model
-

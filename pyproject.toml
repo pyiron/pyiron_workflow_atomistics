@@ -22,15 +22,15 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "numpy>=1.20.0, <2.0.0",
-    "pandas>=1.3.0",
-    "matplotlib>=3.4.0",
-    "ase>=3.22.0",
-    "scipy>=1.7.0",
-    "pyiron_workflow",
-    "pymatgen>=2024.8.8",
-    "pyiron_snippets",
-    "scikit-learn>=1.0.0"
+    "numpy==1.26.4",
+    "pandas==2.3.2",
+    "matplotlib==3.10.6",
+    "ase==3.26.0",
+    "scipy==1.16.2",
+    "pyiron_workflow==0.15.2",
+    "pymatgen==2025.6.14",
+    "pyiron_snippets==0.2.0",
+    "scikit-learn==1.7.2"
 ]
 dynamic = ["version"]
 authors = [

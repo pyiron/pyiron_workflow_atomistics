@@ -1,26 +1,29 @@
+import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from sklearn.cluster import DBSCAN
+import pyiron_workflow as pwf
 from ase import Atoms
 from ase.atoms import Atom
-import pyiron_workflow as pwf
-import matplotlib.pyplot as plt
-from pyiron_workflow_atomistics.gb.utils import axis_to_index
-import os
 from pyiron_snippets.logger import logger
+
+from pyiron_workflow_atomistics.gb.utils import axis_to_index
+
+
 @pwf.as_function_node("atom")
 def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
     Return the index of the atom whose coordinate along the given axis
     is closest to the mid-plane of the cell.
-    
+
     Parameters
     ----------
     atoms : ase.Atoms
         The supercell.
     axis : int or {'x','y','z'}, default=2
         Which axis to slice along. 0='x', 1='y', 2='z'.
-    
+
     Returns
     -------
     idx : int
@@ -28,8 +31,8 @@ def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
     # allow strings 'x','y','z'
     if isinstance(axis, str):
-        axis = {'x':0, 'y':1, 'z':2}[axis.lower()]
-    
+        axis = {"x": 0, "y": 1, "z": 2}[axis.lower()]
+
     # get fractional positions along axis (handles PBC nicely)
     scaled = atoms.get_scaled_positions()[:, axis]
     # the mid-plane in fractional coords is always 0.5
@@ -104,7 +107,6 @@ def find_GB_plane(
         All atoms within [region_start_frac – extend_frac_frac, region_end_frac + extend_frac_frac].
     """
     import numpy as np
-    import pandas as pd
 
     if featuriser_kwargs is None:
         featuriser_kwargs = {}
@@ -224,7 +226,7 @@ def find_GB_plane(
     frac_diffs = np.abs(sel_fracs - mid_frac)
     i_mid = np.argmin(frac_diffs)
     mid_index = sel_indices[i_mid]
-    
+
     # 9) optionally extend selection by extend_frac (Å → fraction)
     if extend_region_length > 0 and start_frac is not None and end_frac is not None:
         # Convert Cartesian extend_frac into fractional units
@@ -319,8 +321,8 @@ def plot_GB_plane(
     dpi : int
         Resolution in dots per inch when saving.
     """
-    import numpy as np
     import matplotlib.pyplot as plt
+    import numpy as np
 
     # Unpack projection and cell
     p0, p1 = projection
@@ -537,8 +539,6 @@ def get_sites_on_plane(
     return matched_indices
 
 
-import matplotlib.pyplot as plt
-import numpy as np
 
 
 def plot_structure_2d(

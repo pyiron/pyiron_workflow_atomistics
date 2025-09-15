@@ -1,20 +1,18 @@
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from ase import Atoms
-import matplotlib.pyplot as plt
-
 import pyiron_workflow as pwf
-
-from pyiron_workflow_atomistics.gb.analysis import get_sites_on_plane
+from ase import Atoms
+from pyiron_snippets.logger import logger
 
 from pyiron_workflow_atomistics.calculator import (
-    fillin_default_calckwargs,
     calculate_structure_node,
+    fillin_default_calckwargs,
 )
+from pyiron_workflow_atomistics.gb.analysis import get_sites_on_plane
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
-
-from pyiron_snippets.logger import logger
 
 
 # Wrap‐aware difference in fractional space:
@@ -26,8 +24,8 @@ def _frac_dist(a, b):
 def find_viable_cleavage_planes_around_plane(
     structure: Atoms,
     axis: str,
-    plane_coord: float,
-    coord_tol: float,
+    plane_coord: float | int,
+    coord_tol: float | int,
     layer_tolerance: float = 1e-3,
     fractional: bool = False,
 ) -> list:
@@ -186,7 +184,7 @@ def find_viable_cleavage_planes_around_site(
 def cleave_axis_aligned(
     structure: Atoms,
     axis: str,
-    plane_coord: float,
+    plane_coord: float | int,
     separation: float,
     use_fractional: bool = False,
 ) -> Atoms:
@@ -204,7 +202,7 @@ def cleave_axis_aligned(
           - 'b' → plane normal = [0, 1, 0]
           - 'c' → plane normal = [0, 0, 1]
         (These correspond to the crystallographic axes a, b, c, which map to x, y, z in Cartesian.)
-    plane_coord : float
+    plane_coord : float | int
         The coordinate along the chosen axis where the cleavage plane lies.
         If use_fractional=False, this is a Cartesian coordinate in Å (e.g. a = 3.2 Å).
         If use_fractional=True, this is a fractional coordinate (0 ≤ plane_coord < 1).
@@ -326,7 +324,6 @@ def plot_structure_with_cleavage(
     fig, ax : matplotlib.figure.Figure, matplotlib.axes.Axes
     """
     import numpy as np
-    import matplotlib.pyplot as plt
 
     # Unpack projection
     p0, p1 = projection
@@ -553,9 +550,16 @@ def get_results_df(
     df, cleavage_coords, cleaved_structures, uncleaved_energy, cleavage_axis: str = "c"
 ):
     from pyiron_workflow_atomistics.utils import extract_outputs_from_EngineOutputs
+
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=df.calc_output,
-        keys=["final_energy", "final_structure", "final_volume", "final_forces", "final_stress"]
+        keys=[
+            "final_energy",
+            "final_structure",
+            "final_volume",
+            "final_forces",
+            "final_stress",
+        ],
     )
     relaxed_structures = extracted_dict["final_structure"]
     energies = extracted_dict["final_energy"]
@@ -575,7 +579,6 @@ def get_results_df(
             (E - uncleaved_energy) / (area) * 16.0218
         )  # eV/Å² → J/m² # Only 1 GB (for vacuum cells - which is as we do it here) so no 2 factor on bottom
         cleavage_energies.append(E_cleave)
-    
     return pd.DataFrame(
         {
             "cleavage_coord": cleavage_coords,
@@ -587,22 +590,16 @@ def get_results_df(
     )
 
 
-@pwf.as_function_node
-def toggle_rigid_calc(rigid, calc_kwargs):
-    if rigid:
-        max_steps = 0
-    else:
-        max_steps = calc_kwargs["max_steps"]
-    return max_steps
+from typing import Any, Callable
 
-
+from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
+from pyiron_workflow_atomistics.dataclass_storage import Engine
 from pyiron_workflow_atomistics.gb.dataclass_storage import (
     CleaveGBStructureInput,
     PlotCleaveInput,
 )
-from typing import Callable, Any
-from pyiron_workflow_atomistics.calculator import generate_kwargs_variants
-from pyiron_workflow_atomistics.dataclass_storage import Engine
+
+
 @pwf.as_macro_node(
     "cleaved_structure_list",
     "cleaved_plane_coords_list",
@@ -621,15 +618,25 @@ def calc_cleavage_GB(
     calc_structure_fn_kwargs: dict[str, Any] | None = None,
     # parent_dir: str = "gb_cleavage",
 ):
-    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs   
-    wf.validate = validate_calculation_inputs(calculation_engine = calculation_engine,
-                                              calc_structure_fn = calc_structure_fn,
-                                              calc_structure_fn_kwargs = calc_structure_fn_kwargs)
-    from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
-    wf.calc_structure_fn_kwargs_cleavage_calc = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
-                                                                                   structure = structure,
-                                                                                   calc_structure_fn = calc_structure_fn,
-                                                                                   calc_structure_fn_kwargs = calc_structure_fn_kwargs)
+    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
+
+    wf.validate = validate_calculation_inputs(
+        calculation_engine=calculation_engine,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+    )
+    from pyiron_workflow_atomistics.utils import (
+        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
+    )
+
+    wf.calc_structure_fn_kwargs_cleavage_calc = (
+        get_calc_fn_calc_fn_kwargs_from_calculation_engine(
+            calculation_engine=calculation_engine,
+            structure=structure,
+            calc_structure_fn=calc_structure_fn,
+            calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+        )
+    )
     wf.cleave_setup = cleave_gb_structure(
         base_structure=structure,
         axis_to_cleave=input_cleave_gb_structure.axis_to_cleave,
@@ -656,11 +663,15 @@ def calc_cleavage_GB(
         ylims=input_plot_cleave.ylims,
     )
     wf.cleave_structure_foldernames = get_cleavage_calc_names(
-        parent_dir=wf.calc_structure_fn_kwargs_cleavage_calc.outputs.calc_fn_kwargs["working_directory"],
+        parent_dir=wf.calc_structure_fn_kwargs_cleavage_calc.outputs.calc_fn_kwargs[
+            "working_directory"
+        ],
         cleavage_planes=wf.cleave_setup.outputs.cleavage_plane_coords,
     )
     wf.kwargs_removed_working_directory = fillin_default_calckwargs(
-        calc_kwargs=wf.calc_structure_fn_kwargs_cleavage_calc.outputs.calc_fn_kwargs, default_values=None, remove_keys=["working_directory"]
+        calc_kwargs=wf.calc_structure_fn_kwargs_cleavage_calc.outputs.calc_fn_kwargs,
+        default_values=None,
+        remove_keys=["working_directory"],
     )
     wf.cleavage_calcs_kwargs = generate_kwargs_variants(
         base_kwargs=wf.kwargs_removed_working_directory.outputs.full_calc_kwargs2,
@@ -691,51 +702,78 @@ def calc_cleavage_GB(
     )
 
 
-
 @pwf.api.as_macro_node("cleavage_results_rigid", "cleavage_results_relax")
-def rigid_and_relaxed_cleavage_study(wf,
-                    gb_structure,
-                    gb_structure_energy,
-                    gb_plane_cart_loc,
-                    calculation_engine = None,
-                    calc_structure_fn = None,
-                    calc_structure_fn_kwargs = None,
-                    static_engine = None,
-                    static_calc_structure_fn_kwargs= None,
-                    static_calc_structure_fn = None,
-                    CleaveGBStructure_Input = None,  # Replace `Any` with actual type if known
-                    PlotCleave_Input = None          # Replace `Any` with actual type if known
-                   ):
-        from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
-        wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
-                                                                                        structure = gb_structure,
-                                                                                        calc_structure_fn = calc_structure_fn,
-                                                                                        calc_structure_fn_kwargs = calc_structure_fn_kwargs)
-        wf.static_calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = static_engine,
-                                                                                        structure = gb_structure,
-                                                                                        calc_structure_fn = static_calc_structure_fn,
-                                                                                        calc_structure_fn_kwargs = static_calc_structure_fn_kwargs)
-        from pyiron_workflow_atomistics.utils import get_working_subdir_kwargs  
-        wf.calc_structure_fn_kwargs_cleavage_rigid = get_working_subdir_kwargs(calc_structure_fn_kwargs = wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-                                                                        base_working_directory = wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
-                                                                        new_working_directory = "cleavage_rigid")
-        from pyiron_workflow_atomistics.gb.cleavage import calc_cleavage_GB, PlotCleaveInput
-        from pyiron_workflow_atomistics.utils import modify_dataclass
-        wf.CleaveGBStructureInput = modify_dataclass(CleaveGBStructure_Input, "cleavage_target_coord", gb_plane_cart_loc)
-        wf.calc_cleavage_rigid = calc_cleavage_GB(structure=gb_structure,
-                                        energy = gb_structure_energy,
-                                        calc_structure_fn = wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn,
-                                        calc_structure_fn_kwargs = wf.calc_structure_fn_kwargs_cleavage_rigid,
-                                        input_cleave_gb_structure = wf.CleaveGBStructureInput,
-                                        input_plot_cleave = PlotCleave_Input)
-        wf.calc_structure_fn_kwargs_cleavage_relax = get_working_subdir_kwargs(calc_structure_fn_kwargs = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-                                                                        base_working_directory = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
-                                                                        new_working_directory = "cleavage_relax")
-        wf.calc_cleavage_relax = calc_cleavage_GB(structure=gb_structure,
-                                        energy = gb_structure_energy,
-                                        calc_structure_fn = wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-                                        calc_structure_fn_kwargs = wf.calc_structure_fn_kwargs_cleavage_relax,
-                                        input_cleave_gb_structure = wf.CleaveGBStructureInput,
-                                        input_plot_cleave = PlotCleave_Input)
-        return wf.calc_cleavage_rigid.outputs.cleavage_calcs_df,\
-                wf.calc_cleavage_relax.outputs.cleavage_calcs_df
+def rigid_and_relaxed_cleavage_study(
+    wf,
+    gb_structure,
+    gb_structure_energy,
+    gb_plane_cart_loc,
+    calculation_engine=None,
+    calc_structure_fn=None,
+    calc_structure_fn_kwargs=None,
+    static_engine=None,
+    static_calc_structure_fn_kwargs=None,
+    static_calc_structure_fn=None,
+    CleaveGBStructure_Input=None,  # Replace `Any` with actual type if known
+    PlotCleave_Input=None,  # Replace `Any` with actual type if known
+):
+    from pyiron_workflow_atomistics.utils import (
+        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
+    )
+
+    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(
+        calculation_engine=calculation_engine,
+        structure=gb_structure,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+    )
+    wf.static_calc_fn_calc_fn_kwargs = (
+        get_calc_fn_calc_fn_kwargs_from_calculation_engine(
+            calculation_engine=static_engine,
+            structure=gb_structure,
+            calc_structure_fn=static_calc_structure_fn,
+            calc_structure_fn_kwargs=static_calc_structure_fn_kwargs,
+        )
+    )
+    from pyiron_workflow_atomistics.utils import get_working_subdir_kwargs
+
+    wf.calc_structure_fn_kwargs_cleavage_rigid = get_working_subdir_kwargs(
+        calc_structure_fn_kwargs=wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
+        base_working_directory=wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
+            "working_directory"
+        ],
+        new_working_directory="cleavage_rigid",
+    )
+    from pyiron_workflow_atomistics.gb.cleavage import calc_cleavage_GB
+    from pyiron_workflow_atomistics.utils import modify_dataclass
+
+    wf.CleaveGBStructureInput = modify_dataclass(
+        CleaveGBStructure_Input, "cleavage_target_coord", gb_plane_cart_loc
+    )
+    wf.calc_cleavage_rigid = calc_cleavage_GB(
+        structure=gb_structure,
+        energy=gb_structure_energy,
+        calc_structure_fn=wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn,
+        calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_cleavage_rigid,
+        input_cleave_gb_structure=wf.CleaveGBStructureInput,
+        input_plot_cleave=PlotCleave_Input,
+    )
+    wf.calc_structure_fn_kwargs_cleavage_relax = get_working_subdir_kwargs(
+        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
+        base_working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
+            "working_directory"
+        ],
+        new_working_directory="cleavage_relax",
+    )
+    wf.calc_cleavage_relax = calc_cleavage_GB(
+        structure=gb_structure,
+        energy=gb_structure_energy,
+        calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
+        calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_cleavage_relax,
+        input_cleave_gb_structure=wf.CleaveGBStructureInput,
+        input_plot_cleave=PlotCleave_Input,
+    )
+    return (
+        wf.calc_cleavage_rigid.outputs.cleavage_calcs_df,
+        wf.calc_cleavage_relax.outputs.cleavage_calcs_df,
+    )

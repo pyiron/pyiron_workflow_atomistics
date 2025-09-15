@@ -1,18 +1,16 @@
 import os
-import numpy as np
-import pandas as pd
-from tqdm import tqdm
-from pymatgen.core import Structure
-from pymatgen.analysis.structure_matcher import StructureMatcher
-from . import gb_generator as gbc
-import pyiron_workflow as pwf
 import tempfile
-import sys
-import glob
+
+import numpy as np
+import pyiron_workflow as pwf
+from pyiron_snippets.logger import logger
 from pyiron_workflow import Workflow
+from pymatgen.analysis.structure_matcher import StructureMatcher
+from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 
-from pyiron_snippets.logger import logger
+from . import gb_generator as gbc
+
 
 @pwf.as_function_node("wrapped_sorted_structure")
 def wrap_and_sort_structure(structure, axis=2):
@@ -72,6 +70,7 @@ def _write_and_load_structure(my_gb, extend_by=1):
     Writes the GB to a temporary file, loads it as a pymatgen Structure, and cleans up the file.
     """
     import warnings
+
     warnings.filterwarnings("ignore", category=UserWarning)
     with tempfile.NamedTemporaryFile(suffix=".vasp", delete=False) as tmpfile:
         filename = my_gb.WriteGB(

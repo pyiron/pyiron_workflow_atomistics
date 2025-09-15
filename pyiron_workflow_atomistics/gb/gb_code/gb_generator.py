@@ -14,11 +14,12 @@ to get the info necessary for your grain boundary of interest.
 """
 
 import sys
+
 import numpy as np
-from numpy import dot, cross
+from numpy import dot
 from numpy.linalg import det, norm
+
 from . import csl_generator as cslgen
-import warnings
 
 
 class GB_character:
@@ -129,7 +130,7 @@ class GB_character:
                     sys.exit()
             self.Expand_Super_cell()
             xdel, _, x_indice, y_indice = self.Find_overlapping_Atoms()
-            print("<<------ {} atoms are being removed! ------>>".format(len(xdel)))
+            print(f"<<------ {len(xdel)} atoms are being removed! ------>>")
 
             if self.whichG == "G1" or self.whichG == "g1":
                 self.atoms1 = np.delete(self.atoms1, x_indice, axis=0)
@@ -440,10 +441,10 @@ class GB_character:
         with open(filename, "w") as f:
             f.write("#POSCAR written by GB_code \n")
             f.write("1 \n")
-            f.write("{0:.8f} 0.0 0.0 \n".format(LenX))
-            f.write("0.0 {0:.8f} 0.0 \n".format(LenY))
-            f.write("0.0 0.0 {0:.8f} \n".format(LenZ))
-            f.write("{} {} \n".format(len(X), len(Y)))
+            f.write(f"{LenX:.8f} 0.0 0.0 \n")
+            f.write(f"0.0 {LenY:.8f} 0.0 \n")
+            f.write(f"0.0 0.0 {LenZ:.8f} \n")
+            f.write(f"{len(X)} {len(Y)} \n")
             f.write("Cartesian\n")
             np.savetxt(f, Wf, fmt="%.8f %.8f %.8f")
         f.close()
@@ -490,11 +491,11 @@ class GB_character:
 
         with open(name + plane + "_" + overD + "_" + Trans, "w") as f:
             f.write("#Header \n \n")
-            f.write("{} atoms \n \n".format(NumberAt))
+            f.write(f"{NumberAt} atoms \n \n")
             f.write("2 atom types \n \n")
-            f.write("{0:.8f} {1:.8f} xlo xhi \n".format(xlo, xhi))
-            f.write("{0:.8f} {1:.8f} ylo yhi \n".format(ylo, yhi))
-            f.write("{0:.8f} {1:.8f} zlo zhi \n\n".format(zlo, zhi))
+            f.write(f"{xlo:.8f} {xhi:.8f} xlo xhi \n")
+            f.write(f"{ylo:.8f} {yhi:.8f} ylo yhi \n")
+            f.write(f"{zlo:.8f} {zhi:.8f} zlo zhi \n\n")
             f.write("Atoms \n \n")
             np.savetxt(f, FinalMat, fmt="%i %i %.8f %.8f %.8f")
         f.close()
@@ -508,7 +509,7 @@ def main():
 
     if len(sys.argv) == 2:
         io_file = sys.argv[1]
-        file = open(io_file, "r")
+        file = open(io_file)
         in_params = yaml.load(file)
 
         try:

@@ -1,8 +1,11 @@
+from copy import deepcopy
 from dataclasses import dataclass
+from typing import Any, Literal, Optional, Union
+
 import ase
 from ase import Atoms
-from typing import Literal, Union, Optional, Any
-from copy import deepcopy
+
+
 class PrintableClass:
     def __str__(self):
         items = [f"{k}={repr(v)}" for k, v in self.to_dict().items()]
@@ -20,6 +23,7 @@ class PrintableClass:
                 for k in dir(self)
                 if not k.startswith("_") and not callable(getattr(self, k))
             }
+
     def copy(self):
         return deepcopy(self)
 
@@ -29,24 +33,29 @@ class Engine(PrintableClass):
     def __init__(self, engine_id: int, parameters: dict[str, Any]):
         self.engine_id: str = engine_id
         self.parameters = parameters
-        
+
     def __call__(self, structure: Atoms):
         raise NotImplementedError("Subclasses must implement this method")
-    
+
+
 @dataclass
 class CalcInputStatic(PrintableClass):
     """No parameters: just force maxiter/maxeval → 0 for a pure “static” run."""
+
     pass
 
 
 @dataclass
 class CalcInputMinimize(PrintableClass):
     """Tune your minimize call tolerances and limits."""
+
     energy_convergence_tolerance: float = 0.0000001
     force_convergence_tolerance: float = 0.0000001
     max_iterations: int = 1_000_000
     max_evaluations: int = 1_000_000
     relax_cell: bool = False
+
+
 @dataclass
 class CalcInputMD(PrintableClass):
     r"""
@@ -74,15 +83,11 @@ class CalcInputMD(PrintableClass):
         delta_temp (float): Temperature change for ramping (Kelvin).
         delta_press (float): Pressure change for ramping (Pa).
     """
-    mode: Literal['NVE', 'NVT', 'NPT'] = 'NVT'
+
+    mode: Literal["NVE", "NVT", "NPT"] = "NVT"
     thermostat: Literal[
-        'nose-hoover',
-        'langevin',
-        'berendsen',
-        'andersen',
-        'temp/rescale',
-        'temp/csvr'
-    ] = 'langevin'
+        "nose-hoover", "langevin", "berendsen", "andersen", "temp/rescale", "temp/csvr"
+    ] = "langevin"
     temperature: Optional[Union[int, float]] = 0
     n_ionic_steps: int = 10_000
     n_print: int = 100
@@ -94,7 +99,8 @@ class CalcInputMD(PrintableClass):
     initial_temperature: Optional[float] = None
     delta_temp: Optional[float] = None
     delta_press: Optional[float] = None
-        
+
+
 class EngineOutput(PrintableClass):
     final_structure = None
     final_results = None
@@ -118,7 +124,7 @@ class EngineOutput(PrintableClass):
 class BuildBulkStructure_Input(PrintableClass):
     element_name: str
     crystalstructure: str = None
-    a: float = None 
+    a: float = None
     b: float = None
     c: float = None
     alpha: float = None

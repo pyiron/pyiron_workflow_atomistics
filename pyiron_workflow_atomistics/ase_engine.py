@@ -1,13 +1,14 @@
-import os
 import json
-from ase.optimize import BFGS
-from ase.io import write as ase_write
+import os
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+import numpy as np
+import pandas as pd
+import pyiron_workflow as pwf
 from ase import Atoms
 from ase.calculators.calculator import Calculator
-import pyiron_workflow as pwf
-import numpy as np
-from typing import Callable, Tuple, Dict, Any, Optional, List
-import pandas as pd
+from ase.io import write as ase_write
+from ase.optimize import BFGS
 
 
 def ase_calc_structure(
@@ -282,6 +283,7 @@ def fillin_default_calckwargs(
 
     return full
 
+
 @pwf.as_function_node("kwargs_variant")
 def generate_kwargs_variant(
     base_kwargs: dict[str, Any],
@@ -289,9 +291,11 @@ def generate_kwargs_variant(
     value: Any,
 ):
     from copy import deepcopy
+
     kwargs_variant = deepcopy(base_kwargs)
     kwargs_variant[key] = value
     return kwargs_variant
+
 
 @pwf.as_function_node("kwargs_variants")
 def generate_kwargs_variants(

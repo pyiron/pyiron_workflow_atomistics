@@ -1,38 +1,34 @@
-import os
-import json
-from ase.optimize import BFGS
-from ase.io import write as ase_write
-from ase import Atoms
-from ase.calculators.calculator import Calculator
-import pyiron_workflow as pwf
+from typing import Any
+
 import numpy as np
-from typing import Callable, Tuple, Dict, Any, Optional, List
-import pandas as pd
-from pyiron_workflow_atomistics.dataclass_storage import Engine
+import pyiron_workflow as pwf
+from ase import Atoms
 from pyiron_snippets.logger import logger
+
 
 @pwf.as_function_node("calc_output")
 def calculate_structure_node(
     structure: Atoms,
-    calculation_engine = None, # Optional[Engine] = None,
+    calculation_engine=None,  # Optional[Engine] = None,
     _calc_structure_fn=None,
-    _calc_structure_fn_kwargs = None,
+    _calc_structure_fn_kwargs=None,
 ) -> Any:
     if calculation_engine is not None:
-        calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.get_calculate_fn(structure = structure)
+        calc_structure_fn, calc_structure_fn_kwargs = (
+            calculation_engine.get_calculate_fn(structure=structure)
+        )
     else:
         calc_structure_fn = _calc_structure_fn
         calc_structure_fn_kwargs = _calc_structure_fn_kwargs
-    output = calc_structure_fn(
-        structure=structure, **calc_structure_fn_kwargs
-    )
+    output = calc_structure_fn(structure=structure, **calc_structure_fn_kwargs)
     return output
+
 
 @pwf.as_function_node("valid")
 def validate_calculation_inputs(
-    calc_structure_fn: Optional[Callable[..., Any]] = None,
-    calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
-    calculation_engine: Optional[Any] = None,
+    calc_structure_fn=None,
+    calc_structure_fn_kwargs=None,
+    calculation_engine=None,
 ):
     """
     Validates that either:
@@ -45,9 +41,13 @@ def validate_calculation_inputs(
     """
     valid = False
     using_engine = calculation_engine is not None
-    using_fn_and_kwargs = calc_structure_fn is not None and calc_structure_fn_kwargs is not None
+    using_fn_and_kwargs = (
+        calc_structure_fn is not None and calc_structure_fn_kwargs is not None
+    )
 
-    if using_engine and (calc_structure_fn is not None or calc_structure_fn_kwargs is not None):
+    if using_engine and (
+        calc_structure_fn is not None or calc_structure_fn_kwargs is not None
+    ):
         raise ValueError(
             "If 'calculation_engine' is provided, both 'calc_structure_fn' and 'calc_structure_fn_kwargs' must be None."
         )
@@ -59,9 +59,11 @@ def validate_calculation_inputs(
         valid = True
     return valid
 
+
 @pwf.as_function_node("output_dict")
 def convert_EngineOutput_to_output_dict(EngineOutput: Any):
     return EngineOutput.to_dict()
+
 
 @pwf.as_function_node("output_values")
 def extract_output_values_from_EngineOutput(EngineOutput: Any, key: str):
@@ -71,8 +73,9 @@ def extract_output_values_from_EngineOutput(EngineOutput: Any, key: str):
         output_dict = EngineOutput.to_dict()[key]
     return output_dict
 
+
 @pwf.as_function_node("output")
-def extract_values_from_dict(output_dict: dict[str, Any], key: str):
+def extract_values_from_dict(output_dict: list[dict[str, Any]], key: str):
     """
     Extract a list of values for a specified key from a list of result dictionaries.
 
@@ -130,6 +133,7 @@ def fillin_default_calckwargs(
 
     return full
 
+
 @pwf.as_function_node("kwargs_variant")
 def generate_kwargs_variant(
     base_kwargs: dict[str, Any],
@@ -137,9 +141,11 @@ def generate_kwargs_variant(
     value: Any,
 ):
     from copy import deepcopy
+
     kwargs_variant = deepcopy(base_kwargs)
     kwargs_variant[key] = value
     return kwargs_variant
+
 
 @pwf.as_function_node("kwargs_variants")
 def generate_kwargs_variants(
@@ -169,6 +175,7 @@ def generate_kwargs_variants(
     # print(return_kwargs)
     return return_kwargs
 
+
 @pwf.as_function_node("kwargs_variants_with_remove")
 def add_arg_to_kwargs_list(
     kwargs_list: list[dict[str, Any]],
@@ -186,6 +193,7 @@ def add_arg_to_kwargs_list(
     kwargs_list: list[dict[str, Any]]
     """
     from copy import deepcopy
+
     return_kwargs = [deepcopy(kwargs) for kwargs in kwargs_list]
     for i, kwargs in enumerate(return_kwargs):
         if remove_if_exists:

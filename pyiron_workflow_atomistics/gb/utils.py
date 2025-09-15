@@ -1,4 +1,3 @@
-import pyiron_workflow as pwf
 
 
 def axis_to_index(axis):
