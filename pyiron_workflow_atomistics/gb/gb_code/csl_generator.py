@@ -22,11 +22,11 @@ When run from the terminal, the code runs in two modes.
 """
 
 import sys
-import random
-from math import degrees, atan, sqrt, pi, ceil, cos, acos, sin, gcd, radians
+from math import acos, atan, ceil, cos, degrees, gcd, pi, radians, sin, sqrt
+
 import numpy as np
-from numpy import dot, cross
-from numpy.linalg import det, norm, inv
+from numpy import cross, dot
+from numpy.linalg import det, inv, norm
 
 
 def get_cubic_sigma(uvw, m, n=1):
@@ -91,7 +91,7 @@ def print_list(uvw, limit):
         tt = get_theta_m_n_list(uvw, i)
         if len(tt) > 0:
             theta, _, _ = tt[0]
-            print("Sigma:   {0:3d}  Theta:  {1:5.2f} ".format(i, degrees(theta)))
+            print(f"Sigma:   {i:3d}  Theta:  {degrees(theta):5.2f} ")
 
 
 def rot(a, Theta):
@@ -249,10 +249,10 @@ def Tilt_Twist_comp(v1, uvw, m, n):
     v2 = np.round(dot(R, v1), 6).astype(int)
     tilt = angv(v1, v2)
     if abs(tilt - degrees(theta)) < 10e-5:
-        print("Pure tilt boundary with a tilt component: {0:6.2f}".format(tilt))
+        print(f"Pure tilt boundary with a tilt component: {tilt:6.2f}")
     else:
         twist = 2 * acos(cos(theta / 2) / cos(radians(tilt / 2)))
-        print("Tilt component: {0:<6.2f} Twist component: {1:6.2f}".format(tilt, twist))
+        print(f"Tilt component: {tilt:<6.2f} Twist component: {twist:6.2f}")
 
 
 def Create_Possible_GB_Plane_List(uvw, m=5, n=1, lim=5):
@@ -317,7 +317,6 @@ def Create_Possible_GB_Plane_List(uvw, m=5, n=1, lim=5):
     # Check the type of GB plane: Symmetric tilt, tilt, twist
     for i in range(len(V1)):
         if ang(V1[i], uvw) < tol:
-
             for j in range(len(SymmEquivalent(MP))):
                 if 1 - ang(MeanPlanes[i], SymmEquivalent(MP)[j]) < tol:
                     GBtype.append("Symmetric Tilt")
@@ -357,7 +356,6 @@ def Create_minimal_cell_Method_1(sigma, uvw, R):
     indice_0 = indice_0[np.where(condition1 != 1)]
 
     if MiniCell_search(indice_0, MiniCell_1, R, sigma):
-
         M1, M2 = MiniCell_search(indice_0, MiniCell_1, R, sigma)
         return (M1, M2)
     else:
@@ -365,7 +363,6 @@ def Create_minimal_cell_Method_1(sigma, uvw, R):
 
 
 def MiniCell_search(indices, MiniCell_1, R, sigma):
-
     tol = 0.001
     # norm1 = norm(indices, axis=1)
     newindices = dot(R, indices.T).T
@@ -476,9 +473,7 @@ def Find_Orthogonal_cell(basis, uvw, m, n, GB1):
         OrthoCell_1[:, 1] = uvw
         OrthoCell_2[:, 1] = uvw
     else:
-
         for i in range(len(indice_0)):
-
             v1 = (
                 indice_0[i, 0] * Min_1[:, 0]
                 + indice_0[i, 1] * Min_1[:, 1]
@@ -512,7 +507,6 @@ def Find_Orthogonal_cell(basis, uvw, m, n, GB1):
         OrthoCell_2 = OrthoCell_2.astype(float)
 
         if basis == "sc" or basis == "diamond":
-
             return (
                 OrthoCell_1.astype(float),
                 OrthoCell_2.astype(float),
@@ -539,9 +533,7 @@ def print_list_GB_Planes(uvw, basis, m, n, lim=3):
         Or = Find_Orthogonal_cell(basis, uvw, m, n, V1[i])
         if Or:
             print(
-                "{0:<20s}   {1:<20s}   {2:<20s}   {3:<10s}".format(
-                    str(V1[i]), str(V2[i]), Type[i], str(Or[2])
-                )
+                f"{str(V1[i]):<20s}   {str(V2[i]):<20s}   {Type[i]:<20s}   {str(Or[2]):<10s}"
             )
 
 
@@ -829,7 +821,6 @@ def Write_to_io(axis, m, n, basis):
 
 
 def main():
-
     if (
         len(sys.argv) != 4
         and len(sys.argv) != 5
@@ -843,21 +834,14 @@ def main():
 
     if len(sys.argv) == 4:
         limit = 100
-        print(
-            "   List of possible CSLs for {} axis sorted by Sigma   ".format(str(uvw))
-        )
+        print(f"   List of possible CSLs for {str(uvw)} axis sorted by Sigma   ")
         print_list(uvw, limit)
         print("\n Choose a basis, pick a sigma and use the second mode!\n")
 
     if len(sys.argv) == 5:
-
         try:
             limit = int(sys.argv[4])
-            print(
-                "    List of possible CSLs for {} axis sorted by Sigma   ".format(
-                    str(uvw)
-                )
-            )
+            print(f"    List of possible CSLs for {str(uvw)} axis sorted by Sigma   ")
             print_list(uvw, limit)
             print("\n Choose a basis, pick a sigma and use the second mode!\n")
 
@@ -870,7 +854,6 @@ def main():
             )
 
     if len(sys.argv) == 6:
-
         lim = 2
         basis = str(sys.argv[4])
         sigma = int(sys.argv[5])
@@ -879,11 +862,7 @@ def main():
             _, m, n = get_theta_m_n_list(uvw, sigma)[0]
             Write_to_io(uvw, m, n, basis)
 
-            print(
-                "----------List of possible CSL planes for Sigma {}---------".format(
-                    sigma
-                )
-            )
+            print(f"----------List of possible CSL planes for Sigma {sigma}---------")
             print(
                 " GB1-------------------GB2-------------------Type----------"
                 "Number of Atoms "
@@ -897,12 +876,10 @@ def main():
             sys.exit()
 
     if len(sys.argv) == 7:
-
         basis = str(sys.argv[4])
         sigma = int(sys.argv[5])
 
         try:
-
             _, m, n = get_theta_m_n_list(uvw, sigma)[0]
             lim = int(sys.argv[6])
 
@@ -911,11 +888,7 @@ def main():
                 print("You have chosen a large limit! It may take a while ...")
                 print(2 * "\n")
 
-            print(
-                "----------List of possible CSL planes for Sigma {}---------".format(
-                    sigma
-                )
-            )
+            print(f"----------List of possible CSL planes for Sigma {sigma}---------")
             print(
                 " GB1-------------------GB2-------------------Type----------"
                 "Number of Atoms "
