@@ -9,30 +9,54 @@ import os
 from unittest.mock import Mock, patch, MagicMock
 from ase import Atoms
 import pandas as pd
-
+from ase.lattice.cubic import BodyCenteredCubic as bcc
+from ase.build import stack
 import pyiron_workflow_atomistics.gb.cleavage as gb_cleavage_module
-
+from pyiron_workflow_atomistics.structure_manipulator.tools import add_vacuum
 
 class TestGBCleavageFunctions(unittest.TestCase):
     """Test GB cleavage module functions."""
 
     def setUp(self):
         """Set up test fixtures."""
-        # Create a layered structure for testing
-        positions = [
-            [0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0],  # z=0 layer
-            [0, 0, 2], [1, 0, 2], [0, 1, 2], [1, 1, 2],  # z=2 layer
-            [0, 0, 4], [1, 0, 4], [0, 1, 4], [1, 1, 4],  # z=4 layer
-            [0, 0, 6], [1, 0, 6], [0, 1, 6], [1, 1, 6],  # z=6 layer
-        ]
-        self.test_atoms = Atoms('H16', positions=positions, cell=[2, 2, 8])
+
+        surface1 = [1, 1, 1]
+        surface2 = [1, 1, -1]
+        rotation_axis = [1, -1, 0]
+        element = "Fe"
+        lc = 2.8318488966083
+        #GB_name = "S3-RA110-S1-11"
+
+        # The minimum required length of the cell.
+        req_length = 30
+
+        v1 = list(-np.cross(rotation_axis,surface1))
+        v2 = list(-np.cross(rotation_axis,surface2)) 
+
+        length = 0
+        n = 0
+
+        vacuum_slab = 15
+        while length < req_length:
+            n += 1
+            
+            slab1 = bcc(symbol=element, latticeconstant=lc,directions=[rotation_axis,v1,surface1], size=[1,1,n])
+            slab2 = bcc(symbol=element, latticeconstant=lc,directions=[rotation_axis,v2,surface2], size=[1,1,n])
+
+            gb = stack(slab1, slab2)
+            length = gb.cell[-1,-1]
+
+            # Rattle the gb structure using rattle in ASE to perturb symmetry
+            # gb.rattle()
+            gb_pmg = add_vacuum(gb, vacuum_slab).run()
+        self.test_atoms = gb_pmg
         
     def test_find_viable_cleavage_planes_around_plane_cartesian(self):
         """Test finding viable cleavage planes around a plane in Cartesian coordinates."""
         result = gb_cleavage_module.find_viable_cleavage_planes_around_plane(
             structure=self.test_atoms,
             axis='c',
-            plane_coord=3.0,  # Between z=2 and z=4 layers
+            plane_coord=20,  # Between z=2 and z=4 layers
             coord_tol=1.0,
             layer_tolerance=0.1,
             fractional=False
@@ -47,7 +71,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         result = gb_cleavage_module.find_viable_cleavage_planes_around_plane(
             structure=self.test_atoms,
             axis='c',
-            plane_coord=0.375,  # 3.0/8.0 in fractional coordinates
+            plane_coord=0.5,  # 3.0/8.0 in fractional coordinates
             coord_tol=0.125,    # 1.0/8.0 in fractional coordinates
             layer_tolerance=0.1,
             fractional=True
@@ -86,7 +110,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         result = gb_cleavage_module.cleave_axis_aligned(
             structure=self.test_atoms,
             axis='c',
-            plane_coord=3.0,
+            plane_coord=20,
             separation=2.0,
             use_fractional=False
         ).run()
@@ -99,15 +123,15 @@ class TestGBCleavageFunctions(unittest.TestCase):
         z_coords = positions[:, 2]
         
         # Should have atoms on both sides of the cleavage plane
-        self.assertTrue(np.any(z_coords < 3.0))  # Below plane
-        self.assertTrue(np.any(z_coords > 3.0))  # Above plane
+        self.assertTrue(np.any(z_coords < 20))  # Below plane
+        self.assertTrue(np.any(z_coords > 20))  # Above plane
         
     def test_cleave_axis_aligned_fractional(self):
         """Test cleaving structure along axis in fractional coordinates."""
         result = gb_cleavage_module.cleave_axis_aligned(
             structure=self.test_atoms,
             axis='c',
-            plane_coord=0.375,  # 3.0/8.0 in fractional coordinates
+            plane_coord=0.5,  # 3.0/8.0 in fractional coordinates
             separation=2.0,
             use_fractional=True
         ).run()
@@ -170,7 +194,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         cleaved_structures, cleavage_plane_coords = gb_cleavage_module.cleave_gb_structure(
             base_structure=self.test_atoms,
             axis_to_cleave='c',
-            target_coord=3.0,
+            target_coord=20.0,
             tol=0.5,
             cleave_region_halflength=2.0,
             layer_tolerance=0.1,
@@ -202,6 +226,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             self.assertIn(str(np.round(cleavage_planes[i], 3)), name)
 
     def test_get_results_df(self):
+
         """Test getting results DataFrame."""
         # Create mock data
         cleavage_coords = [2.0, 3.0]
@@ -209,28 +234,35 @@ class TestGBCleavageFunctions(unittest.TestCase):
         uncleaved_energy = 10.0
         
         # Create mock DataFrame with calc_output column
-        mock_output1 = Mock()
-        mock_output1.to_dict.return_value = {
-            'final_energy': 12.0,
-            'final_structure': self.test_atoms,
-            'final_volume': 16.0,
-            'final_forces': np.zeros((len(self.test_atoms), 3)),
-            'final_stress': np.zeros((3, 3))
-        }
-        
-        mock_output2 = Mock()
-        mock_output2.to_dict.return_value = {
-            'final_energy': 13.0,
-            'final_structure': self.test_atoms,
-            'final_volume': 16.0,
-            'final_forces': np.zeros((len(self.test_atoms), 3)),
-            'final_stress': np.zeros((3, 3))
-        }
-        
+        class MockOutput:
+            def __init__(self, final_energy, final_structure, final_volume, final_forces, final_stress):
+                self.final_energy = final_energy
+                self.final_structure = final_structure
+                self.final_volume = final_volume
+                self.final_forces = final_forces
+                self.final_stress = final_stress
+                self.convergence = True  # To pass only_converged=True in extract_outputs_from_EngineOutputs
+
+        mock_output1 = MockOutput(
+            final_energy=12.0,
+            final_structure=self.test_atoms,
+            final_volume=16.0,
+            final_forces=np.zeros((len(self.test_atoms), 3)),
+            final_stress=np.zeros((3, 3))
+        )
+
+        mock_output2 = MockOutput(
+            final_energy=13.0,
+            final_structure=self.test_atoms,
+            final_volume=16.0,
+            final_forces=np.zeros((len(self.test_atoms), 3)),
+            final_stress=np.zeros((3, 3))
+        )
+
         mock_df = pd.DataFrame({
-            'calc_output': [mock_output1, mock_output2]
+            'calc_output': [mock_output1, mock_output2],
+            "convergence": [True, True]
         })
-        
         result = gb_cleavage_module.get_results_df(
             df=mock_df,
             cleavage_coords=cleavage_coords,

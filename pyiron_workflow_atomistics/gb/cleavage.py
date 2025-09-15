@@ -26,8 +26,8 @@ def _frac_dist(a, b):
 def find_viable_cleavage_planes_around_plane(
     structure: Atoms,
     axis: str,
-    plane_coord: float,
-    coord_tol: float,
+    plane_coord: float | int,
+    coord_tol: float | int,
     layer_tolerance: float = 1e-3,
     fractional: bool = False,
 ) -> list:
@@ -186,7 +186,7 @@ def find_viable_cleavage_planes_around_site(
 def cleave_axis_aligned(
     structure: Atoms,
     axis: str,
-    plane_coord: float,
+    plane_coord: float | int,
     separation: float,
     use_fractional: bool = False,
 ) -> Atoms:
@@ -204,7 +204,7 @@ def cleave_axis_aligned(
           - 'b' → plane normal = [0, 1, 0]
           - 'c' → plane normal = [0, 0, 1]
         (These correspond to the crystallographic axes a, b, c, which map to x, y, z in Cartesian.)
-    plane_coord : float
+    plane_coord : float | int
         The coordinate along the chosen axis where the cleavage plane lies.
         If use_fractional=False, this is a Cartesian coordinate in Å (e.g. a = 3.2 Å).
         If use_fractional=True, this is a fractional coordinate (0 ≤ plane_coord < 1).
@@ -575,7 +575,6 @@ def get_results_df(
             (E - uncleaved_energy) / (area) * 16.0218
         )  # eV/Å² → J/m² # Only 1 GB (for vacuum cells - which is as we do it here) so no 2 factor on bottom
         cleavage_energies.append(E_cleave)
-    
     return pd.DataFrame(
         {
             "cleavage_coord": cleavage_coords,
