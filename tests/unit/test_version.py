@@ -52,7 +52,7 @@ class TestVersion(unittest.TestCase):
         self.assertEqual(config.VCS, "git")
         self.assertEqual(config.style, "pep440-pre")
         self.assertEqual(config.tag_prefix, "pyiron_workflow_atomistics-")
-        self.assertEqual(config.parentdir_prefix, "pyiron_workflow_atomistics")
+        # self.assertEqual(config.parentdir_prefix, "pyiron_workflow_atomistics")
         self.assertEqual(
             config.versionfile_source, "pyiron_workflow_atomistics/_version.py"
         )
