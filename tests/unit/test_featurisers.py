@@ -108,43 +108,49 @@ class TestFeaturisersFunctions(unittest.TestCase):
         self.assertIsInstance(result['Dist_knn_1'], float)
         self.assertGreater(result['Dist_knn_1'], 0)
 
-    @patch('dscribe.descriptors.SOAP')
-    def test_soapSiteFeaturiser(self, mock_soap):
+    def test_soapSiteFeaturiser(self):
         """Test SOAP site featuriser."""
-        # Mock the SOAP descriptor
-        mock_descriptor = Mock()
-        mock_soap.return_value = mock_descriptor
-        
-        # Mock the create method
-        mock_features = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-        mock_descriptor.create.return_value = mock_features
-        
-        result = featurisers_module.soapSiteFeaturiser(
-            self.test_atoms, 
-            site_indices=[0, 1], 
-            r_cut=6.0, 
-            n_max=10, 
-            l_max=10
-        )
-        
-        # Check that SOAP was called with correct parameters
-        mock_soap.assert_called_once_with(
-            species=self.test_atoms.get_chemical_symbols(),
-            r_cut=6.0,
-            n_max=10,
-            l_max=10,
-            periodic=False
-        )
-        
-        # Check that create was called
-        mock_descriptor.create.assert_called_once_with(
-            self.test_atoms, 
-            centers=[0, 1], 
-            n_jobs=-1
-        )
-        
-        # Check result
-        np.testing.assert_array_equal(result, mock_features)
+        # Skip this test if dscribe is not installed
+        try:
+            from dscribe.descriptors import SOAP
+        except ImportError:
+            self.skipTest("dscribe is not installed, skipping SOAP featuriser test.")
+
+        with patch('dscribe.descriptors.SOAP') as mock_soap:
+            # Mock the SOAP descriptor
+            mock_descriptor = Mock()
+            mock_soap.return_value = mock_descriptor
+
+            # Mock the create method
+            mock_features = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+            mock_descriptor.create.return_value = mock_features
+
+            result = featurisers_module.soapSiteFeaturiser(
+                self.test_atoms, 
+                site_indices=[0, 1], 
+                r_cut=6.0, 
+                n_max=10, 
+                l_max=10
+            )
+
+            # Check that SOAP was called with correct parameters
+            mock_soap.assert_called_once_with(
+                species=self.test_atoms.get_chemical_symbols(),
+                r_cut=6.0,
+                n_max=10,
+                l_max=10,
+                periodic=False
+            )
+
+            # Check that create was called
+            mock_descriptor.create.assert_called_once_with(
+                self.test_atoms, 
+                centers=[0, 1], 
+                n_jobs=-1
+            )
+
+            # Check result
+            np.testing.assert_array_equal(result, mock_features)
         
     def test_soapSiteFeaturiser_import_error(self):
         """Test SOAP featuriser when dscribe is not available."""
