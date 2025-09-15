@@ -1,1 +1,6 @@
 include LICENSE
+include versioneer.py
+include docs/README.md
+include pyproject.toml
+include pyiron_workflow_atomistics/_version.py
+recursive-include pyiron_workflow_atomistics *.py

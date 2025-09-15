@@ -8,15 +8,16 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyiron_workflow_atomistics"
 description = "A pyiron module for atomistic simulation workflows"
-readme = "docs/README.md"
+readme = { file = "docs/README.md", content-type = "text/markdown" }
 keywords = ["pyiron", "atomistics", "workflow"]
-requires-python = ">=3.9, <=3.13.5"
+requires-python = ">=3.9, <3.14"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Topic :: Scientific/Engineering",
     "License :: OSI Approved :: BSD License",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
