@@ -7,6 +7,7 @@ from tqdm import tqdm
 from multiprocessing import Pool, cpu_count
 from pyiron_snippets.logger import logger
 
+
 def _construct_gb_for_sigma(args):
     """
     Helper to construct GB data for a single sigma.
@@ -14,7 +15,9 @@ def _construct_gb_for_sigma(args):
     sigma, theta, m, n, axis, basis, lim_plane_index = args
     R = csl.rot(axis, theta)
     M1, M2 = csl.Create_minimal_cell_Method_1(sigma, axis, R)
-    V1_list, V2_list, M_list, Gb_types = csl.Create_Possible_GB_Plane_List(axis, m, n, lim_plane_index)
+    V1_list, V2_list, M_list, Gb_types = csl.Create_Possible_GB_Plane_List(
+        axis, m, n, lim_plane_index
+    )
 
     Number_atoms_list = [
         csl.Find_Orthogonal_cell(basis, axis, m, n, V1)[2] for V1 in V1_list
@@ -23,17 +26,20 @@ def _construct_gb_for_sigma(args):
     V1_list = [tuple(V1) for V1 in V1_list]
     V2_list = [tuple(V2) for V2 in V2_list]
 
-    return pd.DataFrame({
-        'Axis': [axis.tolist()] * len(Gb_types),
-        'Sigma': [sigma] * len(Gb_types),
-        'm': [m] * len(Gb_types),
-        'n': [n] * len(Gb_types),
-        'GB1': V1_list,
-        'GB2': V2_list,
-        'Theta (deg)': [degrees(theta)] * len(Gb_types),
-        'Type': Gb_types,
-        'n_atoms': Number_atoms_list
-    })
+    return pd.DataFrame(
+        {
+            "Axis": [axis.tolist()] * len(Gb_types),
+            "Sigma": [sigma] * len(Gb_types),
+            "m": [m] * len(Gb_types),
+            "n": [n] * len(Gb_types),
+            "GB1": V1_list,
+            "GB2": V2_list,
+            "Theta (deg)": [degrees(theta)] * len(Gb_types),
+            "Type": Gb_types,
+            "n_atoms": Number_atoms_list,
+        }
+    )
+
 
 def _construct_gbcode_df_for_axis(
     sigma_list: list[int],
@@ -43,11 +49,11 @@ def _construct_gbcode_df_for_axis(
     axis: np.ndarray,
     basis: str = "fcc",
     lim_plane_index: int = 3,
-    max_workers: int = None
+    max_workers: int = None,
 ) -> pd.DataFrame:
     """
     Construct GB DataFrame for each sigma in parallel.
-    
+
     Parameters
     ----------
     sigma_list : list of int
@@ -64,35 +70,50 @@ def _construct_gbcode_df_for_axis(
         Limit for GB plane enumeration.
     max_workers : int or None
         Number of parallel workers (defaults to cpu count or sigma count).
-    
+
     Returns
     -------
     pd.DataFrame
         Combined DataFrame of all GB entries.
     """
     assert len(sigma_list) == len(theta_list) == len(m_list) == len(n_list)
-    
+
     # Prepare arguments per sigma
     args = [
-        (sigma_list[i], theta_list[i], m_list[i], n_list[i], axis, basis, lim_plane_index)
+        (
+            sigma_list[i],
+            theta_list[i],
+            m_list[i],
+            n_list[i],
+            axis,
+            basis,
+            lim_plane_index,
+        )
         for i in range(len(sigma_list))
     ]
-    
+
     # Determine number of workers
     if max_workers is None:
         max_workers = min(cpu_count(), len(args))
-    
+
     # Parallel execution with progress bar
     with Pool(processes=max_workers) as pool:
-        dfs = list(tqdm(pool.imap(_construct_gb_for_sigma, args),
-                        total=len(args), desc="Constructing GBs"))
-    
+        dfs = list(
+            tqdm(
+                pool.imap(_construct_gb_for_sigma, args),
+                total=len(args),
+                desc="Constructing GBs",
+            )
+        )
+
     # Concatenate all results
     return pd.concat(dfs, ignore_index=True)
+
 
 def _deduplicate_gbcode_df_miller_indices_equivalent(df: pd.DataFrame) -> pd.DataFrame:
     def canonical_gb(row):
         import itertools
+
         # 1) generate the 48 orientation matrices for a cubic axes system
         orients = []
         for perm in itertools.permutations(range(3)):
@@ -101,15 +122,15 @@ def _deduplicate_gbcode_df_miller_indices_equivalent(df: pd.DataFrame) -> pd.Dat
                 for i, p in enumerate(perm):
                     M[i, p] = signs[i]
                 orients.append(M)
-        v1 = np.array(row['GB1'])
-        v2 = np.array(row['GB2'])
+        v1 = np.array(row["GB1"])
+        v2 = np.array(row["GB2"])
         candidates = []
         # 2) apply every orientation
         for M in orients:
             Mv1, Mv2 = M.dot(v1), M.dot(v2)
             # 3) allow flipping each plane independently
             for s1, s2 in itertools.product([1, -1], repeat=2):
-                sv1, sv2 = s1*Mv1, s2*Mv2
+                sv1, sv2 = s1 * Mv1, s2 * Mv2
                 # 4) allow swapping the two planes
                 for swap in (False, True):
                     a, b = (sv2, sv1) if swap else (sv1, sv2)
@@ -119,41 +140,62 @@ def _deduplicate_gbcode_df_miller_indices_equivalent(df: pd.DataFrame) -> pd.Dat
         # 6) pick the lexicographically smallest fingerprint
         return min(candidates)
 
-    df['canon'] = df.apply(canonical_gb, axis=1)
-    df['dupe'] = df.duplicated('canon')
-    df_unique = df[~df['dupe']].copy()
+    df["canon"] = df.apply(canonical_gb, axis=1)
+    df["dupe"] = df.duplicated("canon")
+    df_unique = df[~df["dupe"]].copy()
     return df_unique
+
 
 def _construct_structure_for_entry(args):
     """
     Top-level helper for picklable structure construction.
     """
-    from pyiron_workflow_atomistics.gb.gb_code.constructor import construct_GB_from_GBCode
-    entry, basis, lattice_param, equil_volume_per_atom, element, req_length_grain, grain_length_axis, min_inplane_gb_length = args
+    from pyiron_workflow_atomistics.gb.gb_code.constructor import (
+        construct_GB_from_GBCode,
+    )
+
+    (
+        entry,
+        basis,
+        lattice_param,
+        equil_volume_per_atom,
+        element,
+        req_length_grain,
+        grain_length_axis,
+        min_inplane_gb_length,
+    ) = args
     fn = construct_GB_from_GBCode(
-        axis=entry['Axis'],
+        axis=entry["Axis"],
         basis=basis,
         lattice_param=lattice_param,
-        m=entry['m'],
-        n=entry['n'],
-        GB1=entry['GB1'],
+        m=entry["m"],
+        n=entry["n"],
+        GB1=entry["GB1"],
         element=element,
         req_length_grain=req_length_grain,
         equil_volume=equil_volume_per_atom,
-        grain_length_axis=grain_length_axis
+        grain_length_axis=grain_length_axis,
     )()
-    from pyiron_workflow_atomistics.structure_manipulator.tools import create_supercell_with_min_dimensions
-    supercell = create_supercell_with_min_dimensions(fn["final_structure"], 
-                                                min_dimensions=[min_inplane_gb_length, min_inplane_gb_length, None])()
-    #print(type(fn))
+    from pyiron_workflow_atomistics.structure_manipulator.tools import (
+        create_supercell_with_min_dimensions,
+    )
+
+    supercell = create_supercell_with_min_dimensions(
+        fn["final_structure"],
+        min_dimensions=[min_inplane_gb_length, min_inplane_gb_length, None],
+    )()
+    # print(type(fn))
     return supercell
 
-def get_gbcode_df(axis: np.ndarray,
-                  basis: str,
-                  sigma_limit: int,
-                  lim_plane_index: int,
-                  max_atoms: int = 100,
-                  max_workers: int = None) -> pd.DataFrame:
+
+def get_gbcode_df(
+    axis: np.ndarray,
+    basis: str,
+    sigma_limit: int,
+    lim_plane_index: int,
+    max_atoms: int = 100,
+    max_workers: int = None,
+) -> pd.DataFrame:
     sigma_list, theta_list, m_list, n_list = [], [], [], []
 
     for i in range(sigma_limit):
@@ -168,7 +210,7 @@ def get_gbcode_df(axis: np.ndarray,
             logger.info("Sigma:   {0:3d}  Theta:  {1:5.2f}".format(i, degrees(theta)))
     all_gb_df = pd.DataFrame()
 
-   # 2) Parallel GB gbcode construction parameter df 
+    # 2) Parallel GB gbcode construction parameter df
     all_gb_df = _construct_gbcode_df_for_axis(
         sigma_list=sigma_list,
         theta_list=theta_list,
@@ -177,10 +219,11 @@ def get_gbcode_df(axis: np.ndarray,
         axis=axis,
         basis=basis,
         lim_plane_index=lim_plane_index,
-        max_workers=max_workers
+        max_workers=max_workers,
     )
     all_gb_df = all_gb_df[all_gb_df["n_atoms"] <= max_atoms]
     return all_gb_df
+
 
 def get_gbcode_df_with_structures(
     df: pd.DataFrame,
@@ -191,7 +234,7 @@ def get_gbcode_df_with_structures(
     min_inplane_gb_length: float = 10,
     req_length_grain: float = 15,
     grain_length_axis: float = 0,
-    max_workers: int = None
+    max_workers: int = None,
 ) -> pd.DataFrame:
     """
     Construct GB structures for each row in the DataFrame in parallel, with a tqdm progress bar.
@@ -223,7 +266,8 @@ def get_gbcode_df_with_structures(
         DataFrame with an added 'structure' column of constructed GBs.
     """
     from tqdm import tqdm
-    entries = df.to_dict('records')
+
+    entries = df.to_dict("records")
     args_list = [
         (
             entry,
@@ -233,36 +277,46 @@ def get_gbcode_df_with_structures(
             element,
             req_length_grain,
             grain_length_axis,
-            min_inplane_gb_length
+            min_inplane_gb_length,
         )
         for entry in entries
     ]
     n_workers = max_workers if max_workers is not None else cpu_count()
     from concurrent.futures import ProcessPoolExecutor, as_completed
-    from pyiron_workflow_atomistics.gb.gb_code.searcher import _construct_structure_for_entry
+    from pyiron_workflow_atomistics.gb.gb_code.searcher import (
+        _construct_structure_for_entry,
+    )
 
     structures = [None] * len(args_list)
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = {executor.submit(_construct_structure_for_entry, arg): idx for idx, arg in enumerate(args_list)}
-        for future in tqdm(as_completed(futures), total=len(args_list), desc="Constructing GB structures"):
+        futures = {
+            executor.submit(_construct_structure_for_entry, arg): idx
+            for idx, arg in enumerate(args_list)
+        }
+        for future in tqdm(
+            as_completed(futures),
+            total=len(args_list),
+            desc="Constructing GB structures",
+        ):
             idx = futures[future]
             structures[idx] = future.result()
 
     df_out = df.copy()
-    df_out['structure'] = structures    
+    df_out["structure"] = structures
     df_out["structure_natoms"] = df_out["structure"].apply(len)
     return df_out
+
 
 def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     """
     Remove rows that are redundant due to GB1/GB2 being negations of each other
     with identical number of atoms, grouped by Sigma.
-    
+
     Parameters
     ----------
     df : pd.DataFrame
         Input DataFrame containing 'Sigma', 'GB1', 'GB2', and 'n_atoms' columns.
-    
+
     Returns
     -------
     pd.DataFrame
@@ -280,10 +334,12 @@ def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
                 continue
             for idx2, row2 in group.iterrows():
                 if idx1 != idx2 and idx2 not in processed:
-                    if (is_negation(row1["GB1"], row2["GB1"]) and
-                        is_negation(row1["GB2"], row2["GB2"]) and
-                        row1["n_atoms"] == row2["n_atoms"]):
-                        
+                    if (
+                        is_negation(row1["GB1"], row2["GB1"])
+                        and is_negation(row1["GB2"], row2["GB2"])
+                        and row1["n_atoms"] == row2["n_atoms"]
+                    ):
+
                         rows_to_drop.add(idx2)
                         processed.add(idx1)
                         processed.add(idx2)
@@ -298,10 +354,12 @@ def _check_duplicates_in_group(group_df: pd.DataFrame) -> list[int]:
     Returns indices of rows to drop.
     """
     from pymatgen.analysis.structure_matcher import StructureMatcher
+
     matcher = StructureMatcher()
     unique_structures = []
     rows_to_drop = []
     from pymatgen.io.ase import AseAtomsAdaptor
+
     for i, row in group_df.iterrows():
         struct = AseAtomsAdaptor().get_structure(row.structure)
         is_duplicate = False
@@ -318,9 +376,7 @@ def _check_duplicates_in_group(group_df: pd.DataFrame) -> list[int]:
 
 
 def _remove_duplicate_structures(
-    df: pd.DataFrame,
-    max_atoms: int = 100,
-    max_workers: int = None
+    df: pd.DataFrame, max_atoms: int = 100, max_workers: int = None
 ) -> pd.DataFrame:
     """
     Removes duplicate structures using structure matching in parallel.
@@ -341,8 +397,8 @@ def _remove_duplicate_structures(
         Deduplicated DataFrame.
     """
     df = df.copy()
-    df['n_atoms'] = df['structure'].apply(len)
-    grouped = [group for _, group in df[df['n_atoms'] <= max_atoms].groupby('n_atoms')]
+    df["n_atoms"] = df["structure"].apply(len)
+    grouped = [group for _, group in df[df["n_atoms"] <= max_atoms].groupby("n_atoms")]
 
     if not grouped:
         return df.drop(columns=["n_atoms"])
@@ -351,11 +407,17 @@ def _remove_duplicate_structures(
         max_workers = min(cpu_count(), len(grouped))
 
     with Pool(processes=max_workers) as pool:
-        results = list(tqdm(pool.imap(_check_duplicates_in_group, grouped),
-                            total=len(grouped), desc="Duplicate check"))
+        results = list(
+            tqdm(
+                pool.imap(_check_duplicates_in_group, grouped),
+                total=len(grouped),
+                desc="Duplicate check",
+            )
+        )
 
     indices_to_drop = {idx for sublist in results for idx in sublist}
-    return df.drop(index=indices_to_drop)#.drop(columns=["n_atoms"])
+    return df.drop(index=indices_to_drop)  # .drop(columns=["n_atoms"])
+
 
 def get_gbcode_df_multiple_axes(
     axes_list: list[np.ndarray],
@@ -363,21 +425,24 @@ def get_gbcode_df_multiple_axes(
     sigma_limit: int = 100,
     lim_plane_index: int = 3,
     max_atoms: int = 100,
-    max_workers: int = None
+    max_workers: int = None,
 ) -> pd.DataFrame:
     """
     Parallelized generation of GB DataFrame over multiple axes.
     """
     from concurrent.futures import ProcessPoolExecutor
+
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(get_gbcode_df,
-                            axis,
-                            basis,
-                            sigma_limit,
-                            lim_plane_index,
-                            max_atoms,
-                            max_workers)
+            executor.submit(
+                get_gbcode_df,
+                axis,
+                basis,
+                sigma_limit,
+                lim_plane_index,
+                max_atoms,
+                max_workers,
+            )
             for axis in axes_list
         ]
         all_results = []

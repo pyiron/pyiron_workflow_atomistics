@@ -5,6 +5,7 @@ from pyiron_workflow_atomistics.dataclass_storage import Engine
 from ase import Atoms
 from pymatgen.io.ase import AseAtomsAdaptor
 
+
 @pwf.as_function_node
 def convert_structure(structure, target="ase"):
     if target == "ase":
@@ -15,7 +16,10 @@ def convert_structure(structure, target="ase"):
         raise ValueError(f"Unknown target: {target}")
     return converted_structure
 
-def extract_outputs_from_EngineOutputs(engine_outputs: list, keys: list[str], only_converged=True):
+
+def extract_outputs_from_EngineOutputs(
+    engine_outputs: list, keys: list[str], only_converged=True
+):
     """
     Extract specified keys from a list of EngineOutput objects.
 
@@ -44,12 +48,27 @@ def extract_outputs_from_EngineOutputs(engine_outputs: list, keys: list[str], on
 
     return extracted
 
+
 @pwf.api.as_function_node("dict_with_adjusted_working_directory")
-def get_working_subdir_kwargs(calc_structure_fn_kwargs: dict, base_working_directory: str, new_working_directory: str):
-    return modify_dict.node_function(calc_structure_fn_kwargs, {"working_directory": os.path.join(base_working_directory, new_working_directory)})
+def get_working_subdir_kwargs(
+    calc_structure_fn_kwargs: dict,
+    base_working_directory: str,
+    new_working_directory: str,
+):
+    return modify_dict.node_function(
+        calc_structure_fn_kwargs,
+        {
+            "working_directory": os.path.join(
+                base_working_directory, new_working_directory
+            )
+        },
+    )
+
 
 @pwf.api.as_function_node("calc_fn", "calc_fn_kwargs")
-def get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine, structure, calc_structure_fn, calc_structure_fn_kwargs):
+def get_calc_fn_calc_fn_kwargs_from_calculation_engine(
+    calculation_engine, structure, calc_structure_fn, calc_structure_fn_kwargs
+):
     if calculation_engine:
         calc_fn, calc_fn_kwargs = calculation_engine.get_calculate_fn(structure)
     else:
@@ -58,18 +77,23 @@ def get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine, struc
     # print(calc_fn_kwargs["working_directory"])
     return calc_fn, calc_fn_kwargs
 
+
 @pwf.as_function_node("new_string")
 def add_string(base_string: str, new_string: str):
     return base_string + new_string
+
+
 from typing import Any
+
 
 @pwf.as_function_node("modded_dataclass")
 def modify_dataclass(dataclass_instance, entry_name: str, entry_value: Any):
     from dataclasses import asdict
     from copy import deepcopy
+
     kwarg_dict = {entry_name: entry_value}
-    data = deepcopy(asdict(dataclass_instance))   # deep-copies nested containers
-    bad  = set(kwarg_dict) - data.keys()
+    data = deepcopy(asdict(dataclass_instance))  # deep-copies nested containers
+    bad = set(kwarg_dict) - data.keys()
     if bad:
         raise KeyError(f"Unknown field(s): {sorted(bad)}")
 
@@ -77,6 +101,7 @@ def modify_dataclass(dataclass_instance, entry_name: str, entry_value: Any):
     dataclass_instance = type(dataclass_instance)(**data)
     # re-construct a brand-new instance from the dict
     return dataclass_instance
+
 
 @pwf.as_function_node("modded_dataclass_multi")
 def modify_dataclass_multi(dataclass_instance, entry_names, entry_values):
@@ -92,6 +117,7 @@ def modify_dataclass_multi(dataclass_instance, entry_names, entry_values):
     for name, val in zip(entry_names, entry_values):
         ds = modify_dataclass.node_function(ds, name, val)
     return ds
+
 
 @pwf.as_function_node("modded_dict")
 def modify_dict(dict_instance: dict, updates: dict):
@@ -135,7 +161,8 @@ def get_subdirpaths(parent_dir: str, output_subdirs: List[str]):
         dirpaths.append(output_subdir)
     return dirpaths
 
+
 @pwf.as_function_node("per_atom_quantity")
 def get_per_atom_quantity(quantity, structure):
-    per_atom_quantity = quantity/len(structure)
+    per_atom_quantity = quantity / len(structure)
     return per_atom_quantity

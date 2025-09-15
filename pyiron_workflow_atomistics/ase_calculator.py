@@ -282,6 +282,7 @@ def fillin_default_calckwargs(
 
     return full
 
+
 @pwf.as_function_node("kwargs_variant")
 def generate_kwargs_variant(
     base_kwargs: dict[str, Any],
@@ -289,9 +290,11 @@ def generate_kwargs_variant(
     value: Any,
 ):
     from copy import deepcopy
+
     kwargs_variant = deepcopy(base_kwargs)
     kwargs_variant[key] = value
     return kwargs_variant
+
 
 @pwf.as_function_node("kwargs_variants")
 def generate_kwargs_variants(

@@ -21,6 +21,8 @@ from typing import List, Tuple, Optional, Dict, Any, Callable
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
 from pyiron_workflow_atomistics.dataclass_storage import Engine
 from pyiron_workflow_atomistics.utils import extract_outputs_from_EngineOutputs
+
+
 @pwf.as_function_node
 def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
 
@@ -33,11 +35,12 @@ def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
         extended_structure_list.append(structure)
     return extended_structure_list, extensions
 
+
 @pwf.as_function_node
 def get_min_energy_structure_from_forloop_df(df):
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=df.calc_output,
-        keys=["final_energy", "final_structure", "final_volume"]
+        keys=["final_energy", "final_structure", "final_volume"],
     )
     if not extracted_dict["final_energy"]:
         raise ValueError("No converged runs.")
@@ -92,11 +95,13 @@ def get_interp_min_energy_structure_from_forloop_df(
 ):
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=df.calc_output,
-        keys=["final_energy", "final_structure", "final_volume"]
+        keys=["final_energy", "final_structure", "final_volume"],
     )
     energies = extracted_dict["final_energy"]
     structs = extracted_dict["final_structure"]
-    lengths = [np.linalg.norm(np.array(struct.cell)[axis_to_index(axis)]) for struct in structs]
+    lengths = [
+        np.linalg.norm(np.array(struct.cell)[axis_to_index(axis)]) for struct in structs
+    ]
     (length_min, interpolated_energy), _ = fit_polynomial_extremum.node_function(
         lengths, energies, degree, num_points, extremum="min"
     )
@@ -107,7 +112,7 @@ def get_interp_min_energy_structure_from_forloop_df(
     unit_vec = cell[idx] / np.linalg.norm(cell[idx])
     cell[idx] = unit_vec * length_min
     interpolated_structure = get_modified_cell_structure.node_function(ref_struct, cell)
-    #print(interpolated_structure, energies, structs, lengths, interpolated_energy)
+    # print(interpolated_structure, energies, structs, lengths, interpolated_energy)
     return interpolated_structure, interpolated_energy
 
 
@@ -165,15 +170,23 @@ def gb_length_optimiser(
     gb_normal_axis: str = "c",
     calc_structure_fn_kwargs_defaults: dict[str, Any] | None = None,
 ):
-    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs   
-    wf.validate = validate_calculation_inputs(calculation_engine = calculation_engine,
-                                              calc_structure_fn = calc_structure_fn,
-                                              calc_structure_fn_kwargs = calc_structure_fn_kwargs)
-    from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
-    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
-                                                                                   structure = gb_structure,
-                                                                                   calc_structure_fn = calc_structure_fn,
-                                                                                   calc_structure_fn_kwargs = calc_structure_fn_kwargs)
+    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
+
+    wf.validate = validate_calculation_inputs(
+        calculation_engine=calculation_engine,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+    )
+    from pyiron_workflow_atomistics.utils import (
+        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
+    )
+
+    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(
+        calculation_engine=calculation_engine,
+        structure=gb_structure,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+    )
     # 1. Generate extended structures
     wf.extended_GBs = get_extended_struct_list(gb_structure, extensions=extensions)
     wf.extended_GBs_subdirnames = get_extended_names(extensions=extensions)
@@ -254,10 +267,13 @@ def generate_deepcopy(input_obj):
     # print("In generate_deepcopy executing")
     return deepcopy(input_obj)
 
+
 @pwf.as_function_node("length")
 def get_length(extensions):
     # print("In get_length executing")
     return len(extensions)
+
+
 @Workflow.wrap.as_macro_node(
     "stage1_opt_struct",
     "stage1_opt_excvol",
@@ -287,14 +303,22 @@ def full_gb_length_optimization(
     gb_normal_axis="c",
 ):
     from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
-    wf.validate = validate_calculation_inputs(calculation_engine = calculation_engine,
-                                              calc_structure_fn = calc_structure_fn,
-                                              calc_structure_fn_kwargs = calc_structure_fn_kwargs)
-    from pyiron_workflow_atomistics.utils import get_calc_fn_calc_fn_kwargs_from_calculation_engine
-    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(calculation_engine = calculation_engine,
-                                                                                   structure = gb_structure,
-                                                                                   calc_structure_fn = calc_structure_fn,
-                                                                                   calc_structure_fn_kwargs = calc_structure_fn_kwargs)
+
+    wf.validate = validate_calculation_inputs(
+        calculation_engine=calculation_engine,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+    )
+    from pyiron_workflow_atomistics.utils import (
+        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
+    )
+
+    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(
+        calculation_engine=calculation_engine,
+        structure=gb_structure,
+        calc_structure_fn=calc_structure_fn,
+        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
+    )
     # 1. First length-scan + optimise
     wf.stage1_opt = gb_length_optimiser(
         gb_structure=gb_structure,
@@ -326,14 +350,18 @@ def full_gb_length_optimization(
     wf.stage1_plot = get_gb_length_optimiser_plot(
         df=wf.stage1_opt.outputs.extended_GB_results,
         n_points=wf.stage1_plot_len,
-        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
+        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
+            "working_directory"
+        ],
         save_filename="gb_optimiser_stage1.jpg",
     )
     wf.stage2_plot_len = get_length(extensions_stage2)
     wf.stage2_plot = get_gb_length_optimiser_plot(
         df=wf.stage2_opt.outputs.extended_GB_results,
         n_points=wf.stage2_plot_len,
-        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
+        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
+            "working_directory"
+        ],
         save_filename="gb_optimiser_stage2.jpg",
     )
 
@@ -348,7 +376,9 @@ def full_gb_length_optimization(
     wf.combined_plot = get_gb_length_optimiser_plot(
         df=wf.concat_df,
         n_points=interpolate_min_n_points,
-        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs["working_directory"],
+        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
+            "working_directory"
+        ],
         save_filename="gb_optimiser_combined.jpg",
     )
 
@@ -367,6 +397,7 @@ def full_gb_length_optimization(
         wf.stage2_opt_struct_copy,
         wf.stage2_opt.outputs.min_interp_energy_GB_energy,
     )
+
 
 import numpy as np
 import matplotlib.pyplot as plt

@@ -8,19 +8,21 @@ import matplotlib.pyplot as plt
 from pyiron_workflow_atomistics.gb.utils import axis_to_index
 import os
 from pyiron_snippets.logger import logger
+
+
 @pwf.as_function_node("atom")
 def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
     Return the index of the atom whose coordinate along the given axis
     is closest to the mid-plane of the cell.
-    
+
     Parameters
     ----------
     atoms : ase.Atoms
         The supercell.
     axis : int or {'x','y','z'}, default=2
         Which axis to slice along. 0='x', 1='y', 2='z'.
-    
+
     Returns
     -------
     idx : int
@@ -28,8 +30,8 @@ def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
     # allow strings 'x','y','z'
     if isinstance(axis, str):
-        axis = {'x':0, 'y':1, 'z':2}[axis.lower()]
-    
+        axis = {"x": 0, "y": 1, "z": 2}[axis.lower()]
+
     # get fractional positions along axis (handles PBC nicely)
     scaled = atoms.get_scaled_positions()[:, axis]
     # the mid-plane in fractional coords is always 0.5
@@ -224,7 +226,7 @@ def find_GB_plane(
     frac_diffs = np.abs(sel_fracs - mid_frac)
     i_mid = np.argmin(frac_diffs)
     mid_index = sel_indices[i_mid]
-    
+
     # 9) optionally extend selection by extend_frac (Å → fraction)
     if extend_region_length > 0 and start_frac is not None and end_frac is not None:
         # Convert Cartesian extend_frac into fractional units
