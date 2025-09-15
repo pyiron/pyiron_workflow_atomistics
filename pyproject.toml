@@ -23,14 +23,14 @@ classifiers = [
 ]
 dependencies = [
     "numpy==1.26.4",
-    "pandas==2.2.2",
+    "pandas==2.3.2",
     "matplotlib==3.8.4",
-    "ase==3.23.0",
-    "scipy==1.13.1",
+    "ase==3.26.0",
+    "scipy==1.16.2",
     "pyiron_workflow==0.15.2",
-    "pymatgen==2024.8.8",
+    "pymatgen==2025.6.14",
     "pyiron_snippets==0.2.0",
-    "scikit-learn==1.4.2"
+    "scikit-learn==1.7.2"
 ]
 dynamic = ["version"]
 authors = [

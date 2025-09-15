@@ -32,9 +32,9 @@ def calculate_structure_node(
 
 @pwf.as_function_node("valid")
 def validate_calculation_inputs(
-    calc_structure_fn = None,
-    calc_structure_fn_kwargs = None,
-    calculation_engine = None,
+    calc_structure_fn=None,
+    calc_structure_fn_kwargs=None,
+    calculation_engine=None,
 ):
     """
     Validates that either:
