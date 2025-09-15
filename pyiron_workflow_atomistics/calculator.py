@@ -1,14 +1,8 @@
-import os
-import json
-from ase.optimize import BFGS
-from ase.io import write as ase_write
-from ase import Atoms
-from ase.calculators.calculator import Calculator
-import pyiron_workflow as pwf
+from typing import Any
+
 import numpy as np
-from typing import Callable, Tuple, Dict, Any, Optional, List
-import pandas as pd
-from pyiron_workflow_atomistics.dataclass_storage import Engine
+import pyiron_workflow as pwf
+from ase import Atoms
 from pyiron_snippets.logger import logger
 
 

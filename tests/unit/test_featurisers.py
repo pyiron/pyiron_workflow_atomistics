@@ -3,12 +3,11 @@ Unit tests for pyiron_workflow_atomistics.featurisers module.
 """
 
 import unittest
+from unittest.mock import Mock, patch
+
 import numpy as np
-import tempfile
-import os
-from unittest.mock import Mock, patch, MagicMock
-from ase import Atoms
 import pandas as pd
+from ase import Atoms
 
 import pyiron_workflow_atomistics.featurisers as featurisers_module
 

@@ -1,15 +1,17 @@
+import os
+import warnings
+from typing import Any, Callable, Optional
+
 import numpy as np
-from ase import Atoms
 import pyiron_workflow as pwf
+from ase import Atoms
 from pyiron_workflow import Workflow
 
-from .calculator import calculate_structure_node
-import os
-from typing import Callable, Tuple, Dict, Any, Optional, List
-from pyiron_workflow_atomistics.utils import get_per_atom_quantity
-from pyiron_workflow_atomistics.dataclass_storage import Engine
 from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
-import warnings
+from pyiron_workflow_atomistics.dataclass_storage import Engine
+from pyiron_workflow_atomistics.utils import get_per_atom_quantity
+
+from .calculator import calculate_structure_node
 
 
 @pwf.as_function_node("structure_list")
@@ -145,9 +147,6 @@ def get_bulk_structure(
     return equil_struct
 
 
-import ase
-
-
 @pwf.api.as_function_node("rattle_structure")
 def rattle_structure(structure, rattle=None):
     if rattle:
@@ -156,9 +155,6 @@ def rattle_structure(structure, rattle=None):
     else:
         base_structure = structure.copy()
     return base_structure
-
-
-from pyiron_workflow_atomistics.utils import modify_dict, add_string
 
 
 @pwf.api.as_macro_node(
