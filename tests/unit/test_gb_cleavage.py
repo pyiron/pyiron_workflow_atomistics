@@ -2,17 +2,15 @@
 Unit tests for pyiron_workflow_atomistics.gb.cleavage module.
 """
 
-import os
-import tempfile
 import unittest
-from unittest.mock import patch
-
 import numpy as np
-import pandas as pd
+import tempfile
+import os
+from unittest.mock import Mock, patch, MagicMock
 from ase import Atoms
-from ase.build import stack
+import pandas as pd
 from ase.lattice.cubic import BodyCenteredCubic as bcc
-
+from ase.build import stack
 import pyiron_workflow_atomistics.gb.cleavage as gb_cleavage_module
 from pyiron_workflow_atomistics.structure_manipulator.tools import add_vacuum
 

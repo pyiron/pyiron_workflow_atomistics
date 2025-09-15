@@ -13,10 +13,12 @@ grain boundaries: A first-principles study. Phys. Rev. Mater., 8, 073601.
 doi:10.1103/PhysRevMaterials.8.073601
 """
 
-import matplotlib.pyplot as plt
+from pyscal3 import System, Atoms
 import numpy as np
+from copy import copy
+import matplotlib.pyplot as plt
 from ase.io import read
-from pyscal3 import Atoms, System
+import warnings
 
 
 def filter_condition(sys, pos, rvv, distance_min, distance_max, axis, rvv_min, rvv_max):

@@ -1,14 +1,13 @@
-import json
 import os
-from typing import Any, Callable, Dict, List, Optional, Tuple
-
-import numpy as np
-import pandas as pd
-import pyiron_workflow as pwf
+import json
+from ase.optimize import BFGS
+from ase.io import write as ase_write
 from ase import Atoms
 from ase.calculators.calculator import Calculator
-from ase.io import write as ase_write
-from ase.optimize import BFGS
+import pyiron_workflow as pwf
+import numpy as np
+from typing import Callable, Tuple, Dict, Any, Optional, List
+import pandas as pd
 
 
 def ase_calc_structure(

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-import argparse
 import os
-
 import numpy as np
 import pandas as pd
-from ase import Atom
-from ase.build import rotate
-from ase.io.lammpsdata import write_lammps_data
+import argparse
+
+from ase import Atom, Atoms
 from ase.io.vasp import read_vasp, write_vasp
+from ase.io.lammpsdata import write_lammps_data
 from ase.lattice.hexagonal import HexagonalClosedPacked
-from pymatgen.core import Lattice, Structure
+from ase.build import rotate
+
+from pymatgen.core import Structure, Lattice
 from pymatgen.transformations.standard_transformations import SupercellTransformation
 
 Z_THRESH = 0.00005
@@ -116,9 +117,9 @@ def slice_cell(infile, xmax=10, ymax=5, zmax=30, disp=[0.0, 0.0, 0.0]):
 
     # Square up the cell
     aa, bb, cc = s.cell
-    assert abs(aa[1]) + abs(aa[2]) + abs(bb[0]) + abs(bb[2]) < 1e-5, (
-        "Cell not very orthogonal!"
-    )
+    assert (
+        abs(aa[1]) + abs(aa[2]) + abs(bb[0]) + abs(bb[2]) < 1e-5
+    ), "Cell not very orthogonal!"
     s.set_cell([aa[0], bb[1], cc[2]])
     s.positions += disp
     s.wrap(pbc=[True, True, False])

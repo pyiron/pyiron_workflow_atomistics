@@ -2,14 +2,14 @@
 Unit tests for pyiron_workflow_atomistics.gb.analysis module.
 """
 
-import os
-import tempfile
 import unittest
-from unittest.mock import Mock, patch
-
 import numpy as np
-from ase.atoms import Atom
+import tempfile
+import os
+from unittest.mock import Mock, patch, MagicMock
+from ase import Atoms
 from ase.io import read
+from ase.atoms import Atom
 
 import pyiron_workflow_atomistics.gb.analysis as gb_analysis_module
 from pyiron_workflow_atomistics.featurisers import voronoiSiteFeaturiser

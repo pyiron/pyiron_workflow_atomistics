@@ -3,17 +3,18 @@ Integration tests for pyiron_workflow_atomistics workflow components.
 """
 
 import unittest
-from unittest.mock import Mock
-
 import numpy as np
+import tempfile
+import os
+from unittest.mock import Mock, patch, MagicMock
 from ase import Atoms
 from ase.build import bulk
 
-import pyiron_workflow_atomistics.bulk as bulk_module
 import pyiron_workflow_atomistics.calculator as calc_module
+import pyiron_workflow_atomistics.bulk as bulk_module
+import pyiron_workflow_atomistics.utils as utils_module
 import pyiron_workflow_atomistics.gb.analysis as gb_analysis_module
 import pyiron_workflow_atomistics.gb.cleavage as gb_cleavage_module
-import pyiron_workflow_atomistics.utils as utils_module
 
 
 class TestWorkflowIntegration(unittest.TestCase):
@@ -235,7 +236,7 @@ class TestWorkflowIntegration(unittest.TestCase):
 
         self.assertEqual(len(variants), 3)
         for i, variant in enumerate(variants):
-            self.assertEqual(variant["param1"], f"new{i + 1}")
+            self.assertEqual(variant["param1"], f"new{i+1}")
 
     def test_utils_integration(self):
         """Test utils module integration."""

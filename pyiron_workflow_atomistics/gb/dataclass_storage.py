@@ -54,7 +54,7 @@ class PlotCleaveInput:
     ylims: List[float] = field(default_factory=lambda: [0, 61])
 
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, asdict
 
 
 @dataclass
