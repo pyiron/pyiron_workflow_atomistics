@@ -3,8 +3,10 @@ Unit tests for pyiron_workflow_atomistics.utils module.
 """
 
 import unittest
-from unittest.mock import Mock
-
+import numpy as np
+import tempfile
+import os
+from unittest.mock import Mock, patch, MagicMock
 from ase import Atoms
 from ase.build import bulk
 from pymatgen.io.ase import AseAtomsAdaptor

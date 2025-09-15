@@ -1,13 +1,11 @@
-from math import degrees
-from multiprocessing import Pool, cpu_count
-
-import numpy as np
-import pandas as pd
-from pyiron_snippets.logger import logger
-from tqdm import tqdm
-
 import pyiron_workflow_atomistics.gb.gb_code.csl_generator as csl
 from pyiron_workflow_atomistics.gb.gb_code.csl_generator import get_theta_m_n_list
+import numpy as np
+import pandas as pd
+from math import degrees
+from tqdm import tqdm
+from multiprocessing import Pool, cpu_count
+from pyiron_snippets.logger import logger
 
 
 def _construct_gb_for_sigma(args):
@@ -209,7 +207,7 @@ def get_gbcode_df(
                 theta_list.append(theta)
                 m_list.append(m)
                 n_list.append(n)
-            logger.info(f"Sigma:   {i:3d}  Theta:  {degrees(theta):5.2f}")
+            logger.info("Sigma:   {0:3d}  Theta:  {1:5.2f}".format(i, degrees(theta)))
     all_gb_df = pd.DataFrame()
 
     # 2) Parallel GB gbcode construction parameter df
@@ -285,7 +283,6 @@ def get_gbcode_df_with_structures(
     ]
     n_workers = max_workers if max_workers is not None else cpu_count()
     from concurrent.futures import ProcessPoolExecutor, as_completed
-
     from pyiron_workflow_atomistics.gb.gb_code.searcher import (
         _construct_structure_for_entry,
     )
@@ -342,6 +339,7 @@ def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
                         and is_negation(row1["GB2"], row2["GB2"])
                         and row1["n_atoms"] == row2["n_atoms"]
                     ):
+
                         rows_to_drop.add(idx2)
                         processed.add(idx1)
                         processed.add(idx2)

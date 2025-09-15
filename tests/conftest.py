@@ -2,10 +2,10 @@
 Pytest configuration and fixtures for pyiron_workflow_atomistics tests.
 """
 
-import tempfile
-
-import numpy as np
 import pytest
+import numpy as np
+import tempfile
+import os
 from ase import Atoms
 from ase.build import bulk
 

@@ -3,7 +3,6 @@ Unit tests for pyiron_workflow_atomistics version handling.
 """
 
 import unittest
-
 import pyiron_workflow_atomistics
 import pyiron_workflow_atomistics._version as version_module
 

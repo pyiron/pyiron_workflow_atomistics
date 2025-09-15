@@ -5,9 +5,10 @@ Test runner script for pyiron_workflow_atomistics.
 This script provides a convenient way to run tests with different configurations.
 """
 
+import sys
+import os
 import argparse
 import subprocess
-import sys
 from pathlib import Path
 
 

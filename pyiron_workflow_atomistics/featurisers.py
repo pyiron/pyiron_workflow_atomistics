@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 from ase import Atoms
-from pymatgen.analysis.local_env import VoronoiNN
 from pymatgen.io.ase import AseAtomsAdaptor
+from pymatgen.analysis.local_env import VoronoiNN
 
 
 def voronoiSiteFeaturiser(atoms: Atoms, site_index: int) -> dict:
@@ -50,7 +50,7 @@ def distanceMatrixSiteFeaturiser(atoms: Atoms, site_index: int, k: int = 6) -> d
     else:
         knn = np.pad(dists_sorted, (0, k - len(dists_sorted)), constant_values=np.nan)
 
-    feats = {f"Dist_knn_{i + 1}": float(d) for i, d in enumerate(knn)}
+    feats = {f"Dist_knn_{i+1}": float(d) for i, d in enumerate(knn)}
     feats.update(
         {
             "Dist_min": float(dists_sorted.min()),
@@ -174,6 +174,9 @@ def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=Tru
         sames.append([ids[m] for m in same])
 
     return pd.DataFrame({"rep": reps, "same": sames})
+
+
+import numpy as np
 
 
 def pca_whiten(
