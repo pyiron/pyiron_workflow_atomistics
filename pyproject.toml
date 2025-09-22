@@ -23,7 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "numpy==1.26.4",
+    "numpy==2.0.2",
     "pandas==2.3.2",
     "matplotlib==3.10.6",
     "ase==3.26.0",
