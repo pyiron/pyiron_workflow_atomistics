@@ -183,6 +183,7 @@ def optimise_cubic_lattice_parameter(
     strain_range=(-0.02, 0.02),
     num_points=11,
     parent_working_directory: str = "opt_cubic_cell",
+    eos_type="birchmurnaghan",
 ):
     wf.rattle_structure = rattle_structure(structure, rattle)
     from pyiron_workflow_atomistics.utils import (
@@ -214,6 +215,7 @@ def optimise_cubic_lattice_parameter(
         axes=["a", "b", "c"],
         strain_range=strain_range,
         num_points=num_points,
+        eos_type=eos_type,
     )
     wf.a0 = get_cubic_equil_lat_param(wf.eos.outputs.v0)
     wf.eq_bulk_struct = get_bulk_structure(
