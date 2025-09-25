@@ -133,9 +133,36 @@ def create_bulk_from_symbol(
         **kwargs
     )
 
-
-@pwf.as_function_node("surface_from_symbol")
-def create_surface_from_symbol(
+@pwf.as_function_node("surface_structure")
+def create_surface(symbol: str,
+    miller_indices: Union[Tuple[int, int, int], Tuple[int, int, int, int]] = (1, 1, 1),
+    min_length: int | float | np.float64 = 50,
+    vacuum: float | np.float64 | int = 10.0,
+    crystalstructure: str = "fcc",
+    a: Optional[float] = None,
+    cubic: bool = False,
+    periodic: bool = True,
+    b: Optional[float] = None,
+    c: Optional[float] = None,
+    covera: Optional[float] = None,
+    u: Optional[float] = None,
+    alpha: Optional[float] = None,
+    beta: Optional[float] = None,
+    gamma: Optional[float] = None,
+    ab: Optional[float] = None,
+    magmom: Optional[float] = None,
+    latticeconstant: Optional[float] = None):
+    length = 0
+    layers = 0
+    while length < min_length:
+        layers += 1
+        surface = create_surface_with_layers.node_function(symbol, miller_indices, layers, vacuum, crystalstructure, a, cubic, periodic, b, c, covera, u, alpha, beta, gamma, ab, magmom, latticeconstant)
+        length = surface.cell[-1][-1]
+    surface = create_surface_with_layers.node_function(symbol, miller_indices, layers, vacuum, crystalstructure, a, cubic, periodic, b, c, covera, u, alpha, beta, gamma, ab, magmom, latticeconstant)
+    return surface
+    
+@pwf.as_function_node("surface_structure")
+def create_surface_with_layers(
     symbol: str,
     miller_indices: Union[Tuple[int, int, int], Tuple[int, int, int, int]] = (1, 1, 1),
     layers: int = 3,
