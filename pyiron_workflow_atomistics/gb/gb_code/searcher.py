@@ -190,7 +190,7 @@ def _construct_structure_for_entry(args):
     return supercell
 
 
-def get_gbcode_df(
+def _get_gbcode_df(
     axis: np.ndarray,
     basis: str,
     sigma_limit: int,
@@ -227,7 +227,7 @@ def get_gbcode_df(
     return all_gb_df
 
 
-def get_gbcode_df_with_structures(
+def _get_gbcode_df_with_structures(
     df: pd.DataFrame,
     basis: str,
     lattice_param: float,
@@ -422,7 +422,7 @@ def _remove_duplicate_structures(
     return df.drop(index=indices_to_drop)  # .drop(columns=["n_atoms"])
 
 
-def get_gbcode_df_multiple_axes(
+def _get_gbcode_df_multiple_axes(
     axes_list: list[np.ndarray],
     basis: str = "fcc",
     sigma_limit: int = 100,
@@ -438,7 +438,7 @@ def get_gbcode_df_multiple_axes(
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
             executor.submit(
-                get_gbcode_df,
+                _get_gbcode_df,
                 axis,
                 basis,
                 sigma_limit,
@@ -453,3 +453,61 @@ def get_gbcode_df_multiple_axes(
             all_results.append(future.result())
 
     return pd.concat(all_results, ignore_index=True)
+
+import pyiron_workflow as pwf
+
+@pwf.as_function_node("gb_code_df")
+def get_gb_code_df(
+    axes_list: list[np.ndarray],
+    basis: str = "fcc",
+    sigma_limit: int = 100,
+    lim_plane_index: int = 3,
+    max_atoms: int = 100,
+    max_workers: int = None,
+    deduplicate: bool = True,
+    lattice_param: float = None,
+    equil_volume_per_atom: float = None,
+) -> pd.DataFrame:
+
+    gb_code_df = _get_gbcode_df_multiple_axes(axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers)
+
+    if deduplicate:
+        gb_code_df = _deduplicate_gbcode_df_miller_indices_equivalent(gb_code_df)
+    return gb_code_df
+
+@pwf.as_function_node("gb_code_df_with_structures")
+def get_gb_code_df_with_structures(
+    gb_code_df: pd.DataFrame | None = None,
+    axes_list: list[np.ndarray] | None = None,
+    basis: str = "fcc",
+    sigma_limit: int = 100,
+    lim_plane_index: int = 3,
+    max_atoms: int = 100,
+    max_workers: int | None = None,
+    deduplicate: bool = True,
+    lattice_param: float | None = None,
+    equil_volume_per_atom: float | None = None,
+    element: str = "Fe",
+    min_inplane_gb_length: float | int = 10,
+    req_length_grain: float | int = 15,
+    grain_length_axis: float | int = 0,
+) -> pd.DataFrame:
+    if gb_code_df is not None:
+        if equil_volume_per_atom is None | lattice_param is None:
+            raise ValueError("If gb_code_df is provided, equil_volume_per_atom and lattice_param must be provided")
+    if gb_code_df is None and any(x is None for x in [axes_list, basis, sigma_limit, lim_plane_index, max_atoms]):
+        raise ValueError("Either gb_code_df or (axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers) must be provided")
+    if gb_code_df is None:
+        gb_code_df = _get_gbcode_df_multiple_axes(axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers)
+    if deduplicate:
+        gb_code_df = _deduplicate_gbcode_df_miller_indices_equivalent(gb_code_df)
+    gb_code_df_with_structures = _get_gbcode_df_with_structures(df=gb_code_df,
+                                                                basis=basis,
+                                                                lattice_param=lattice_param,
+                                                                equil_volume_per_atom=equil_volume_per_atom,
+                                                                element=element,
+                                                                min_inplane_gb_length=min_inplane_gb_length,
+                                                                req_length_grain=req_length_grain,
+                                                                grain_length_axis=grain_length_axis,
+                                                                max_workers=max_workers)
+    return gb_code_df_with_structures
