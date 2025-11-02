@@ -42,6 +42,13 @@ def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     new_atoms.center(vacuum=vacuum_length / 2, axis=axis_idx)
     return new_atoms
 
+@pwf.as_function_node("supercell")
+def create_supercell(
+    base_structure: Atoms, supercell_repeats: tuple
+) -> Atoms:
+    # Create the supercell
+    supercell = base_structure.repeat(supercell_repeats)
+    return supercell
 
 @pwf.as_function_node("supercell")
 def create_supercell_with_min_dimensions(
@@ -83,14 +90,6 @@ def create_supercell_with_min_dimensions(
     supercell = base_structure.repeat(tuple(repeats))
     return supercell
 
-@pwf.as_function_node("supercell")
-def create_supercell(
-    base_structure: Atoms, supercell_repeats: tuple
-) -> Atoms:
-    # Create the supercell
-    supercell = base_structure.repeat(supercell_repeats)
-    return supercell
-
 @pwf.as_function_node("structure")
 def substitutional_swap_one_site(
     base_structure: Atoms, defect_site: int = 0, new_symbol: str = "Si"
@@ -100,9 +99,6 @@ def substitutional_swap_one_site(
     # swap only the one atom in the original (0,0,0) block
     structure[defect_site].symbol = new_symbol
     return structure
-
-
-
 
 # Because it is really fucking annoying to have to access the data from the dataframe when all I want is a list.
 @pwf.as_function_node
