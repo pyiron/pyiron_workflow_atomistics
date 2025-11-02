@@ -52,7 +52,6 @@ class CalcInputMinimize(PrintableClass):
     energy_convergence_tolerance: float = 0.0000001
     force_convergence_tolerance: float = 0.0000001
     max_iterations: int = 1_000_000
-    max_evaluations: int = 1_000_000
     relax_cell: bool = False
 
 

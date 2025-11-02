@@ -1,7 +1,7 @@
 import pyiron_workflow as pwf
 from pyiron_workflow_atomistics.structure_manipulator.tools import create_supercell_with_min_dimensions
 from pyiron_workflow_atomistics.calculator import calculate_structure_node
-from pyiron_workflow_atomistics.utils import duplicate_engine
+import os
 
 @pwf.as_function_node("vacancy_structure")
 def create_vacancy_structure(structure, remove_atom_index=0):
@@ -13,6 +13,13 @@ def create_vacancy_structure(structure, remove_atom_index=0):
 def calculate_vacancy_formation_energy(vacancy_calc, supercell_calc):
     energy = vacancy_calc - supercell_calc
     return energy
+
+@pwf.as_function_node("duplicate_engine")
+def duplicate_engine(Engine,
+                     working_directory):
+    duplicate_engine = Engine.copy()
+    duplicate_engine.working_directory = os.path.join(Engine.working_directory, working_directory)
+    return duplicate_engine
 
 @pwf.as_macro_node("calc_supercell", "calc_vacancy", "vacancy_formation_energy")#, "vacancy_structure", "structure_supercell")
 def get_vacancy_formation_energy(wf,
