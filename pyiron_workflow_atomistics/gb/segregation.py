@@ -46,7 +46,7 @@ def get_calc_fn_calc_fn_kwargs_list_from_calculation_engine(
         for structure in structure_list:
             # print(structure)
             calculation_engine.calc_fn = calc_structure_fn
-            calc_fn, calc_fn_kwargs = calculation_engine.calculate_fn(structure)
+            calc_fn, calc_fn_kwargs = calculation_engine.get_calculate_fn(structure)
             # print(calc_fn_kwargs["potential_elements"])
             calc_fn_list.append(calc_fn)
             calc_fn_kwargs_list.append(calc_fn_kwargs)

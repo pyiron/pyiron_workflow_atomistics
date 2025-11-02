@@ -5,6 +5,13 @@ import pyiron_workflow as pwf
 from pymatgen.io.ase import AseAtomsAdaptor
 
 
+@pwf.as_function_node("duplicate_engine")
+def duplicate_engine(Engine,
+                     working_directory):
+    duplicate_engine = Engine.copy()
+    duplicate_engine.working_directory = os.path.join(Engine.working_directory, working_directory)
+    return duplicate_engine
+
 @pwf.as_function_node
 def convert_structure(structure, target="ase"):
     if target == "ase":

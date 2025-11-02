@@ -83,6 +83,13 @@ def create_supercell_with_min_dimensions(
     supercell = base_structure.repeat(tuple(repeats))
     return supercell
 
+@pwf.as_function_node("supercell")
+def create_supercell(
+    base_structure: Atoms, supercell_repeats: tuple
+) -> Atoms:
+    # Create the supercell
+    supercell = base_structure.repeat(supercell_repeats)
+    return supercell
 
 @pwf.as_function_node("structure")
 def substitutional_swap_one_site(
