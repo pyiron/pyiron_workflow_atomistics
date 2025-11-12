@@ -9,7 +9,7 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from ase.io import write as ase_write
 from ase.optimize import BFGS
-from pyiron_workflow_atomistics.dataclass_storage import CalcInputMD
+from pyiron_workflow_atomistics.dataclass_storage import CalcInputMD, EngineOutput
 
 
 def ase_calc_structure(
@@ -20,6 +20,8 @@ def ase_calc_structure(
     record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10000,
+    relax_cell: bool = False,
+    energy_convergence_tolerance: Optional[float] = None,
     properties: Tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
     write_to_disk: bool = False,
     working_directory: str = "calc_output",
@@ -30,7 +32,7 @@ def ase_calc_structure(
     final_struct_path: Optional[str] = "final_structure.xyz",
     final_results_path: Optional[str] = "final_results.json",
     data_pickle: str = "job_data.pkl.gz",
-) -> Dict[str, Any]:
+) -> EngineOutput:
     """
     Relax an ASE Atoms object with a customizable optimizer and recording interval,
     attach properties to each snapshot and write extended XYZ,
@@ -38,11 +40,7 @@ def ase_calc_structure(
 
     Returns
     -------
-    dict with keys:
-      - initial: {{structure, results}}
-      - trajectory: list of {{structure, results}}
-      - final: {{structure, results}}
-      - converged: bool
+    EngineOutput object with final_structure, final_energy, final_forces, etc.
     """
     # Setup
     props = [p.strip() for p in properties]
@@ -128,9 +126,48 @@ def ase_calc_structure(
         record_step()  # Record the single calculation
     else:
         # Minimization: use optimizer
-        optimizer = optimizer_class(atoms, **optimizer_kwargs)
-        optimizer.attach(record_step, interval=record_interval)
+        # Handle cell relaxation if requested
+        if relax_cell:
+            from ase.constraints import ExpCellFilter
+            # Wrap atoms with ExpCellFilter for cell relaxation
+            atoms_filtered = ExpCellFilter(atoms)
+            optimizer = optimizer_class(atoms_filtered, **optimizer_kwargs)
+            # Need to record from the filtered atoms during optimization
+            def record_step_filtered():
+                # Get the actual atoms from the filter
+                actual_atoms = atoms_filtered.atoms.copy()
+                snap_res = gather(actual_atoms)
+                snap_att = attach_props(actual_atoms, snap_res)
+                trajectory.append({"structure": snap_att, "results": snap_res})
+                if write_to_disk and traj_struct_path:
+                    ase_write(
+                        os.path.join(working_directory, traj_struct_path), snap_att, append=True
+                    )
+            optimizer.attach(record_step_filtered, interval=record_interval)
+        else:
+            optimizer = optimizer_class(atoms, **optimizer_kwargs)
+            optimizer.attach(record_step, interval=record_interval)
+        
+        # Run optimizer with force convergence tolerance
         converged = optimizer.run(fmax=fmax, steps=max_steps)
+        
+        # If using ExpCellFilter, extract the updated atoms
+        if relax_cell:
+            atoms = atoms_filtered.atoms.copy()
+        
+        # Optional: check energy convergence if tolerance is specified
+        # Note: ASE optimizers don't have built-in energy convergence,
+        # so we check manually if energy_convergence_tolerance is provided
+        if energy_convergence_tolerance is not None and energy_convergence_tolerance > 0:
+            if trajectory:
+                # Check if energy change between last two steps is below tolerance
+                if len(trajectory) >= 2:
+                    energy_diff = abs(
+                        trajectory[-1]["results"].get("energy", 0) - 
+                        trajectory[-2]["results"].get("energy", 0)
+                    )
+                    if energy_diff < energy_convergence_tolerance:
+                        converged = True
 
     # Write trajectory results JSON
     if write_to_disk and traj_results_path:
@@ -155,64 +192,42 @@ def ase_calc_structure(
     )
     df.to_pickle(os.path.join(working_directory, data_pickle), compression="gzip")
 
-    return {
-        "initial": initial,
-        "trajectory": trajectory,
-        "final": final,
-        "converged": bool(converged),
-    }
-
-
-def ase_calculate_structure_node_interface(
-    structure: Atoms,
-    calc: Calculator,
-    optimizer_class=BFGS,
-    optimizer_kwargs: dict[str, Any] | None = None,
-    record_interval: int = 1,
-    fmax: float = 0.01,
-    max_steps: int = 10000,
-    properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
-    write_to_disk: bool = False,
-    working_directory: str = "calc_output",
-    initial_struct_path: Optional[str] = "initial_structure.xyz",
-    initial_results_path: Optional[str] = "initial_results.json",
-    traj_struct_path: Optional[str] = "trajectory.xyz",
-    traj_results_path: Optional[str] = "trajectory_results.json",
-    final_struct_path: Optional[str] = "final_structure.xyz",
-    final_results_path: Optional[str] = "final_results.json",
-    data_pickle: str = "job_data.pkl.gz",
-    calc_structure_fn: Callable[..., Any] = ase_calc_structure,
-) -> Tuple[Atoms, Dict[str, Any], bool]:
-    """
-    Node wrapper to call calc_structure_fn (default: ase_calc_structure)
-    with all ASE kwargs forwarded from node inputs.
-    """
-    out = calc_structure_fn(
-        structure=structure,
-        calc=calc,
-        optimizer_class=optimizer_class,
-        optimizer_kwargs=optimizer_kwargs,
-        record_interval=record_interval,
-        fmax=fmax,
-        max_steps=max_steps,
-        properties=properties,
-        write_to_disk=write_to_disk,
-        working_directory=working_directory,
-        initial_struct_path=initial_struct_path,
-        initial_results_path=initial_results_path,
-        traj_struct_path=traj_struct_path,
-        traj_results_path=traj_results_path,
-        final_struct_path=final_struct_path,
-        final_results_path=final_results_path,
-        data_pickle=data_pickle,
-    )
-    atoms = out["final"]["structure"]
-    final_results = out["final"]["results"]
-    converged = out["converged"]
-    converged = bool(converged)
-    # print(atoms, final_results, converged)
-    return atoms, final_results, converged
-
+    # Convert to EngineOutput format
+    engine_output = EngineOutput()
+    engine_output.final_structure = final_atoms
+    engine_output.final_results = final_res
+    engine_output.convergence = bool(converged)
+    
+    # Extract final values
+    if "energy" in final_res:
+        engine_output.final_energy = final_res["energy"]
+    if "forces" in final_res:
+        engine_output.final_forces = np.array(final_res["forces"])
+    if "stresses" in final_res:
+        stress = np.array(final_res["stresses"])
+        engine_output.final_stress = stress
+        # For compatibility, also set stress tensor (voigt notation)
+        if len(stress) == 6:  # Voigt notation
+            engine_output.final_stress_tensor_voigt = stress
+    if "volume" in final_res:
+        engine_output.final_volume = final_res["volume"]
+    else:
+        engine_output.final_volume = final_atoms.get_volume()
+    
+    # Extract trajectory data
+    if trajectory:
+        engine_output.energies = [step["results"].get("energy") for step in trajectory]
+        engine_output.forces = [np.array(step["results"].get("forces", [])) for step in trajectory if "forces" in step["results"]]
+        if trajectory and "stresses" in trajectory[0]["results"]:
+            engine_output.stresses = [np.array(step["results"]["stresses"]) for step in trajectory]
+        engine_output.structures = [step["structure"] for step in trajectory]
+        engine_output.n_ionic_steps = len(trajectory)
+    
+    # Extract magmoms if available
+    if "magmoms" in final_res:
+        engine_output.magmoms = final_res["magmoms"]
+    
+    return engine_output
 
 def ase_md_calc_structure(
     structure: Atoms,
@@ -229,17 +244,13 @@ def ase_md_calc_structure(
     final_struct_path: Optional[str] = "final_structure.xyz",
     final_results_path: Optional[str] = "final_results.json",
     data_pickle: str = "job_data.pkl.gz",
-) -> Dict[str, Any]:
+) -> EngineOutput:
     """
     Run MD simulation with ASE using InputCalc dataclass for MD parameters.
     
     Returns
     -------
-    dict with keys:
-      - initial: {{structure, results}}
-      - trajectory: list of {{structure, results}}
-      - final: {{structure, results}}
-      - converged: bool (always True for MD)
+    EngineOutput object with final_structure, final_energy, final_forces, etc.
     """
     from ase import units
     from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
@@ -396,73 +407,42 @@ def ase_md_calc_structure(
     )
     df.to_pickle(os.path.join(working_directory, data_pickle), compression="gzip")
 
-    return {
-        "initial": initial,
-        "trajectory": trajectory,
-        "final": final,
-        "converged": True,  # MD always "converges" (completes)
-    }
-
-
-def ase_md_calculate_structure_node_interface(
-    structure: Atoms,
-    calc: Calculator,
-    md_input: CalcInputMD,
-    record_interval: int = 1,
-    properties: Tuple[str, ...] = ("energy", "forces", "stresses"),
-    write_to_disk: bool = False,
-    working_directory: str = "calc_output",
-    initial_struct_path: Optional[str] = "initial_structure.xyz",
-    initial_results_path: Optional[str] = "initial_results.json",
-    traj_struct_path: Optional[str] = "trajectory.xyz",
-    traj_results_path: Optional[str] = "trajectory_results.json",
-    final_struct_path: Optional[str] = "final_structure.xyz",
-    final_results_path: Optional[str] = "final_results.json",
-    data_pickle: str = "job_data.pkl.gz",
-    calc_structure_fn: Callable[..., Any] = ase_md_calc_structure,
-) -> Tuple[Atoms, Dict[str, Any], bool]:
-    """
-    Node wrapper to call MD calc_structure_fn (default: ase_md_calc_structure)
-    with all ASE kwargs forwarded from node inputs.
-    """
-    out = calc_structure_fn(
-        structure=structure,
-        calc=calc,
-        md_input=md_input,
-        record_interval=record_interval,
-        properties=properties,
-        write_to_disk=write_to_disk,
-        working_directory=working_directory,
-        initial_struct_path=initial_struct_path,
-        initial_results_path=initial_results_path,
-        traj_struct_path=traj_struct_path,
-        traj_results_path=traj_results_path,
-        final_struct_path=final_struct_path,
-        final_results_path=final_results_path,
-        data_pickle=data_pickle,
-    )
-    atoms = out["final"]["structure"]
-    final_results = out["final"]["results"]
-    converged = out["converged"]
-    converged = bool(converged)
-    return atoms, final_results, converged
-
-
-@pwf.as_function_node("atoms", "results", "converged")
-def calculate_structure_node(
-    structure: Atoms,
-    # calc_structure_fn: Callable[..., Any] = ase_calculate_structure_node_interface,
-    calc_structure_fn=ase_calculate_structure_node_interface,
-    calc_structure_fn_kwargs: dict[str, Any] | None = None,
-) -> Tuple[Atoms, dict[str, Any], bool]:
-    if calc_structure_fn_kwargs is None:
-        calc_structure_fn_kwargs = {}
-    atoms, final_results, converged = calc_structure_fn(
-        structure=structure, **calc_structure_fn_kwargs
-    )
-    # print(calc_structure_fn_kwargs["working_directory"])
-    return atoms, final_results, converged
-
+    # Convert to EngineOutput format
+    engine_output = EngineOutput()
+    engine_output.final_structure = final_atoms
+    engine_output.final_results = final_res
+    engine_output.convergence = True  # MD always "converges" (completes)
+    
+    # Extract final values
+    if "energy" in final_res:
+        engine_output.final_energy = final_res["energy"]
+    if "forces" in final_res:
+        engine_output.final_forces = np.array(final_res["forces"])
+    if "stresses" in final_res:
+        stress = np.array(final_res["stresses"])
+        engine_output.final_stress = stress
+        # For compatibility, also set stress tensor (voigt notation)
+        if len(stress) == 6:  # Voigt notation
+            engine_output.final_stress_tensor_voigt = stress
+    if "volume" in final_res:
+        engine_output.final_volume = final_res["volume"]
+    else:
+        engine_output.final_volume = final_atoms.get_volume()
+    
+    # Extract trajectory data
+    if trajectory:
+        engine_output.energies = [step["results"].get("energy") for step in trajectory]
+        engine_output.forces = [np.array(step["results"].get("forces", [])) for step in trajectory if "forces" in step["results"]]
+        if trajectory and "stresses" in trajectory[0]["results"]:
+            engine_output.stresses = [np.array(step["results"]["stresses"]) for step in trajectory]
+        engine_output.structures = [step["structure"] for step in trajectory]
+        engine_output.n_ionic_steps = len(trajectory)
+    
+    # Extract magmoms if available
+    if "magmoms" in final_res:
+        engine_output.magmoms = final_res["magmoms"]
+    
+    return engine_output
 
 @pwf.as_function_node("output")
 def extract_values(results_list, key):

@@ -25,7 +25,6 @@ class ASEEngine(Engine):
 
     EngineInput: CalcInputStatic | CalcInputMinimize | CalcInputMD
     calculator: Calculator
-    structure: Atoms
     mode: Literal["static", "minimize", "md"] = field(init=False)
     working_directory: str = field(default_factory=os.getcwd)
     calc_fn: Callable = None
@@ -62,10 +61,18 @@ class ASEEngine(Engine):
         # Infer mode from EngineInput type
         if isinstance(self.EngineInput, CalcInputMinimize):
             inferred = "minimize"
+            # Map dataclass attributes - optimizer_kwargs will be passed to optimizer constructor
+            # Note: fmax and steps are passed to optimizer.run(), not constructor
+            self.optimizer_kwargs = self.optimizer_kwargs or {}
         elif isinstance(self.EngineInput, CalcInputMD):
             inferred = "md"
+            # MD parameters are passed via md_input object to ase_md_calc_structure
+            # All MD parameters from CalcInputMD are already accessible via md_input
+            pass
         elif isinstance(self.EngineInput, CalcInputStatic):
             inferred = "static"
+            # Static runs: no further parameters needed
+            pass
         else:
             raise TypeError(f"Unsupported EngineInput type: {type(self.EngineInput)}")
 
@@ -91,13 +98,14 @@ class ASEEngine(Engine):
 
     def get_calculate_fn(self, structure: Atoms) -> tuple[Callable, dict[str, Any]]:
         if self.calc_fn is None:
-            from pyiron_workflow_atomistics.engine.ase_calculator import (
-                ase_calculate_structure_node_interface,
+            from pyiron_workflow_atomistics.engine_ase.ase_calculator import (
+                ase_calc_structure,
+                ase_md_calc_structure,
             )
-
             # Build kwargs based on mode
+            # Note: 'structure' is NOT included here because calculate_structure_node
+            # passes it explicitly as a keyword argument
             calc_kwargs = {
-                "structure": structure,
                 "calc": self.calculator,
                 "working_directory": self.working_directory,
                 "properties": self.properties,
@@ -122,7 +130,7 @@ class ASEEngine(Engine):
                         "max_steps": 0,  # Not used for static
                     }
                 )
-                self.calc_fn = ase_calculate_structure_node_interface
+                self.calc_fn = ase_calc_structure
 
             elif self.mode == "minimize":
                 # Minimization: use optimizer with convergence criteria from EngineInput
@@ -138,9 +146,11 @@ class ASEEngine(Engine):
                             if self.max_steps is not None
                             else min_input.max_iterations
                         ),
+                        "relax_cell": min_input.relax_cell,
+                        "energy_convergence_tolerance": min_input.energy_convergence_tolerance,
                     }
                 )
-                self.calc_fn = ase_calculate_structure_node_interface
+                self.calc_fn = ase_calc_structure
 
             elif self.mode == "md":
                 # MD: use MD-specific function
@@ -151,16 +161,17 @@ class ASEEngine(Engine):
                         "record_interval": self.record_interval,
                     }
                 )
-                # Import MD function
-                from pyiron_workflow_atomistics.engine.ase_calculator import (
-                    ase_md_calculate_structure_node_interface,
-                )
-
-                self.calc_fn = ase_md_calculate_structure_node_interface
+                self.calc_fn = ase_md_calc_structure
 
             self.calc_fn_kwargs = calc_kwargs
 
-        return self.calc_fn, self.calc_fn_kwargs
+        # Return a copy of kwargs to prevent modifications from affecting cached version
+        # Also ensure 'structure' is not in kwargs (safety check)
+        import copy
+        returned_kwargs = copy.deepcopy(self.calc_fn_kwargs)
+        returned_kwargs.pop("structure", None)  # Remove if somehow present
+        
+        return self.calc_fn, returned_kwargs
 
     def get_parse_fn(self) -> tuple[Callable, dict[str, Any]]:
         if self.parse_fn is None:

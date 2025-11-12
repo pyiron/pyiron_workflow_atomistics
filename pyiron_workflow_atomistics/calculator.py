@@ -20,6 +20,13 @@ def calculate_structure_node(
     else:
         calc_structure_fn = _calc_structure_fn
         calc_structure_fn_kwargs = _calc_structure_fn_kwargs
+    
+    # Safety check: remove 'structure' from kwargs if present to avoid duplicate argument error
+    # 'structure' is always passed explicitly, so it should not be in kwargs
+    if calc_structure_fn_kwargs is not None:
+        calc_structure_fn_kwargs = calc_structure_fn_kwargs.copy()
+        calc_structure_fn_kwargs.pop("structure", None)
+    
     output = calc_structure_fn(structure=structure, **calc_structure_fn_kwargs)
     return output
 
