@@ -75,11 +75,21 @@ def evaluate_structures(
         calculation_engine=calculation_engine,
     )
     if calculation_engine is not None:
-        working_directory = calculation_engine.working_directory
-        os.makedirs(working_directory, exist_ok=True)
-        calc_structure_fn, calc_structure_fn_kwargs = calculation_engine.calculate_fn(
+        # Get function and kwargs from engine
+        calc_structure_fn, engine_kwargs = calculation_engine.get_calculate_fn(
             structure=structures[0]
         )
+        # If calc_structure_fn_kwargs is provided, use its working_directory
+        # (which may have been updated by get_working_subdir_kwargs)
+        # Otherwise use the engine's working_directory
+        if calc_structure_fn_kwargs is not None and "working_directory" in calc_structure_fn_kwargs:
+            working_directory = calc_structure_fn_kwargs["working_directory"]
+            # Merge engine kwargs with provided kwargs (provided kwargs take precedence)
+            calc_structure_fn_kwargs = {**engine_kwargs, **calc_structure_fn_kwargs}
+        else:
+            working_directory = calculation_engine.working_directory
+            calc_structure_fn_kwargs = engine_kwargs.copy()
+        os.makedirs(working_directory, exist_ok=True)
     else:
         working_directory = calc_structure_fn_kwargs["working_directory"]
         os.makedirs(working_directory, exist_ok=True)
@@ -211,7 +221,7 @@ def optimise_cubic_lattice_parameter(
         base_structure=wf.rattle_structure,
         # calculation_engine = calculation_engine,
         calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
+        calc_structure_fn_kwargs=wf.calc_fn_kwargs.outputs.dict_with_adjusted_working_directory,
         axes=["a", "b", "c"],
         strain_range=strain_range,
         num_points=num_points,
