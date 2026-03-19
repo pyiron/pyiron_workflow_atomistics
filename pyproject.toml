@@ -32,7 +32,7 @@ dependencies = [
     "pymatgen==2025.6.14",
     "pyiron_snippets==0.2.0",
     "scikit-learn==1.7.2",
-    "lz-GB-code>=2.0.0",
+    "lz-GB-code==0.1.0",
 ]
 dynamic = ["version"]
 authors = [
