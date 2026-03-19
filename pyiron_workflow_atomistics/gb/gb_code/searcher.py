@@ -6,8 +6,8 @@ import pandas as pd
 from pyiron_snippets.logger import logger
 from tqdm import tqdm
 
-import pyiron_workflow_atomistics.gb.gb_code.csl_generator as csl
-from pyiron_workflow_atomistics.gb.gb_code.csl_generator import get_theta_m_n_list
+import gb_code.csl_generator as csl
+from gb_code.csl_generator import get_theta_m_n_list
 
 
 def _construct_gb_for_sigma(args):
