@@ -1,6 +1,3 @@
-import os
-import tempfile
-
 import numpy as np
 import pyiron_workflow as pwf
 from pyiron_snippets.logger import logger
@@ -9,7 +6,39 @@ from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
 
-from . import gb_generator as gbc
+from gb_code.gb_generator import GB_character
+
+
+def _axis_index_to_label(axis: int) -> str:
+    axis_labels = {0: "x", 1: "y", 2: "z"}
+    try:
+        return axis_labels[int(axis)]
+    except (KeyError, ValueError, TypeError) as exc:
+        raise ValueError("grain_length_axis must be one of 0, 1, or 2") from exc
+
+
+def _build_gb_structure(
+    my_gb,
+    element,
+    grain_length_axis=0,
+    req_length_grain=15,
+):
+    gb_normal = _axis_index_to_label(grain_length_axis)
+    structure = my_gb.build(
+        overlap=0.0,
+        whichG="g1",
+        dim=[1, 1, 1],
+        gb_normal=gb_normal,
+    ).to_pymatgen(element=element)
+    extend_factors = get_multiplier_to_extend_gb_to_min_length(
+        structure, axis=grain_length_axis, req_length_grain=req_length_grain
+    )
+    return my_gb.build(
+        overlap=0.0,
+        whichG="g1",
+        dim=[extend_factors[grain_length_axis], 1, 1],
+        gb_normal=gb_normal,
+    ).to_pymatgen(element=element)
 
 
 @pwf.as_function_node("wrapped_sorted_structure")
@@ -44,46 +73,15 @@ def get_pmg_struct_from_gbcode(
     Returns:
         A pymatgen Structure object with the specified GB.
     """
-    my_gb = gbc.GB_character()
+    my_gb = GB_character()
     my_gb.ParseGB(axis, basis, lattice_param, m, n, GB1)
     my_gb.CSL_Bicrystal_Atom_generator()
-
-    # Generate initial structure and extend to minimum length
-    structure = _write_and_load_structure(my_gb)
-    extend_factors = get_multiplier_to_extend_gb_to_min_length(
-        structure, axis=grain_length_axis, req_length_grain=req_length_grain
+    structure = _build_gb_structure(
+        my_gb,
+        element=element,
+        grain_length_axis=grain_length_axis,
+        req_length_grain=req_length_grain,
     )
-
-    # Extend GB structure
-    structure = _write_and_load_structure(
-        my_gb, extend_by=extend_factors[grain_length_axis]
-    )
-
-    # Map all atoms to the specified element
-    element_mapping = {el: element for el in structure.species}
-    structure.replace_species(element_mapping)
-    return structure
-
-
-def _write_and_load_structure(my_gb, extend_by=1):
-    """
-    Writes the GB to a temporary file, loads it as a pymatgen Structure, and cleans up the file.
-    """
-    import warnings
-
-    warnings.filterwarnings("ignore", category=UserWarning)
-    with tempfile.NamedTemporaryFile(suffix=".vasp", delete=False) as tmpfile:
-        filename = my_gb.WriteGB(
-            filename=tmpfile.name,
-            overlap=0.0,
-            whichG="g1",
-            dim1=extend_by,
-            dim2=1,
-            dim3=1,
-            file="VASP",
-        )
-        structure = Structure.from_file(filename)
-        os.remove(filename)
     return structure
 
 
@@ -238,24 +236,15 @@ def get_gbstruct_from_gbcode(
     Returns:
         A pymatgen Structure object with the specified GB.
     """
-    my_gb = gbc.GB_character()
+    my_gb = GB_character()
     my_gb.ParseGB(axis, basis, lattice_param, m, n, GB1)
     my_gb.CSL_Bicrystal_Atom_generator()
-
-    # Generate initial structure and extend to minimum length
-    structure = _write_and_load_structure(my_gb)
-    extend_factors = get_multiplier_to_extend_gb_to_min_length(
-        structure, axis=grain_length_axis, req_length_grain=req_length_grain
+    structure = _build_gb_structure(
+        my_gb,
+        element=element,
+        grain_length_axis=grain_length_axis,
+        req_length_grain=req_length_grain,
     )
-
-    # Extend GB structure
-    structure = _write_and_load_structure(
-        my_gb, extend_by=extend_factors[grain_length_axis]
-    )
-
-    # Map all atoms to the specified element
-    element_mapping = {el: element for el in structure.species}
-    structure.replace_species(element_mapping)
     return structure
 
 
