@@ -15,9 +15,9 @@ from __future__ import annotations
 
 import os
 import pickle
-
 from dataclasses import is_dataclass
 from typing import Callable
+
 from ase import Atoms
 from ase.build import bulk
 
@@ -65,18 +65,16 @@ class EngineConformanceTests:
         sub = eng.with_working_directory("subdir_a")
 
         # Parent unchanged
-        assert eng.working_directory == parent_wd, (
-            "with_working_directory mutated the parent engine's working_directory"
-        )
+        assert (
+            eng.working_directory == parent_wd
+        ), "with_working_directory mutated the parent engine's working_directory"
         # Child path composed correctly
         assert sub.working_directory == os.path.join(parent_wd, "subdir_a"), (
             f"with_working_directory composed an unexpected path: "
             f"{sub.working_directory!r} != {os.path.join(parent_wd, 'subdir_a')!r}"
         )
         # New instance — not the same object
-        assert sub is not eng, (
-            "with_working_directory returned self instead of a copy"
-        )
+        assert sub is not eng, "with_working_directory returned self instead of a copy"
         # Same dataclass type
         assert type(sub) is type(eng)
 
@@ -85,9 +83,9 @@ class EngineConformanceTests:
         checkpointed to disk and may be resubmitted to SLURM."""
         eng = type(self).engine_factory(tmp_path)
         roundtrip = pickle.loads(pickle.dumps(eng))
-        assert roundtrip.working_directory == eng.working_directory, (
-            "Pickle round-trip lost or corrupted working_directory"
-        )
+        assert (
+            roundtrip.working_directory == eng.working_directory
+        ), "Pickle round-trip lost or corrupted working_directory"
         assert type(roundtrip) is type(eng)
 
     def test_get_calculate_fn_signature(self, tmp_path):
@@ -97,14 +95,14 @@ class EngineConformanceTests:
         eng = type(self).engine_factory(tmp_path)
         result = eng.get_calculate_fn(self._structure())
 
-        assert isinstance(result, tuple) and len(result) == 2, (
-            "get_calculate_fn must return a (callable, kwargs) tuple"
-        )
+        assert (
+            isinstance(result, tuple) and len(result) == 2
+        ), "get_calculate_fn must return a (callable, kwargs) tuple"
         fn, kwargs = result
         assert callable(fn), "First element of get_calculate_fn return must be callable"
-        assert isinstance(kwargs, dict), (
-            "Second element of get_calculate_fn return must be a dict"
-        )
+        assert isinstance(
+            kwargs, dict
+        ), "Second element of get_calculate_fn return must be a dict"
         assert "structure" not in kwargs, (
             "structure must NOT appear in the kwargs dict — the caller "
             "supplies it positionally as fn(structure=..., **kwargs)"
@@ -117,11 +115,15 @@ class EngineConformanceTests:
         eng = type(self).engine_factory(tmp_path)
         out = run.node_function(structure=self._structure(), engine=eng)
 
-        assert isinstance(out, EngineOutput), (
-            f"run() must return EngineOutput, got {type(out).__name__}"
-        )
-        assert out.final_structure is not None, "EngineOutput.final_structure must be populated"
-        assert out.final_energy is not None, "EngineOutput.final_energy must be populated"
-        assert isinstance(out.converged, bool), (
-            f"EngineOutput.converged must be bool, got {type(out.converged).__name__}"
-        )
+        assert isinstance(
+            out, EngineOutput
+        ), f"run() must return EngineOutput, got {type(out).__name__}"
+        assert (
+            out.final_structure is not None
+        ), "EngineOutput.final_structure must be populated"
+        assert (
+            out.final_energy is not None
+        ), "EngineOutput.final_energy must be populated"
+        assert isinstance(
+            out.converged, bool
+        ), f"EngineOutput.converged must be bool, got {type(out.converged).__name__}"
