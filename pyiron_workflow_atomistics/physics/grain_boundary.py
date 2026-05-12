@@ -9,7 +9,7 @@ import pyiron_workflow as pwf
 from pyiron_workflow import Workflow
 from pyiron_workflow.api import for_node
 
-from pyiron_workflow_atomistics.engine import Engine, run
+from pyiron_workflow_atomistics.engine import Engine, run, subengine, subdir_path
 from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
 from pyiron_workflow_atomistics._internal.engine_output import extract_outputs_from_EngineOutputs
 
@@ -251,10 +251,15 @@ def full_gb_length_optimization(
     interpolate_min_n_points=5,
     gb_normal_axis="c",
 ):
+    wf.stage1_engine = subengine(engine=engine, subdir="stage1")
+    wf.stage2_engine = subengine(engine=engine, subdir="stage2")
+    wf.stage1_path = subdir_path(engine=engine, subdir="stage1")
+    wf.stage2_path = subdir_path(engine=engine, subdir="stage2")
+
     # 1. First length-scan + optimise
     wf.stage1_opt = gb_length_optimiser(
         gb_structure=gb_structure,
-        engine=engine.with_working_directory("stage1"),
+        engine=wf.stage1_engine,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage1,
@@ -264,7 +269,7 @@ def full_gb_length_optimization(
     # 2. Second (refined) scan + optimise
     wf.stage2_opt = gb_length_optimiser(
         gb_structure=wf.stage1_opt.outputs.min_interp_energy_GB_struct,
-        engine=engine.with_working_directory("stage2"),
+        engine=wf.stage2_engine,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions=extensions_stage2,
@@ -278,14 +283,14 @@ def full_gb_length_optimization(
     wf.stage1_plot = get_gb_length_optimiser_plot(
         df=wf.stage1_opt.outputs.extended_GB_results,
         n_points=wf.stage1_plot_len,
-        working_directory=engine.with_working_directory("stage1").working_directory,
+        working_directory=wf.stage1_path,
         save_filename="gb_optimiser_stage1.jpg",
     )
     wf.stage2_plot_len = get_length(extensions_stage2)
     wf.stage2_plot = get_gb_length_optimiser_plot(
         df=wf.stage2_opt.outputs.extended_GB_results,
         n_points=wf.stage2_plot_len,
-        working_directory=engine.with_working_directory("stage2").working_directory,
+        working_directory=wf.stage2_path,
         save_filename="gb_optimiser_stage2.jpg",
     )
 
@@ -1091,17 +1096,19 @@ def rigid_and_relaxed_cleavage_study(
     wf.CleaveGBStructureInput = modify_dataclass(
         CleaveGBStructure_Input, "cleavage_target_coord", gb_plane_cart_loc
     )
+    wf.rigid_engine = subengine(engine=static_engine, subdir="cleavage_rigid")
+    wf.relax_engine = subengine(engine=engine, subdir="cleavage_relax")
     wf.calc_cleavage_rigid = calc_cleavage_GB(
         structure=gb_structure,
         energy=gb_structure_energy,
-        engine=static_engine.with_working_directory("cleavage_rigid"),
+        engine=wf.rigid_engine,
         input_cleave_gb_structure=wf.CleaveGBStructureInput,
         input_plot_cleave=PlotCleave_Input,
     )
     wf.calc_cleavage_relax = calc_cleavage_GB(
         structure=gb_structure,
         energy=gb_structure_energy,
-        engine=engine.with_working_directory("cleavage_relax"),
+        engine=wf.relax_engine,
         input_cleave_gb_structure=wf.CleaveGBStructureInput,
         input_plot_cleave=PlotCleave_Input,
     )
@@ -1295,9 +1302,17 @@ def pure_gb_study(
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
 ):
+    wf.length_engine = subengine(engine=engine, subdir="gb_length_optimiser")
+    wf.gb_vacuum_engine = subengine(engine=engine, subdir="gb_with_vacuum_rel")
+    wf.gb_seg_engine = subengine(engine=engine, subdir="gb_seg_supercell")
+    wf.cleavage_engine = subengine(engine=engine, subdir="cleavage_study")
+    wf.cleavage_static_engine = subengine(
+        engine=static_engine, subdir="cleavage_study"
+    )
+
     wf.gb_length_optimiser = full_gb_length_optimization(
         gb_structure=gb_structure,
-        engine=engine.with_working_directory("gb_length_optimiser"),
+        engine=wf.length_engine,
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions_stage1=extensions_stage1,
@@ -1315,7 +1330,8 @@ def pure_gb_study(
 
     wf.gb_with_vacuum_rel = run(
         structure=wf.gb_with_vacuum,
-        engine=engine.with_working_directory("gb_with_vacuum_rel"),
+        engine=wf.gb_vacuum_engine,
+        label="gb_with_vacuum_rel_run",
     )
     from pyiron_workflow_atomistics.structure.transform import (
         create_supercell_with_min_dimensions,
@@ -1328,7 +1344,8 @@ def pure_gb_study(
 
     wf.gb_seg_supercell_rel = run(
         structure=wf.gb_seg_supercell,
-        engine=engine.with_working_directory("gb_seg_supercell"),
+        engine=wf.gb_seg_engine,
+        label="gb_seg_supercell_rel_run",
     )
     wf.area = _get_area(
         wf.gb_with_vacuum_rel.outputs.engine_output.final_structure, gb_normal_axis
@@ -1380,8 +1397,8 @@ def pure_gb_study(
         gb_plane_cart_loc=wf.gb_plane_extractor.outputs.gb_plane_analysis_dict[
             "gb_cart"
         ],
-        engine=engine.with_working_directory("cleavage_study"),
-        static_engine=static_engine.with_working_directory("cleavage_study"),
+        engine=wf.cleavage_engine,
+        static_engine=wf.cleavage_static_engine,
         CleaveGBStructure_Input=wf.CleaveGBStructureInput,
         PlotCleave_Input=PlotCleave_Input,
     )

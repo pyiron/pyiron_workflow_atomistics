@@ -107,6 +107,33 @@ class EngineOutput:
         return asdict(self)
 
 
+@pwf.as_function_node("subengine")
+def subengine(engine: Engine, subdir: str) -> Engine:
+    """Function-node wrapper around :meth:`Engine.with_working_directory`.
+
+    Use this inside ``@pwf.as_macro_node`` graphs where the engine arrives
+    as an input channel. Calling ``engine.with_working_directory(...)``
+    directly in a macro body dispatches the channel's ``__call__`` and
+    crashes with ``ReadinessError``; routing the same call through this
+    node delays the resolution to graph-execution time.
+    """
+    subengine = engine.with_working_directory(subdir)
+    return subengine
+
+
+@pwf.as_function_node("path")
+def subdir_path(engine: Engine, subdir: str) -> str:
+    """Function-node returning ``os.path.join(engine.working_directory, subdir)``.
+
+    Companion to :func:`subengine` for sites that need the path string
+    rather than a new engine inside a macro graph.
+    """
+    import os as _os
+
+    path = _os.path.join(engine.working_directory, subdir)
+    return path
+
+
 @pwf.as_function_node("engine_output")
 def run(structure: Atoms, engine: Engine) -> EngineOutput:
     """Execute ``engine`` on ``structure``.
