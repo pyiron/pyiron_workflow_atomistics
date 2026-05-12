@@ -33,7 +33,7 @@ dependencies = [
     "pyiron_snippets==0.2.0",
     "scikit-learn==1.7.2",
     "lz-GB-code==0.1.0",
-    "tqdm",
+    "tqdm==4.67.3",
 ]
 dynamic = ["version"]
 authors = [
