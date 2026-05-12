@@ -1,5 +1,5 @@
 """
-Unit tests for pyiron_workflow_atomistics.gb.cleavage module.
+Unit tests for pyiron_workflow_atomistics.physics.grain_boundary module.
 """
 
 import os

@@ -1,3 +1,5 @@
+"""Surface energy workflow."""
+
 import numpy as np
 from typing import Union, Tuple, Optional
 from pyiron_workflow_atomistics.surface.builder import create_surface

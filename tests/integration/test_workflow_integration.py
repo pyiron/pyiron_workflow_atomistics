@@ -11,8 +11,6 @@
 
 # import pyiron_workflow_atomistics.bulk as bulk_module
 # import pyiron_workflow_atomistics.calculator as calc_module
-# import pyiron_workflow_atomistics.gb.analysis as gb_analysis_module
-# import pyiron_workflow_atomistics.gb.cleavage as gb_cleavage_module
 # import pyiron_workflow_atomistics.utils as utils_module
 
 

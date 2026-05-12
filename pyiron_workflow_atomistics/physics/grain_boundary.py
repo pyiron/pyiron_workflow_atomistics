@@ -1,3 +1,5 @@
+"""Grain-boundary workflows: pure_gb_study, cleavage_study, segregation_study."""
+
 import os
 from typing import Any
 
@@ -320,7 +322,6 @@ def full_gb_length_optimization(
 
 
 import matplotlib.pyplot as plt
-import numpy as np
 
 
 @pwf.as_function_node
@@ -414,18 +415,12 @@ def get_gb_length_optimiser_plot(
         fig.savefig(os.path.join(working_directory, save_filename), dpi=dpi)
 
     return fig
-import os
 
-import matplotlib.pyplot as plt
-import numpy as np
-import pandas as pd
-import pyiron_workflow as pwf
+
 from ase import Atoms
 from pyiron_snippets.logger import logger
 
-from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.analysis.gb_plane import get_sites_on_plane
-from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
 
 
 # Wrap‐aware difference in fractional space:
@@ -1003,13 +998,10 @@ def get_results_df(
     )
 
 
-from typing import Any
-
 from pyiron_workflow_atomistics.physics._grain_boundary_helpers.dataclass_storage import (
     CleaveGBStructureInput,
     PlotCleaveInput,
 )
-from pyiron_workflow_atomistics.physics.grain_boundary import _make_engines_with_subdirs
 
 
 @pwf.as_macro_node(
@@ -1094,7 +1086,6 @@ def rigid_and_relaxed_cleavage_study(
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
 ):
-    from pyiron_workflow_atomistics.physics.grain_boundary import calc_cleavage_GB
     from pyiron_workflow_atomistics.utils import modify_dataclass
 
     wf.CleaveGBStructureInput = modify_dataclass(
@@ -1118,14 +1109,6 @@ def rigid_and_relaxed_cleavage_study(
         wf.calc_cleavage_rigid.outputs.cleavage_calcs_df,
         wf.calc_cleavage_relax.outputs.cleavage_calcs_df,
     )
-import os
-from typing import Any
-
-import pyiron_workflow as pwf
-from ase import Atoms
-from pyiron_workflow.api import for_node
-
-from pyiron_workflow_atomistics.engine import Engine, run
 
 
 @pwf.as_function_node("structure", "output_dir")
@@ -1161,9 +1144,6 @@ def _make_engines_from_dirs(engine: Engine, output_dirs: list) -> list:
     correctly.
     """
     return [engine.with_working_directory(d) for d in output_dirs]
-
-
-import pandas as pd
 
 
 @pwf.as_function_node("df")
@@ -1254,12 +1234,8 @@ def calculate_substitutional_segregation_GB(
         parent_dir=parent_dir,
     )
     return wf.gb_seg_calcs_df.outputs.df
-# Standard library imports
 
-# Local imports
-import pyiron_workflow as pwf
 
-from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.analysis.featurisers import voronoi_site_featuriser
 
 
@@ -1319,8 +1295,6 @@ def pure_gb_study(
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
 ):
-    from pyiron_workflow_atomistics.physics.grain_boundary import full_gb_length_optimization
-
     wf.gb_length_optimiser = full_gb_length_optimization(
         gb_structure=gb_structure,
         engine=engine.with_working_directory("gb_length_optimiser"),
@@ -1399,7 +1373,6 @@ def pure_gb_study(
         "cleavage_target_coord",
         wf.gb_plane_extractor.outputs.gb_plane_analysis_dict["gb_cart"],
     )
-    from pyiron_workflow_atomistics.physics.grain_boundary import rigid_and_relaxed_cleavage_study
 
     wf.cleavage_study = rigid_and_relaxed_cleavage_study(
         gb_structure=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,

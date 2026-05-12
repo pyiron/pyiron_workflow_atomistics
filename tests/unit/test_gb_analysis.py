@@ -1,5 +1,5 @@
 """
-Unit tests for pyiron_workflow_atomistics.gb.analysis module.
+Unit tests for pyiron_workflow_atomistics.analysis.gb_plane module.
 """
 
 import os
