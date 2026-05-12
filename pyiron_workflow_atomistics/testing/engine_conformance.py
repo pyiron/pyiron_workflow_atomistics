@@ -21,7 +21,7 @@ from typing import Callable
 from ase import Atoms
 from ase.build import bulk
 
-from pyiron_workflow_atomistics.engine import Engine
+from pyiron_workflow_atomistics.engine import Engine, EngineOutput, run
 
 
 class EngineConformanceTests:
@@ -108,4 +108,20 @@ class EngineConformanceTests:
         assert "structure" not in kwargs, (
             "structure must NOT appear in the kwargs dict — the caller "
             "supplies it positionally as fn(structure=..., **kwargs)"
+        )
+
+    def test_run_returns_engine_output(self, tmp_path):
+        """Single-point smoke test — verifies the calc callable returns
+        a real EngineOutput dataclass with the three required fields
+        populated. Does NOT assert any physics, just the shape."""
+        eng = type(self).engine_factory(tmp_path)
+        out = run.node_function(structure=self._structure(), engine=eng)
+
+        assert isinstance(out, EngineOutput), (
+            f"run() must return EngineOutput, got {type(out).__name__}"
+        )
+        assert out.final_structure is not None, "EngineOutput.final_structure must be populated"
+        assert out.final_energy is not None, "EngineOutput.final_energy must be populated"
+        assert isinstance(out.converged, bool), (
+            f"EngineOutput.converged must be bool, got {type(out.converged).__name__}"
         )
