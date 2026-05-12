@@ -33,3 +33,8 @@ pyiron_workflow_atomistics_test/
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime / project logs
+nohup.out
+pyiron.log
+core.*
