@@ -140,7 +140,7 @@ def get_extended_names(extensions):
 
 
 @pwf.as_function_node("engines")
-def _make_engines_with_subdirs(engine: Engine, subdirnames: list) -> list:
+def _make_engines_with_subdirs(engine: Engine, subdirnames: list) -> list[Engine]:
     """Return a list of engines, one per subdir name."""
     return [engine.with_working_directory(name) for name in subdirnames]
 
@@ -1148,7 +1148,7 @@ def get_df_col_as_list(df, col):
 
 
 @pwf.as_function_node("engines")
-def _make_engines_from_dirs(engine: Engine, output_dirs: list) -> list:
+def _make_engines_from_dirs(engine: Engine, output_dirs: list) -> list[Engine]:
     """Return a list of engines, one per output directory path.
 
     On POSIX, os.path.join(wd, absolute_path) == absolute_path, so passing
@@ -1301,7 +1301,6 @@ def pure_gb_study(
     featuriser=voronoi_site_featuriser,
     approx_frac=0.5,
     tolerance=5.0,
-    bulk_offset=10.0,
     slab_thickness=2.0,
     featuriser_kwargs=None,
     n_bulk=10,
@@ -1373,7 +1372,6 @@ def pure_gb_study(
         axis=gb_normal_axis,
         approx_frac=approx_frac,
         tolerance=tolerance,
-        bulk_offset=bulk_offset,
         slab_thickness=slab_thickness,
         featuriser_kwargs=featuriser_kwargs,
         n_bulk=n_bulk,

@@ -264,7 +264,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
                 self.final_volume = final_volume
                 self.final_forces = final_forces
                 self.final_stress = final_stress
-                self.convergence = True  # To pass only_converged=True in extract_outputs_from_EngineOutputs
+                self.converged = True  # passes only_converged=True in extract_outputs_from_EngineOutputs
 
         mock_output1 = MockOutput(
             final_energy=12.0,

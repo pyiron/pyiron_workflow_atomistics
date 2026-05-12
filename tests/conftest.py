@@ -4,6 +4,12 @@ Pytest configuration and fixtures for pyiron_workflow_atomistics tests.
 
 import tempfile
 
+import matplotlib
+
+# Force a non-interactive backend before any test imports pyplot so headless
+# CI cannot block on plt.show() or fail trying to open a display.
+matplotlib.use("Agg")
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -105,7 +111,7 @@ def mock_engine_output():
         "final_forces": np.zeros((2, 3)),
         "final_stress": np.zeros((3, 3)),
     }
-    output.convergence = True
+    output.converged = True
     return output
 
 
@@ -124,7 +130,7 @@ def mock_engine_outputs(mock_engine_output):
             "final_forces": np.zeros((2, 3)),
             "final_stress": np.zeros((3, 3)),
         }
-        output.convergence = True
+        output.converged = True
         outputs.append(output)
     return outputs
 

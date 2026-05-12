@@ -71,6 +71,10 @@ class CalcInputMD:
         RNG seed for stochastic thermostats. ``None`` ⇒ non-deterministic.
     initial_temperature
         Temperature used to initialise velocities (defaults to ``temperature``).
+    compressibility
+        Isothermal compressibility in bar⁻¹. Required by NPT-Berendsen; ignored
+        by other ensembles. Default 4.57e-5 (≈ liquid water at room T); for a
+        metal, supply something like 1e-6.
     """
 
     mode: Literal["NVE", "NVT", "NPT"] = "NVT"
@@ -84,3 +88,4 @@ class CalcInputMD:
     pressure_damping_timescale: float = 1000.0  # fs
     seed: int | None = None
     initial_temperature: float | None = None
+    compressibility: float = 4.57e-5  # bar^-1, water-like default
