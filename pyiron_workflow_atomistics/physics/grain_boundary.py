@@ -11,7 +11,7 @@ from pyiron_workflow.api import for_node
 from pyiron_workflow_atomistics._internal.engine_output import (
     extract_outputs_from_EngineOutputs,
 )
-from pyiron_workflow_atomistics.engine import Engine, run, subdir_path, subengine
+from pyiron_workflow_atomistics.engine import Engine, calculate, subdir_path, subengine
 from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import (
     axis_to_index,
 )
@@ -172,7 +172,7 @@ def gb_length_optimiser(
     )
     # 2. Compute energies/volumes for extended structures
     wf.extended_GBs_calcs = for_node(
-        run,
+        calculate,
         zip_on=("structure", "engine"),
         structure=wf.extended_GBs.outputs.extended_structure_list,
         engine=wf.engines_per_calc,
@@ -1063,7 +1063,7 @@ def calc_cleavage_GB(
         subdirnames=wf.cleave_structure_foldernames,
     )
     wf.calculate_cleaved = pwf.api.for_node(
-        run,
+        calculate,
         zip_on=("structure", "engine"),
         structure=wf.cleave_setup.outputs.cleaved_structures,
         engine=wf.engines_per_plane,
@@ -1234,7 +1234,7 @@ def calculate_substitutional_segregation_GB(
         output_dirs=wf.gb_seg_structure_dirs,
     )
     wf.gb_seg_calcs = for_node(
-        run,
+        calculate,
         zip_on=("structure", "engine"),
         structure=wf.gb_seg_structure_list,
         engine=wf.gb_seg_engines,
@@ -1335,7 +1335,7 @@ def pure_gb_study(
         axis=gb_normal_axis,
     )
 
-    wf.gb_with_vacuum_rel = run(
+    wf.gb_with_vacuum_rel = calculate(
         structure=wf.gb_with_vacuum,
         engine=wf.gb_vacuum_engine,
         label="gb_with_vacuum_rel_run",
@@ -1349,7 +1349,7 @@ def pure_gb_study(
         min_dimensions=min_inplane_cell_lengths,
     )
 
-    wf.gb_seg_supercell_rel = run(
+    wf.gb_seg_supercell_rel = calculate(
         structure=wf.gb_seg_supercell,
         engine=wf.gb_seg_engine,
         label="gb_seg_supercell_rel_run",

@@ -61,7 +61,7 @@ def test_engine_output_to_dict_round_trip():
 
 def test_run_node_dispatches_to_engine():
     """run(structure, engine) calls engine.get_calculate_fn and invokes the result."""
-    from pyiron_workflow_atomistics.engine.protocol import EngineOutput, run
+    from pyiron_workflow_atomistics.engine.protocol import EngineOutput, calculate
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True)
     sentinel_output = EngineOutput(
@@ -81,5 +81,5 @@ def test_run_node_dispatches_to_engine():
         def with_working_directory(self, subdir: str) -> StubEngine:
             return StubEngine(working_directory=f"./{subdir}")
 
-    out = run.node_function(structure=structure, engine=StubEngine())
+    out = calculate.node_function(structure=structure, engine=StubEngine())
     assert out is sentinel_output

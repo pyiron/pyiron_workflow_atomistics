@@ -6,7 +6,7 @@ from ase import Atoms
 from pyiron_workflow import Workflow
 
 from pyiron_workflow_atomistics.analysis.quantities import get_per_atom_quantity
-from pyiron_workflow_atomistics.engine import Engine, run
+from pyiron_workflow_atomistics.engine import Engine, calculate
 from pyiron_workflow_atomistics.structure.build import get_bulk
 from pyiron_workflow_atomistics.structure.transform import rattle
 
@@ -69,7 +69,9 @@ def evaluate_structures(
     engine_output_lst = []
     for i, struct in enumerate(structures):
         sub_engine = engine.with_working_directory(f"strain_{i:03d}")
-        engine_output_lst.append(run.node_function(structure=struct, engine=sub_engine))
+        engine_output_lst.append(
+            calculate.node_function(structure=struct, engine=sub_engine)
+        )
     return engine_output_lst
 
 

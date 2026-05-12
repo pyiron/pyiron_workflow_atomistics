@@ -5,7 +5,7 @@ from __future__ import annotations
 import pyiron_workflow as pwf
 from ase import Atoms
 
-from pyiron_workflow_atomistics.engine import Engine, run, subengine
+from pyiron_workflow_atomistics.engine import Engine, calculate, subengine
 from pyiron_workflow_atomistics.structure.defects import (
     create_vacancy,
     substitutional_swap,
@@ -73,10 +73,10 @@ def get_vacancy_formation_energy(
     )
     wf.supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
     wf.vacancy_engine = subengine(engine=engine, subdir=vacancy_subdir)
-    wf.supercell_calc = run(
+    wf.supercell_calc = calculate(
         wf.structure_supercell, engine=wf.supercell_engine, label="supercell_calc"
     )
-    wf.vacancy_calc = run(
+    wf.vacancy_calc = calculate(
         wf.structure_with_vacancy, engine=wf.vacancy_engine, label="vacancy_calc"
     )
     wf.n_atoms_supercell = _count_atoms(wf.structure_supercell)
@@ -124,10 +124,10 @@ def get_substitutional_formation_energy(
     )
     wf.supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
     wf.substitutional_engine = subengine(engine=engine, subdir=sub_subdir)
-    wf.supercell_calc = run(
+    wf.supercell_calc = calculate(
         wf.structure_supercell, engine=wf.supercell_engine, label="supercell_calc"
     )
-    wf.substitutional_calc = run(
+    wf.substitutional_calc = calculate(
         wf.structure_with_substitute,
         engine=wf.substitutional_engine,
         label="substitutional_calc",

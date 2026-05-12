@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.0.6] — 2026-05-13
+
+### Changed (breaking)
+
+- **Renamed `pyiron_workflow_atomistics.engine.run` → `.calculate`.** The
+  function-node previously called `run` collided with `Workflow.run`
+  (pyiron_workflow's workflow-execution method), so every
+  `wf.X = run(structure, engine=…)` site needed an explicit
+  `label="X"` workaround to avoid
+
+      AttributeError: run is an attribute or method of the
+      <class 'pyiron_workflow.workflow.Workflow'> class, and cannot
+      be used as a child label.
+
+  Renaming to `calculate` removes the collision; the `label=…` argument
+  is no longer required and the new name aligns with the existing
+  `Engine.get_calculate_fn` / `calc_fn` terminology elsewhere in the
+  contract. Migration:
+
+      sed -i 's|\bfrom pyiron_workflow_atomistics.engine import \(.*\)\brun\b|from pyiron_workflow_atomistics.engine import \1calculate|g' your_files.py
+      sed -i 's|\brun\.node_function\b|calculate.node_function|g' your_files.py
+      # then drop any `, label="X"` you'd previously added to work
+      # around the Workflow.run collision.
+
+  Affects every `physics/*.py` macro internally, the
+  `EngineConformanceTests` mixin's `test_run_returns_engine_output`
+  method (now uses `calculate.node_function`), all 10 example
+  notebooks, and downstream engine repos pinning
+  `pyiron-workflow-atomistics==0.0.6+`.
+
 ## [0.0.5] — 2026-05-12
 
 ### Added
