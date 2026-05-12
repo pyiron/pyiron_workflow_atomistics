@@ -1,5 +1,5 @@
 """
-Unit tests for pyiron_workflow_atomistics.gb.cleavage module.
+Unit tests for pyiron_workflow_atomistics.physics.grain_boundary module.
 """
 
 import os
@@ -13,8 +13,8 @@ from ase import Atoms
 from ase.build import stack
 from ase.lattice.cubic import BodyCenteredCubic as bcc
 
-import pyiron_workflow_atomistics.gb.cleavage as gb_cleavage_module
-from pyiron_workflow_atomistics.structure_manipulator.tools import add_vacuum
+import pyiron_workflow_atomistics.physics.grain_boundary as gb_cleavage_module
+from pyiron_workflow_atomistics.structure.transform import add_vacuum
 
 
 class TestGBCleavageFunctions(unittest.TestCase):
@@ -249,7 +249,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         cleaved_structures = [self.test_atoms, self.test_atoms.copy()]
         uncleaved_energy = 10.0
 
-        # Create mock DataFrame with calc_output column
+        # Create mock DataFrame with engine_output column
         class MockOutput:
             def __init__(
                 self,
@@ -283,7 +283,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         )
 
         mock_df = pd.DataFrame(
-            {"calc_output": [mock_output1, mock_output2], "convergence": [True, True]}
+            {"engine_output": [mock_output1, mock_output2], "convergence": [True, True]}
         )
         result = gb_cleavage_module.get_results_df(
             df=mock_df,

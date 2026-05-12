@@ -24,19 +24,27 @@ classifiers = [
 ]
 dependencies = [
     "numpy==1.26.4",
-    "pandas==2.3.2",
-    "matplotlib==3.10.6",
-    "ase==3.26.0",
-    "scipy==1.16.2",
-    "pyiron-workflow==0.15.2",
-    "pymatgen==2025.6.14",
-    "pyiron_snippets==0.2.0",
-    "scikit-learn==1.7.2",
+    "pandas==3.0.2",
+    "matplotlib==3.10.9",
+    "ase==3.28.0",
+    "scipy==1.17.1",
+    "pyiron-workflow==0.15.6",
+    "pymatgen==2026.5.4",
+    "pyiron_snippets==1.2.1",
+    "scikit-learn==1.8.0",
     "lz-GB-code==0.1.0",
+    "tqdm==4.67.3",
 ]
 dynamic = ["version"]
 authors = [
     { name = "pyiron team", email = "pyiron@mpie.de" },
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "nbformat",
+    "nbclient",
 ]
 
 [project.license]
@@ -61,7 +69,7 @@ include = [ "pyiron_workflow_atomistics*",]
 attr = "pyiron_workflow_atomistics.__version__"
 
 [tool.ruff]
-exclude = ["docs", "notebooks", "setup.py", "_version.py"]
+exclude = ["docs", "notebooks", "setup.py", "_version.py", "versioneer.py"]
 
 [tool.ruff.lint]
 select = [
@@ -82,10 +90,23 @@ ignore = ["E501"] #ignore line-length violations
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Ignore unused imports in init files -- we specify APIs this way
+# Migrated GB / featuriser / defect code retains its original import order
+# and exception-handling style. Lint these legacy patterns as-is rather than
+# rewriting moved content; new code in engine/, structure/, physics/ macros,
+# analysis/quantities and _internal/ is held to the full rule set.
+"pyiron_workflow_atomistics/physics/grain_boundary.py" = ["E402", "B008"]
+"pyiron_workflow_atomistics/physics/_grain_boundary_helpers/*.py" = ["E402", "B007", "B904", "E741"]
+"pyiron_workflow_atomistics/physics/_grain_boundary_code/*.py" = ["E402", "SIM102"]
+"pyiron_workflow_atomistics/analysis/featurisers.py" = ["E402", "B904"]
+"pyiron_workflow_atomistics/analysis/gb_plane.py" = ["SIM108"]
+"pyiron_workflow_atomistics/structure/defects.py" = ["SIM102", "B007"]
+"tests/*" = ["F401", "B007"]  # Tests do conditional imports + sentinel loops
 
 [tool.black]
 extend-exclude = '''
 (
   ^/docs
+  | ^/versioneer\.py
+  | _version\.py
 )
 '''

@@ -1,13 +1,40 @@
-*.pyc
-.DS_Store
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+
+# Test / coverage
+.pytest_cache/
 .coverage
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+*.venv*/
+pyiron_workflow_atomistics_test/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime / project logs
 nohup.out
 pyiron.log
-.idea/
-inspectionProfiles/
-_build/
-apidoc/
-.ipynb_checkpoints/
-test_times.dat
 core.*
-notebooks/*/

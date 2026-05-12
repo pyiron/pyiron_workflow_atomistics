@@ -1,5 +1,5 @@
 """
-Unit tests for pyiron_workflow_atomistics.gb.analysis module.
+Unit tests for pyiron_workflow_atomistics.analysis.gb_plane module.
 """
 
 import os
@@ -11,8 +11,8 @@ import numpy as np
 from ase.atoms import Atom
 from ase.io import read
 
-import pyiron_workflow_atomistics.gb.analysis as gb_analysis_module
-from pyiron_workflow_atomistics.featurisers import voronoiSiteFeaturiser
+import pyiron_workflow_atomistics.analysis.gb_plane as gb_analysis_module
+from pyiron_workflow_atomistics.analysis.featurisers import voronoi_site_featuriser
 
 
 class TestGBAnalysisFunctions(unittest.TestCase):
@@ -54,8 +54,8 @@ class TestGBAnalysisFunctions(unittest.TestCase):
 
     def test_find_GB_plane_basic(self):
         """Test basic GB plane finding."""
-        result = gb_analysis_module.find_GB_plane(
-            atoms=self.test_atoms, featuriser=voronoiSiteFeaturiser, axis="c"
+        result = gb_analysis_module.find_gb_plane(
+            atoms=self.test_atoms, featuriser=voronoi_site_featuriser, axis="c"
         ).run()
 
         # Check that result is a dictionary with expected keys
@@ -83,9 +83,9 @@ class TestGBAnalysisFunctions(unittest.TestCase):
 
     def test_find_GB_plane_with_approx_frac(self):
         """Test GB plane finding with approximate fractional coordinate."""
-        result = gb_analysis_module.find_GB_plane(
+        result = gb_analysis_module.find_gb_plane(
             atoms=self.test_atoms,
-            featuriser=voronoiSiteFeaturiser,
+            featuriser=voronoi_site_featuriser,
             axis="c",
             approx_frac=0.5,
         ).run()
@@ -96,7 +96,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
 
     def test_find_GB_plane_with_featuriser_kwargs(self):
         """Test GB plane finding with featuriser kwargs."""
-        result = gb_analysis_module.find_GB_plane(
+        result = gb_analysis_module.find_gb_plane(
             atoms=self.test_atoms,
             featuriser=self.mock_featuriser,
             axis="c",
@@ -171,7 +171,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
             "gb_cart": 2.0,
         }
 
-        fig, ax = gb_analysis_module.plot_GB_plane(
+        fig, ax = gb_analysis_module.plot_gb_plane(
             atoms=self.test_atoms, res=mock_result, projection=(0, 2), axis=2
         ).run()
 
@@ -194,7 +194,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
         }
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            fig, ax = gb_analysis_module.plot_GB_plane(
+            fig, ax = gb_analysis_module.plot_gb_plane(
                 atoms=self.test_atoms,
                 res=mock_result,
                 projection=(0, 2),

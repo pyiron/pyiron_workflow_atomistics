@@ -9,7 +9,9 @@ import numpy as np
 from ase import Atoms
 from ase.build import bulk
 
-import pyiron_workflow_atomistics.bulk as bulk_module
+import pyiron_workflow_atomistics.physics.bulk as bulk_module
+from pyiron_workflow_atomistics.structure.build import get_bulk
+from pyiron_workflow_atomistics.structure.transform import rattle
 
 
 class TestBulkFunctions(unittest.TestCase):
@@ -78,7 +80,7 @@ class TestBulkFunctions(unittest.TestCase):
 
         # Check that only the a-axis changes
         original_cell = self.test_atoms.get_cell()
-        for i, struct in enumerate(structures):
+        for _i, struct in enumerate(structures):
             new_cell = struct.get_cell()
             # a-axis should change
             self.assertNotEqual(
@@ -231,23 +233,21 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_get_bulk_structure_basic(self):
         """Test getting basic bulk structure."""
-        struct = bulk_module.get_bulk_structure(name="Al").run()
+        struct = get_bulk(name="Al").run()
 
         self.assertIsInstance(struct, Atoms)
         self.assertGreater(len(struct), 0)
 
     def test_get_bulk_structure_with_parameters(self):
         """Test getting bulk structure with specific parameters."""
-        struct = bulk_module.get_bulk_structure(
-            name="Al", crystalstructure="fcc", a=4.0, cubic=True
-        ).run()
+        struct = get_bulk(name="Al", crystalstructure="fcc", a=4.0, cubic=True).run()
 
         self.assertIsInstance(struct, Atoms)
         self.assertAlmostEqual(np.linalg.norm(struct.get_cell()[0]), 4.0, places=2)
 
     def test_get_bulk_structure_cubic(self):
         """Test getting cubic bulk structure."""
-        struct = bulk_module.get_bulk_structure(name="Al", cubic=True, a=4.0).run()
+        struct = get_bulk(name="Al", cubic=True, a=4.0).run()
 
         self.assertIsInstance(struct, Atoms)
         cell = struct.get_cell()
@@ -260,7 +260,7 @@ class TestBulkFunctions(unittest.TestCase):
         """Test rattling structure with specified displacement."""
         original_positions = self.test_atoms.get_positions().copy()
 
-        rattled = bulk_module.rattle_structure(self.test_atoms, rattle=0.1).run()
+        rattled = rattle(self.test_atoms, rattle=0.1).run()
 
         # Check that positions have changed
         new_positions = rattled.get_positions()
@@ -278,7 +278,7 @@ class TestBulkFunctions(unittest.TestCase):
         """Test rattling structure with no displacement."""
         original_positions = self.test_atoms.get_positions().copy()
 
-        rattled = bulk_module.rattle_structure(self.test_atoms, rattle=None).run()
+        rattled = rattle(self.test_atoms, rattle=None).run()
 
         # Positions should be identical (just a copy)
         new_positions = rattled.get_positions()
