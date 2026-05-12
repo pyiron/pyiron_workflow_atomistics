@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11, `pyiron_workflow==0.15.2` (`@pwf.as_function_node` / `@pwf.as_macro_node` decorators), `ase==3.26.0`, `pymatgen==2025.6.14`, `nbclient` for notebook execution. Dev env: `/home/liger/miniforge3/envs/test_pyiron_workflow_vasp` (already has every dep installed).
 
-**Spec:** `docs/superpowers/specs/2026-05-12-pyiron-workflow-atomistics-cleanup-design.md`.
+**Spec:** `docs/design/specs/2026-05-12-pyiron-workflow-atomistics-cleanup-design.md`.
 
 **Working directory for every shell step:** `/home/liger/pyiron_workflow_atomistics`. **Python interpreter:** `/home/liger/miniforge3/envs/test_pyiron_workflow_vasp/bin/python`. **Pytest:** `/home/liger/miniforge3/envs/test_pyiron_workflow_vasp/bin/pytest`.
 
