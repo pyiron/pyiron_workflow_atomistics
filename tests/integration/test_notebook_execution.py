@@ -21,5 +21,9 @@ NOTEBOOKS = sorted(NOTEBOOK_DIR.glob("*.ipynb"))
 @pytest.mark.slow
 def test_notebook_runs(nb_path: pathlib.Path):
     nb = nbformat.read(nb_path, as_version=4)
-    client = NotebookClient(nb, timeout=600, kernel_name="python3")
+    # Run the kernel with cwd set to the notebooks/ dir so any bundled
+    # data files (e.g. Al-Fe.eam.fs) resolve via relative paths.
+    client = NotebookClient(
+        nb, timeout=600, kernel_name="python3", resources={"metadata": {"path": str(NOTEBOOK_DIR)}}
+    )
     client.execute()

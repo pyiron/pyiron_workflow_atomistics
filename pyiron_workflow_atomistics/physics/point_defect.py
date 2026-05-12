@@ -57,10 +57,12 @@ def get_vacancy_formation_energy(
     wf.supercell_calc = run(
         wf.structure_supercell,
         engine=engine.with_working_directory(supercell_subdir),
+        label="supercell_calc",
     )
     wf.vacancy_calc = run(
         wf.structure_with_vacancy,
         engine=engine.with_working_directory(vacancy_subdir),
+        label="vacancy_calc",
     )
     wf.vacancy_formation_energy = calculate_vacancy_formation_energy(
         vacancy_energy=wf.vacancy_calc.outputs.engine_output.final_energy,
@@ -104,10 +106,12 @@ def get_substitutional_formation_energy(
     wf.supercell_calc = run(
         wf.structure_supercell,
         engine=engine.with_working_directory(supercell_subdir),
+        label="supercell_calc",
     )
     wf.substitutional_calc = run(
         wf.structure_with_substitute,
         engine=engine.with_working_directory(sub_subdir),
+        label="substitutional_calc",
     )
     wf.substitutional_formation_energy = _substitutional_formation_energy(
         E_sub=wf.substitutional_calc.outputs.engine_output.final_energy,

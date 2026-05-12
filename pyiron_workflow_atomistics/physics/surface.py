@@ -77,7 +77,7 @@ def calculate_surface_energy(
         vacuum=vacuum,
         periodic=periodic,
     )
-    wf.calc_slab = run(wf.slab_vac, engine=engine)
+    wf.calc_slab = run(wf.slab_vac, engine=engine, label="calc_slab")
     wf.mu_bulk_out = _calculate_if_not_present_(
         wf.slab_novac, engine=engine, mu_bulk=mu_bulk
     )
