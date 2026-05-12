@@ -18,3 +18,9 @@ dependencies:
 - pymatgen>=2024.8.8
 - pyiron_workflow
 - pyiron_snippets
+- tqdm
+- pytest
+- nbformat
+- nbclient
+- pip:
+  - lz-GB-code==0.1.0
