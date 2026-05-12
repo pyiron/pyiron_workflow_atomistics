@@ -36,15 +36,15 @@ dependencies = [
     "tqdm",
 ]
 dynamic = ["version"]
+authors = [
+    { name = "pyiron team", email = "pyiron@mpie.de" },
+]
 
 [project.optional-dependencies]
 test = [
     "pytest",
     "nbformat",
     "nbclient",
-]
-authors = [
-    { name = "pyiron team", email = "pyiron@mpie.de" },
 ]
 
 [project.license]
