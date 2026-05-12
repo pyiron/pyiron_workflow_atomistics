@@ -9,7 +9,7 @@ from pyiron_workflow import Workflow
 from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.structure.build import get_bulk
 from pyiron_workflow_atomistics.structure.transform import rattle
-from pyiron_workflow_atomistics.utils import get_per_atom_quantity
+from pyiron_workflow_atomistics.analysis.quantities import get_per_atom_quantity
 
 
 @pwf.as_function_node("structure_list")

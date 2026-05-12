@@ -11,7 +11,7 @@ from pyiron_workflow.api import for_node
 
 from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
-from pyiron_workflow_atomistics.utils import extract_outputs_from_EngineOutputs
+from pyiron_workflow_atomistics._internal.engine_output import extract_outputs_from_EngineOutputs
 
 
 @pwf.as_function_node
@@ -957,7 +957,7 @@ def get_cleavage_calc_names(parent_dir, cleavage_planes):
 def get_results_df(
     df, cleavage_coords, cleaved_structures, uncleaved_energy, cleavage_axis: str = "c"
 ):
-    from pyiron_workflow_atomistics.utils import extract_outputs_from_EngineOutputs
+    from pyiron_workflow_atomistics._internal.engine_output import extract_outputs_from_EngineOutputs
 
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=df.engine_output,
@@ -1086,7 +1086,7 @@ def rigid_and_relaxed_cleavage_study(
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
 ):
-    from pyiron_workflow_atomistics.utils import modify_dataclass
+    from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     wf.CleaveGBStructureInput = modify_dataclass(
         CleaveGBStructure_Input, "cleavage_target_coord", gb_plane_cart_loc
@@ -1366,7 +1366,7 @@ def pure_gb_study(
         working_directory=engine.working_directory,
         save_filename="pureGB_plane_identifier.jpg",
     )
-    from pyiron_workflow_atomistics.utils import modify_dataclass
+    from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     wf.CleaveGBStructureInput = modify_dataclass(
         CleaveGBStructure_Input,
