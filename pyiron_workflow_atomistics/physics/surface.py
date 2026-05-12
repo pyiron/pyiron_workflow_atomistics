@@ -6,15 +6,22 @@ import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms
 
-from pyiron_workflow_atomistics.engine import Engine, run
+from pyiron_workflow_atomistics.engine import Engine, run, subengine
 from pyiron_workflow_atomistics.structure.build import create_surface_slab
 
 
 @pwf.as_function_node("mu_bulk_out")
-def _calculate_if_not_present_(input_structure, engine: Engine, mu_bulk=None):
+def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
+    """Return the bulk per-atom chemical potential.
+
+    If ``mu_bulk`` is supplied, return it as-is. Otherwise relax
+    ``bulk_structure`` with ``engine`` and divide the final energy by the
+    atom count. The input must be a true bulk cell (not a no-vacuum slab),
+    otherwise the per-atom energy will reflect surface/geometry artefacts.
+    """
     if mu_bulk is None:
-        output = run.node_function(input_structure, engine=engine)
-        mu_bulk_out = output.final_energy / len(input_structure)
+        output = run.node_function(bulk_structure, engine=engine)
+        mu_bulk_out = output.final_energy / len(bulk_structure)
     else:
         mu_bulk_out = mu_bulk
     return mu_bulk_out
@@ -59,17 +66,20 @@ def calculate_surface_energy(
 ):
     """Calculate the surface energy (J/m^2) of a slab cut from ``bulk_structure``.
 
-    Builds a vacuum-free reference slab and a vacuum-padded slab from the
-    same bulk crystal, relaxes the latter with ``engine``, and divides the
-    excess energy by twice the in-plane area.
+    Cuts a slab from ``bulk_structure`` along ``miller_indices`` with ``layers``
+    repeats and ``vacuum`` padding, relaxes the slab with ``engine``, and
+    divides the excess energy by twice the in-plane area:
+
+        gamma = (E_slab - N_slab * mu_bulk) / (2 * A)
+
+    The bulk per-atom chemical potential ``mu_bulk`` is computed by relaxing
+    ``bulk_structure`` itself with ``engine`` under a "bulk_ref" subdirectory,
+    unless an explicit ``mu_bulk`` is supplied.
+
+    NOTE: prior to 2026-05-12 this macro derived ``mu_bulk`` from a relaxed
+    no-vacuum slab, which gave physically wrong (often negative) surface
+    energies because a slab with ``vacuum=0`` is not equivalent to bulk.
     """
-    wf.slab_novac = create_surface_slab(
-        bulk_structure=bulk_structure,
-        miller_indices=miller_indices,
-        layers=layers,
-        vacuum=0.0,
-        periodic=periodic,
-    )
     wf.slab_vac = create_surface_slab(
         bulk_structure=bulk_structure,
         miller_indices=miller_indices,
@@ -78,11 +88,14 @@ def calculate_surface_energy(
         periodic=periodic,
     )
     wf.calc_slab = run(wf.slab_vac, engine=engine, label="calc_slab")
-    wf.mu_bulk_out = _calculate_if_not_present_(
-        wf.slab_novac, engine=engine, mu_bulk=mu_bulk
+    wf.bulk_ref_engine = subengine(engine=engine, subdir="bulk_ref")
+    wf.mu_bulk_out = _bulk_per_atom_energy(
+        bulk_structure=bulk_structure,
+        engine=wf.bulk_ref_engine,
+        mu_bulk=mu_bulk,
     )
     wf.n_atoms_slab = get_n_atoms(wf.slab_vac)
-    wf.area_one_side = area_one_side(wf.slab_novac)
+    wf.area_one_side = area_one_side(wf.slab_vac)
     wf.surface_energy = get_surface_energy(
         E_slab=wf.calc_slab.outputs.engine_output.final_energy,
         E_bulk_per_atom=wf.mu_bulk_out,
