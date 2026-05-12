@@ -18,6 +18,15 @@ htmlcov/
 # Notebooks
 .ipynb_checkpoints/
 
+# Notebook runtime artefacts — every macro creates a working_directory full
+# of pyiron_workflow job persistence pickles; these regenerate on every run
+# and must not be tracked. Notebooks live in notebooks/<name>.ipynb; their
+# scratch dirs follow the convention notebooks/_<name>_runs/ or similar.
+notebooks/_*_runs/
+notebooks/_fm_*/
+notebooks/get_*/
+notebooks/recovery.*
+
 # Virtual environments
 .venv/
 venv/
@@ -29,6 +38,7 @@ pyiron_workflow_atomistics_test/
 .idea/
 .vscode/
 *.swp
+*.code-workspace
 
 # OS
 .DS_Store
