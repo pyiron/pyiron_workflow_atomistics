@@ -5,7 +5,7 @@ from pymatgen.analysis.local_env import VoronoiNN
 from pymatgen.io.ase import AseAtomsAdaptor
 
 
-def voronoiSiteFeaturiser(atoms: Atoms, site_index: int) -> dict:
+def voronoi_site_featuriser(atoms: Atoms, site_index: int) -> dict:
     pmg_struct = AseAtomsAdaptor.get_structure(atoms)
     coord_no = VoronoiNN().get_cn(pmg_struct, site_index)
     poly = VoronoiNN().get_voronoi_polyhedra(pmg_struct, site_index)
@@ -34,7 +34,7 @@ def voronoiSiteFeaturiser(atoms: Atoms, site_index: int) -> dict:
     return out
 
 
-def distanceMatrixSiteFeaturiser(atoms: Atoms, site_index: int, k: int = 6) -> dict:
+def distance_matrix_site_featuriser(atoms: Atoms, site_index: int, k: int = 6) -> dict:
     """
     Featurise one site by its k nearest neighbor distances
     (using ASE’s full distance matrix with PBC).
@@ -62,7 +62,7 @@ def distanceMatrixSiteFeaturiser(atoms: Atoms, site_index: int, k: int = 6) -> d
     return feats
 
 
-def soapSiteFeaturiser(
+def soap_site_featuriser(
     atoms: Atoms,
     site_indices: list[int],
     r_cut: float = 6.0,

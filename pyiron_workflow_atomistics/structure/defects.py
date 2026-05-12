@@ -1,4 +1,6 @@
-"""Module for calculating and analyzing interstitial positions in crystal structures.
+"""Point-defect builders: vacancies, substitutionals, interstitial-site finders.
+
+The interstitial / void analysis utilities are adapted from:
 
 Authors
 -------
@@ -14,10 +16,36 @@ doi:10.1103/PhysRevMaterials.8.073601
 """
 
 
-import matplotlib.pyplot as plt
 import numpy as np
-from ase.io import read
-from pyscal3 import Atoms, System
+import pyiron_workflow as pwf
+from ase import Atoms as ASEAtoms
+
+
+@pwf.as_function_node("vacancy_structure")
+def create_vacancy(structure: ASEAtoms, remove_atom_index: int = 0) -> ASEAtoms:
+    """Return a copy of ``structure`` with one atom removed.
+
+    Examples
+    --------
+    >>> from ase.build import bulk
+    >>> bulk_struct = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
+    >>> vac = create_vacancy.node_function(bulk_struct, remove_atom_index=0)
+    >>> len(vac) == len(bulk_struct) - 1
+    True
+    """
+    vacancy_structure = structure.copy()
+    vacancy_structure.pop(remove_atom_index)
+    return vacancy_structure
+
+
+@pwf.as_function_node("structure")
+def substitutional_swap(
+    base_structure: ASEAtoms, defect_site: int = 0, new_symbol: str = "Si"
+) -> ASEAtoms:
+    """Return a copy of ``base_structure`` with one atom's symbol swapped."""
+    structure = base_structure.copy()
+    structure[defect_site].symbol = new_symbol
+    return structure
 
 
 def filter_condition(sys, pos, rvv, distance_min, distance_max, axis, rvv_min, rvv_max):
@@ -112,6 +140,8 @@ def get_octahedral_positions(sys_in, alat):
 
 
 def tabulate_voids(void_ratios, void_count):
+    import matplotlib.pyplot as plt
+
     fig, ax = plt.subplots(figsize=(3, 2))
 
     ax.xaxis.set_visible(False)
@@ -160,6 +190,9 @@ def calculate_voids(
         if True, write out the system with voids. Only possible in LAMMPS data format.
         Default True
     """
+    from ase.io import read
+    from pyscal3 import Atoms, System
+
     # read in data
     structure = read(inputfile, format=format)
     sys = System()
@@ -243,6 +276,8 @@ def filter_and_cluster_atoms(sys, distance, axis, rvv, write=True):
     write: bool, optional
         if True, write final file in LAMMPS format
     """
+    from pyscal3 import Atoms, System
+
     d_min = distance[0]
     d_max = distance[1]
     rvv_min = rvv[0]

@@ -7,6 +7,8 @@ from ase import Atoms
 from pyiron_workflow import Workflow
 
 from pyiron_workflow_atomistics.engine import Engine, run
+from pyiron_workflow_atomistics.structure.build import get_bulk
+from pyiron_workflow_atomistics.structure.transform import rattle
 from pyiron_workflow_atomistics.utils import get_per_atom_quantity
 
 
@@ -85,48 +87,6 @@ def _extract_structures(engine_outputs):
     return [o.final_structure for o in engine_outputs]
 
 
-@pwf.as_function_node("equil_struct")
-def get_bulk_structure(
-    name: str,
-    crystalstructure=None,
-    a=None,
-    b=None,
-    c=None,
-    alpha=None,
-    covera=None,
-    u=None,
-    orthorhombic=False,
-    cubic=False,
-    basis=None,
-):
-    from ase.build import bulk
-
-    equil_struct = bulk(
-        name=name,
-        crystalstructure=crystalstructure,
-        a=a,
-        b=b,
-        c=c,
-        alpha=alpha,
-        covera=covera,
-        u=u,
-        orthorhombic=orthorhombic,
-        cubic=cubic,
-        basis=basis,
-    )
-    return equil_struct
-
-
-@pwf.api.as_function_node("rattle_structure")
-def rattle_structure(structure, rattle=None):
-    if rattle:
-        base_structure = structure.copy()
-        base_structure.rattle(rattle)
-    else:
-        base_structure = structure.copy()
-    return base_structure
-
-
 @pwf.api.as_macro_node(
     "equil_struct",
     "a0",
@@ -143,13 +103,13 @@ def optimise_cubic_lattice_parameter(
     name: str,
     crystalstructure: str,
     engine: Engine,
-    rattle: float = 0.0,
+    rattle_amount: float = 0.0,
     strain_range=(-0.02, 0.02),
     num_points=11,
     parent_working_directory: str = "opt_cubic_cell",
     eos_type="birchmurnaghan",
 ):
-    wf.rattle_structure = rattle_structure(structure, rattle)
+    wf.rattle_structure = rattle(structure, rattle=rattle_amount)
     wf.eos = eos_volume_scan(
         base_structure=wf.rattle_structure,
         engine=engine,
@@ -159,7 +119,7 @@ def optimise_cubic_lattice_parameter(
         eos_type=eos_type,
     )
     wf.a0 = get_cubic_equil_lat_param(wf.eos.outputs.v0)
-    wf.eq_bulk_struct = get_bulk_structure(
+    wf.eq_bulk_struct = get_bulk(
         name=name, crystalstructure=crystalstructure, a=wf.a0, cubic=True
     )
 

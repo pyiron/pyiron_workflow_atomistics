@@ -8,7 +8,7 @@ from ase import Atoms
 from ase.atoms import Atom
 from pyiron_snippets.logger import logger
 
-from pyiron_workflow_atomistics.gb.utils import axis_to_index
+from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
 
 
 @pwf.as_function_node("atom")
@@ -43,7 +43,7 @@ def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
 
 
 @pwf.as_function_node("gb_plane_analysis_dict")
-def find_GB_plane(
+def find_gb_plane(
     atoms: Atoms,
     featuriser: callable,
     axis: str = "c",
@@ -265,7 +265,7 @@ def find_GB_plane(
 
 
 @pwf.as_function_node
-def plot_GB_plane(
+def plot_gb_plane(
     atoms: Atoms,
     res: dict,
     projection=(0, 2),

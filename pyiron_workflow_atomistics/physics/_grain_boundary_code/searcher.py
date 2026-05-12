@@ -152,7 +152,7 @@ def _construct_structure_for_entry(args):
     """
     Top-level helper for picklable structure construction.
     """
-    from pyiron_workflow_atomistics.gb.gb_code.constructor import (
+    from pyiron_workflow_atomistics.physics._grain_boundary_code.constructor import (
         construct_GB_from_GBCode,
     )
 
@@ -178,7 +178,7 @@ def _construct_structure_for_entry(args):
         equil_volume=equil_volume_per_atom,
         grain_length_axis=grain_length_axis,
     )()
-    from pyiron_workflow_atomistics.structure_manipulator.tools import (
+    from pyiron_workflow_atomistics.structure.transform import (
         create_supercell_with_min_dimensions,
     )
 
@@ -286,7 +286,7 @@ def _get_gbcode_df_with_structures(
     n_workers = max_workers if max_workers is not None else cpu_count()
     from concurrent.futures import ProcessPoolExecutor, as_completed
 
-    from pyiron_workflow_atomistics.gb.gb_code.searcher import (
+    from pyiron_workflow_atomistics.physics._grain_boundary_code.searcher import (
         _construct_structure_for_entry,
     )
 

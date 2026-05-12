@@ -90,15 +90,25 @@ def create_supercell_with_min_dimensions(
     supercell = base_structure.repeat(tuple(repeats))
     return supercell
 
-@pwf.as_function_node("structure")
-def substitutional_swap_one_site(
-    base_structure: Atoms, defect_site: int = 0, new_symbol: str = "Si"
-) -> Atoms:
-    # build the supercell
-    structure = base_structure.copy()
-    # swap only the one atom in the original (0,0,0) block
-    structure[defect_site].symbol = new_symbol
-    return structure
+
+@pwf.as_function_node("rattled_structure")
+def rattle(structure: Atoms, rattle: float | None = None) -> Atoms:
+    """Return a copy of ``structure`` with atomic positions perturbed.
+
+    Parameters
+    ----------
+    structure : ase.Atoms
+        Input structure.
+    rattle : float, optional
+        Standard deviation (Å) of the random displacement applied via
+        :meth:`ase.Atoms.rattle`. If ``None`` or ``0``, no perturbation
+        is applied (a plain copy is returned).
+    """
+    rattled_structure = structure.copy()
+    if rattle:
+        rattled_structure.rattle(rattle)
+    return rattled_structure
+
 
 # Because it is really fucking annoying to have to access the data from the dataframe when all I want is a list.
 @pwf.as_function_node
@@ -124,8 +134,8 @@ def forloop_function(function, kwarg_to_iterate, kwarg_values, other_kwargs=None
     # )
     # print(results)  # [5.5, 6.0, 6.5]
     """
-    output_lst = []
     other_kwargs = other_kwargs or {}
+    output_lst = []
 
     # Iterate over all provided values for the single kwarg
     for val in kwarg_values:
