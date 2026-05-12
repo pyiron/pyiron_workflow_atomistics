@@ -1,17 +1,14 @@
 import numpy as np
 from typing import Union, Tuple, Optional
 from pyiron_workflow_atomistics.surface.builder import create_surface
-from pyiron_workflow_atomistics.calculator import calculate_structure_node
+from pyiron_workflow_atomistics.engine import Engine, run
 import pyiron_workflow as pwf
 
-@pwf.as_function_node("calc_output")
-def _calculate_if_not_present_(input_structure, 
-                                calculation_engine,
-                                mu_bulk = None,
-                                ):
+@pwf.as_function_node("mu_bulk_out")
+def _calculate_if_not_present_(input_structure, engine: Engine, mu_bulk=None):
     if mu_bulk is None:
-        output = calculate_structure_node.node_function(input_structure, calculation_engine=calculation_engine)
-        mu_bulk_out = output.final_energy/len(input_structure)
+        output = run.node_function(input_structure, engine=engine)
+        mu_bulk_out = output.final_energy / len(input_structure)
     else:
         mu_bulk_out = mu_bulk
     return mu_bulk_out
@@ -31,7 +28,7 @@ def area_one_side(slab):
 @pwf.as_function_node("n_atoms")
 def get_n_atoms(atoms):
     return len(atoms)
-    
+
 @pwf.as_macro_node("unrelaxed_surface",
                    "relaxed_surface",
                    "relaxed_surface_calc_output",
@@ -39,14 +36,12 @@ def get_n_atoms(atoms):
                    "surface_energy")
 def calculate_surface_energy(
     wf,
-    calculation_engine,
+    engine: Engine,
     symbol: str = "Fe",
     miller_indices: Union[Tuple[int, int, int], Tuple[int, int, int, int]] = (1, 1, 1),
     min_length: int | float | np.float64 = 50,
     vacuum: float | np.float64 | int = 10.0,
     crystalstructure: str = "fcc",
-    calc_structure_fn = None,
-    calc_structure_fn_kwargs = None,
     mu_bulk: Optional[float] = None,
     a: Optional[float] = None,
     cubic: bool = False,
@@ -63,7 +58,7 @@ def calculate_surface_energy(
     latticeconstant: Optional[float] = None):
     """
     Calculate the surface energy of a surface (J/m^2).
-    calculation_engine: any atomistics Engine
+    engine: any atomistics Engine
     symbol: str
     miller_indices: tuple
     min_length: float
@@ -97,22 +92,6 @@ def calculate_surface_energy(
                                     ab=ab,
                                     magmom=magmom,
                                     latticeconstant=latticeconstant)
-    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
-    wf.validate = validate_calculation_inputs(
-        calculation_engine=calculation_engine,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
-    from pyiron_workflow_atomistics.utils import (
-        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
-    )
-
-    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(
-        calculation_engine=calculation_engine,
-        structure=wf.slab_novac,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
     wf.slab_vac = create_surface(symbol=symbol,
                                 miller_indices=miller_indices,
                                 min_length=min_length,
@@ -131,21 +110,18 @@ def calculate_surface_energy(
                                 ab=ab,
                                 magmom=magmom,
                                 latticeconstant=latticeconstant)
-    wf.calc_slab = calculate_structure_node(wf.slab_vac,
-                                            calculation_engine=calculation_engine,
-                                            _calc_structure_fn=calc_structure_fn,
-                                            _calc_structure_fn_kwargs=calc_structure_fn_kwargs)
+    wf.calc_slab = run(wf.slab_vac, engine=engine)
     wf.mu_bulk_out = _calculate_if_not_present_(wf.slab_novac,
-                                                calculation_engine=calculation_engine,
+                                                engine=engine,
                                                 mu_bulk=mu_bulk)
     wf.n_atoms_slab = get_n_atoms(wf.slab_vac)
     wf.area_one_side = area_one_side(wf.slab_novac)
-    wf.surface_energy = get_surface_energy(E_slab = wf.calc_slab.outputs.calc_output.final_energy, 
-                                           E_bulk_per_atom = wf.mu_bulk_out, 
-                                           N_slab = wf.n_atoms_slab , 
+    wf.surface_energy = get_surface_energy(E_slab = wf.calc_slab.outputs.engine_output.final_energy,
+                                           E_bulk_per_atom = wf.mu_bulk_out,
+                                           N_slab = wf.n_atoms_slab ,
                                            area_one_side = wf. area_one_side)
     return (wf.slab_vac,
-            wf.calc_slab.outputs.calc_output.final_structure,
+            wf.calc_slab.outputs.engine_output.final_structure,
             wf.calc_slab,
             wf.mu_bulk_out,
             wf.surface_energy)

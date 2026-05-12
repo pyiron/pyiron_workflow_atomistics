@@ -3,6 +3,7 @@
 # Local imports
 import pyiron_workflow as pwf
 
+from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.featurisers import voronoiSiteFeaturiser
 
 
@@ -45,12 +46,8 @@ def pure_gb_study(
     equil_bulk_energy,
     extensions_stage1,
     extensions_stage2,
-    calculation_engine,
-    static_calculation_engine,
-    calc_structure_fn=None,
-    calc_structure_fn_kwargs=None,
-    static_calc_structure_fn=None,
-    static_calc_structure_fn_kwargs=None,
+    engine: Engine,
+    static_engine: Engine,
     length_interpolate_min_n_points=5,
     gb_normal_axis="c",
     vacuum_length=20,
@@ -66,51 +63,11 @@ def pure_gb_study(
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
 ):
-    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
-
-    wf.validate = validate_calculation_inputs(
-        calculation_engine=calculation_engine,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
-    wf.validate_static = validate_calculation_inputs(
-        calculation_engine=static_calculation_engine,
-        calc_structure_fn=static_calc_structure_fn,
-        calc_structure_fn_kwargs=static_calc_structure_fn_kwargs,
-    )
-    from pyiron_workflow_atomistics.utils import (
-        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
-    )
-
-    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(
-        calculation_engine=calculation_engine,
-        structure=gb_structure,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
-    wf.static_calc_fn_calc_fn_kwargs = (
-        get_calc_fn_calc_fn_kwargs_from_calculation_engine(
-            calculation_engine=static_calculation_engine,
-            structure=gb_structure,
-            calc_structure_fn=static_calc_structure_fn,
-            calc_structure_fn_kwargs=static_calc_structure_fn_kwargs,
-        )
-    )
-    from pyiron_workflow_atomistics.utils import get_working_subdir_kwargs
-
-    wf.calc_structure_fn_kwargs_gb_length_optimiser = get_working_subdir_kwargs(
-        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-        base_working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
-        new_working_directory="gb_length_optimiser",
-    )
     from pyiron_workflow_atomistics.gb.optimiser import full_gb_length_optimization
 
     wf.gb_length_optimiser = full_gb_length_optimization(
         gb_structure=gb_structure,
-        calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_gb_length_optimiser,
+        engine=engine.with_working_directory("gb_length_optimiser"),
         equil_bulk_volume=equil_bulk_volume,
         equil_bulk_energy=equil_bulk_energy,
         extensions_stage1=extensions_stage1,
@@ -125,52 +82,36 @@ def pure_gb_study(
         vacuum_length=vacuum_length,
         axis=gb_normal_axis,
     )
-    wf.calc_structure_fn_kwargs_gb_with_vacuum_rel = get_working_subdir_kwargs(
-        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-        base_working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
-        new_working_directory="gb_with_vacuum_rel",
-    )
-    from pyiron_workflow_atomistics.calculator import calculate_structure_node
 
-    wf.gb_with_vacuum_rel = calculate_structure_node(
+    wf.gb_with_vacuum_rel = run(
         structure=wf.gb_with_vacuum,
-        _calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        _calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_gb_with_vacuum_rel,
+        engine=engine.with_working_directory("gb_with_vacuum_rel"),
     )
     from pyiron_workflow_atomistics.structure_manipulator.tools import (
         create_supercell_with_min_dimensions,
     )
 
     wf.gb_seg_supercell = create_supercell_with_min_dimensions(
-        wf.gb_with_vacuum_rel.outputs.calc_output.final_structure,
+        wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
         min_dimensions=min_inplane_cell_lengths,
     )
-    wf.calc_structure_fn_kwargs_gb_seg_supercell = get_working_subdir_kwargs(
-        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-        base_working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
-        new_working_directory="gb_seg_supercell",
-    )
-    wf.gb_seg_supercell_rel = calculate_structure_node(
+
+    wf.gb_seg_supercell_rel = run(
         structure=wf.gb_seg_supercell,
-        _calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        _calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_gb_seg_supercell,
+        engine=engine.with_working_directory("gb_seg_supercell"),
     )
     wf.area = _get_area(
-        wf.gb_with_vacuum_rel.outputs.calc_output.final_structure, gb_normal_axis
+        wf.gb_with_vacuum_rel.outputs.engine_output.final_structure, gb_normal_axis
     )
     wf.surface_energy = _get_surface_energy(
-        wf.gb_with_vacuum_rel.outputs.calc_output.final_energy,
+        wf.gb_with_vacuum_rel.outputs.engine_output.final_energy,
         wf.gb_length_optimiser.outputs.gb_structure_final_energy,
         wf.area,
     )
     from pyiron_workflow_atomistics.gb.analysis import find_GB_plane, plot_GB_plane
 
     wf.gb_plane_extractor = find_GB_plane(
-        atoms=wf.gb_with_vacuum_rel.outputs.calc_output.final_structure,
+        atoms=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
         featuriser=featuriser,
         axis=gb_normal_axis,
         approx_frac=approx_frac,
@@ -182,7 +123,7 @@ def pure_gb_study(
         threshold_frac=threshold_frac,
     )
     wf.gb_plane_extractor_plot = plot_GB_plane(
-        atoms=wf.gb_with_vacuum_rel.outputs.calc_output.final_structure,
+        atoms=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
         res=wf.gb_plane_extractor.outputs.gb_plane_analysis_dict,
         projection=(0, 2),
         reps=(5, 1),
@@ -192,25 +133,8 @@ def pure_gb_study(
         plane_linestyles=("--", "-"),
         axis=2,
         dpi=300,
-        working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
+        working_directory=engine.working_directory,
         save_filename="pureGB_plane_identifier.jpg",
-    )
-    wf.calc_structure_fn_kwargs_cleavage_study = get_working_subdir_kwargs(
-        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-        base_working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
-        new_working_directory="cleavage_study",
-    )
-
-    wf.calc_structure_fn_kwargs_cleavage_study_static = get_working_subdir_kwargs(
-        calc_structure_fn_kwargs=wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-        base_working_directory=wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
-        new_working_directory="cleavage_study",
     )
     from pyiron_workflow_atomistics.utils import modify_dataclass
 
@@ -222,15 +146,13 @@ def pure_gb_study(
     from pyiron_workflow_atomistics.gb.cleavage import rigid_and_relaxed_cleavage_study
 
     wf.cleavage_study = rigid_and_relaxed_cleavage_study(
-        gb_structure=wf.gb_with_vacuum_rel.outputs.calc_output.final_structure,
-        gb_structure_energy=wf.gb_with_vacuum_rel.outputs.calc_output.final_energy,
+        gb_structure=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
+        gb_structure_energy=wf.gb_with_vacuum_rel.outputs.engine_output.final_energy,
         gb_plane_cart_loc=wf.gb_plane_extractor.outputs.gb_plane_analysis_dict[
             "gb_cart"
         ],
-        calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_cleavage_study,
-        static_calc_structure_fn=wf.static_calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        static_calc_structure_fn_kwargs=wf.calc_structure_fn_kwargs_cleavage_study_static,
+        engine=engine.with_working_directory("cleavage_study"),
+        static_engine=static_engine.with_working_directory("cleavage_study"),
         CleaveGBStructure_Input=wf.CleaveGBStructureInput,
         PlotCleave_Input=PlotCleave_Input,
     )
@@ -247,8 +169,8 @@ def pure_gb_study(
         wf.gb_length_optimiser.outputs.stage2_opt_GBEnergy,
         wf.gb_length_optimiser.outputs.stage2_opt_excvol,
         wf.surface_energy,
-        wf.gb_with_vacuum_rel.outputs.calc_output.final_structure,
-        wf.gb_with_vacuum_rel.outputs.calc_output.final_energy,
+        wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
+        wf.gb_with_vacuum_rel.outputs.engine_output.final_energy,
         wf.gb_plane_extractor.outputs.gb_plane_analysis_dict,
         wf.min_rigid_cleavage_energy,
         wf.cleavage_study.outputs.cleavage_results_rigid,

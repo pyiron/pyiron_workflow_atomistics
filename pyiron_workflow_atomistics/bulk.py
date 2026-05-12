@@ -1,17 +1,13 @@
-import os
 import warnings
-from typing import Any, Callable, Optional
+from typing import Optional
 
 import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms
 from pyiron_workflow import Workflow
 
-from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
-from pyiron_workflow_atomistics.dataclass_storage import Engine
+from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.utils import get_per_atom_quantity
-
-from .calculator import calculate_structure_node
 
 
 @pwf.as_function_node("structure_list")
@@ -46,7 +42,6 @@ def generate_structures(
                     # ignore unknown axis labels
                     continue
         s.set_cell(new_cell, scale_atoms=True)
-        # print(s)
         structure_list.append(s)
 
     return structure_list
@@ -65,64 +60,29 @@ def equation_of_state(energies, volumes, eos_type="sj"):
 @pwf.as_function_node("engine_output_lst")
 def evaluate_structures(
     structures: list[Atoms],
-    calculation_engine: Optional[Engine] = None,
-    calc_structure_fn: Optional[Callable[..., Any]] = None,
-    calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
+    engine: Engine,
+    parent_working_directory: str = ".",
 ):
-    validate_calculation_inputs(
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-        calculation_engine=calculation_engine,
-    )
-    if calculation_engine is not None:
-        # Get function and kwargs from engine
-        calc_structure_fn, engine_kwargs = calculation_engine.get_calculate_fn(
-            structure=structures[0]
-        )
-        # If calc_structure_fn_kwargs is provided, use its working_directory
-        # (which may have been updated by get_working_subdir_kwargs)
-        # Otherwise use the engine's working_directory
-        if calc_structure_fn_kwargs is not None and "working_directory" in calc_structure_fn_kwargs:
-            working_directory = calc_structure_fn_kwargs["working_directory"]
-            # Merge engine kwargs with provided kwargs (provided kwargs take precedence)
-            calc_structure_fn_kwargs = {**engine_kwargs, **calc_structure_fn_kwargs}
-        else:
-            working_directory = calculation_engine.working_directory
-            calc_structure_fn_kwargs = engine_kwargs.copy()
-        os.makedirs(working_directory, exist_ok=True)
-    else:
-        working_directory = calc_structure_fn_kwargs["working_directory"]
-        os.makedirs(working_directory, exist_ok=True)
-        calc_structure_fn_kwargs = calc_structure_fn_kwargs.copy()
-
     engine_output_lst = []
     for i, struct in enumerate(structures):
-        # per-structure subfolder
-        local_kwargs = calc_structure_fn_kwargs.copy()
-
-        strain_dir = os.path.join(working_directory, f"strain_{i:03d}")
-        # print(s)
-        # start from the user’s calc_kwargs, preserving any keys they set
-        local_kwargs["working_directory"] = strain_dir
-        # run the full trajectory-enabled calculation
-        # print(local_kwargs)
-        engine_output = calculate_structure_node.node_function(
-            structure=struct,
-            _calc_structure_fn=calc_structure_fn,
-            _calc_structure_fn_kwargs=local_kwargs,
-        )
-
-        # unpack final results
-        engine_output_lst.append(engine_output)
-
+        sub_engine = engine.with_working_directory(f"strain_{i:03d}")
+        engine_output_lst.append(run.node_function(structure=struct, engine=sub_engine))
     return engine_output_lst
 
 
-# @pwf.as_function_node("energies", "volumes")
-# def extract_energies_volumes_from_output(results, energy_parser_func, energy_parser_func_kwargs, volume_parser_func, volume_parser_func_kwargs):
-#     energies = energy_parser_func(results, **energy_parser_func_kwargs)
-#     volumes = volume_parser_func(results, **volume_parser_func_kwargs)
-#     return energies, volumes
+@pwf.as_function_node("energies")
+def _extract_energies(engine_outputs):
+    return [o.final_energy for o in engine_outputs]
+
+
+@pwf.as_function_node("volumes")
+def _extract_volumes(engine_outputs):
+    return [o.final_volume for o in engine_outputs]
+
+
+@pwf.as_function_node("structures")
+def _extract_structures(engine_outputs):
+    return [o.final_structure for o in engine_outputs]
 
 
 @pwf.as_function_node("equil_struct")
@@ -157,8 +117,6 @@ def get_bulk_structure(
     return equil_struct
 
 
-
-
 @pwf.api.as_function_node("rattle_structure")
 def rattle_structure(structure, rattle=None):
     if rattle:
@@ -167,8 +125,6 @@ def rattle_structure(structure, rattle=None):
     else:
         base_structure = structure.copy()
     return base_structure
-
-
 
 
 @pwf.api.as_macro_node(
@@ -186,9 +142,7 @@ def optimise_cubic_lattice_parameter(
     structure: Atoms,
     name: str,
     crystalstructure: str,
-    calculation_engine=None,
-    calc_structure_fn: Optional[Callable[..., Any]] = None,
-    calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
+    engine: Engine,
     rattle: float = 0.0,
     strain_range=(-0.02, 0.02),
     num_points=11,
@@ -196,32 +150,9 @@ def optimise_cubic_lattice_parameter(
     eos_type="birchmurnaghan",
 ):
     wf.rattle_structure = rattle_structure(structure, rattle)
-    from pyiron_workflow_atomistics.utils import (
-        get_calc_fn_calc_fn_kwargs_from_calculation_engine,
-    )
-
-    wf.calc_fn_calc_fn_kwargs = get_calc_fn_calc_fn_kwargs_from_calculation_engine(
-        calculation_engine=calculation_engine,
-        structure=wf.rattle_structure,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
-    from pyiron_workflow_atomistics.utils import get_working_subdir_kwargs
-
-    wf.calc_fn_kwargs = get_working_subdir_kwargs(
-        calc_structure_fn_kwargs=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs,
-        base_working_directory=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn_kwargs[
-            "working_directory"
-        ],
-        new_working_directory=parent_working_directory,
-    )
-    # print(wf.calc_fn_kwargs)
-    # 3. Attach the macro node to the workflow, capturing all outputs
     wf.eos = eos_volume_scan(
         base_structure=wf.rattle_structure,
-        # calculation_engine = calculation_engine,
-        calc_structure_fn=wf.calc_fn_calc_fn_kwargs.outputs.calc_fn,
-        calc_structure_fn_kwargs=wf.calc_fn_kwargs.outputs.dict_with_adjusted_working_directory,
+        engine=engine,
         axes=["a", "b", "c"],
         strain_range=strain_range,
         num_points=num_points,
@@ -261,9 +192,7 @@ def get_cubic_equil_lat_param(eos_output):
 def eos_volume_scan(
     wf,
     base_structure,
-    calculation_engine: Optional[Engine] = None,
-    calc_structure_fn: Optional[Callable[..., Any]] = None,
-    calc_structure_fn_kwargs: Optional[dict[str, Any]] = None,
+    engine: Engine,
     axes=["a", "b", "c"],
     strain_range=(-0.2, 0.2),
     num_points=11,
@@ -280,27 +209,14 @@ def eos_volume_scan(
     # 2) evaluate them in subfolders under working_directory
     wf.evaluation = evaluate_structures(
         structures=wf.structures_list,
-        calculation_engine=calculation_engine,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
-    from pyiron_workflow_atomistics.calculator import (
-        extract_output_values_from_EngineOutput,
+        engine=engine,
     )
 
     # 3) extract energies and volumes
-    wf.energies = extract_output_values_from_EngineOutput(
-        wf.evaluation.outputs.engine_output_lst,
-        key="final_energy",
-    )
-    wf.volumes = extract_output_values_from_EngineOutput(
-        wf.evaluation.outputs.engine_output_lst,
-        key="final_volume",
-    )
-    wf.structures = extract_output_values_from_EngineOutput(
-        wf.evaluation.outputs.engine_output_lst,
-        key="final_structure",
-    )
+    wf.energies = _extract_energies(wf.evaluation.outputs.engine_output_lst)
+    wf.volumes = _extract_volumes(wf.evaluation.outputs.engine_output_lst)
+    wf.structures = _extract_structures(wf.evaluation.outputs.engine_output_lst)
+
     # 4) fit EOS
     wf.eos = equation_of_state(
         wf.energies,

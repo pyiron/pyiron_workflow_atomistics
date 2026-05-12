@@ -1,14 +1,11 @@
 import os
-from typing import Any, Callable
+from typing import Any
 
 import pyiron_workflow as pwf
 from ase import Atoms
 from pyiron_workflow.api import for_node
 
-from pyiron_workflow_atomistics.calculator import (
-    calculate_structure_node,
-)
-from pyiron_workflow_atomistics.dataclass_storage import Engine
+from pyiron_workflow_atomistics.engine import Engine, run
 
 
 @pwf.as_function_node("structure", "output_dir")
@@ -35,60 +32,22 @@ def get_df_col_as_list(df, col):
     return output_list
 
 
-@pwf.as_function_node
-def get_calc_fn_calc_fn_kwargs_list_from_calculation_engine(
-    calculation_engine, structure_list, calc_structure_fn, calc_structure_fn_kwargs
-):
-    calc_fn_list = []
-    calc_fn_kwargs_list = []
-    if calculation_engine:
-        # print("In get_calc_fn_calc_fn_kwargs_list_from_calculation_engine")
-        for structure in structure_list:
-            # print(structure)
-            calculation_engine.calc_fn = calc_structure_fn
-            calc_fn, calc_fn_kwargs = calculation_engine.get_calculate_fn(structure)
-            # print(calc_fn_kwargs["potential_elements"])
-            calc_fn_list.append(calc_fn)
-            calc_fn_kwargs_list.append(calc_fn_kwargs)
-    else:
-        import warnings
+@pwf.as_function_node("engines")
+def _make_engines_from_dirs(engine: Engine, output_dirs: list) -> list:
+    """Return a list of engines, one per output directory path.
 
-        warnings.warn(
-            "No calculation engine provided, using calc_structure_fn and calc_structure_fn_kwargs...\n This is VERY DANGEROUS and I hope you know what you are doing"
-        )
-        if isinstance(calc_structure_fn, list) and isinstance(
-            calc_structure_fn_kwargs, list
-        ):
-            calc_fn_list = calc_structure_fn
-            calc_fn_kwargs_list = calc_structure_fn_kwargs
-        elif isinstance(calc_structure_fn, Callable) and isinstance(
-            calc_structure_fn_kwargs, dict
-        ):
-            for structure in structure_list:
-                calc_fn_list.append(calc_structure_fn)
-                calc_fn_kwargs_list.append(calc_structure_fn_kwargs)
-        else:
-            raise ValueError(
-                "calc_structure_fn and calc_structure_fn_kwargs must be either a list of Callables and dicts or a single Callable and dict"
-            )
-    return calc_fn_list, calc_fn_kwargs_list
+    On POSIX, os.path.join(wd, absolute_path) == absolute_path, so passing
+    absolute paths to with_working_directory is safe and sets the directory
+    correctly.
+    """
+    return [engine.with_working_directory(d) for d in output_dirs]
 
 
-# @pwf.as_macro_node("gb_seg_calcs_kwargs", "gb_seg_calcs")
-# def featurise_sites(wf, structure_list, defect_sites, calc_fn_kwargs_list):
-#     from pyiron_workflow_atomistics.featurisers import distanceMatrixSiteFeaturiser, voronoiSiteFeaturiser
-#     wf.featurised_sites = for_node(
-#         distanceMatrixSiteFeaturiser,
-#         zip_on=("structure", "defect_sites"),
-#         structure=structure_list,
-#         defect_sites=defect_sites,
-#     )
-#     return wf.featurised_sites
+import pandas as pd
 
 
 @pwf.as_function_node("df")
 def write_df(df, unique_sites_df, file_name, parent_dir):
-    df = df.drop(columns=["_calc_structure_fn", "_calc_structure_fn_kwargs"])
     df_out = pd.concat([unique_sites_df, df], axis=1)
     df_out.to_pickle(os.path.join(parent_dir, file_name))
     return df_out
@@ -131,9 +90,6 @@ def get_unique_sites_SOAP(
     return df.rep.tolist(), df
 
 
-import pandas as pd
-
-
 @pwf.as_macro_node("gb_seg_calcs_df")
 def calculate_substitutional_segregation_GB(
     wf,
@@ -141,21 +97,11 @@ def calculate_substitutional_segregation_GB(
     defect_sites: list[int],
     element: str,
     structure_basename: str,
-    calculation_engine: Engine | None = None,
-    calc_structure_fn: Callable[..., Any] | None | list[Callable[..., Any]] = None,
-    calc_structure_fn_kwargs: dict[str, Any] | None | list[dict[str, Any]] = None,
+    engine: Engine,
     unique_sites_df: pd.DataFrame | None = None,
     parent_dir: str = os.path.join(os.getcwd(), "segregation_structures"),
     df_filename: str = "seg_calcs_df.pkl",
 ):
-    from pyiron_workflow_atomistics.calculator import validate_calculation_inputs
-
-    wf.validate = validate_calculation_inputs(
-        calculation_engine=calculation_engine,
-        calc_structure_fn=calc_structure_fn,
-        calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-    )
-
     wf.gb_seg_structure_generator = for_node(
         create_seg_structure_and_output_dir,
         structure=structure,
@@ -171,29 +117,15 @@ def calculate_substitutional_segregation_GB(
     wf.gb_seg_structure_dirs = get_df_col_as_list(
         wf.gb_seg_structure_generator.outputs.df, "output_dir"
     )
-    # from pyiron_workflow_atomistics.gb.segregation import get_calc_fn_calc_fn_kwargs_list_from_calculation_engine
-    wf.calc_fn_calc_fn_kwargs_list = (
-        get_calc_fn_calc_fn_kwargs_list_from_calculation_engine(
-            calculation_engine=calculation_engine,
-            structure_list=wf.gb_seg_structure_list,
-            calc_structure_fn=calc_structure_fn,
-            calc_structure_fn_kwargs=calc_structure_fn_kwargs,
-        )
-    )
-    from pyiron_workflow_atomistics.calculator import add_arg_to_kwargs_list
-
-    wf.gb_seg_calcs_kwargs = add_arg_to_kwargs_list(
-        kwargs_list=wf.calc_fn_calc_fn_kwargs_list.outputs.calc_fn_kwargs_list,
-        key="working_directory",
-        value=wf.gb_seg_structure_dirs,
-        remove_if_exists=True,
+    wf.gb_seg_engines = _make_engines_from_dirs(
+        engine=engine,
+        output_dirs=wf.gb_seg_structure_dirs,
     )
     wf.gb_seg_calcs = for_node(
-        calculate_structure_node,
-        zip_on=("structure", "_calc_structure_fn_kwargs", "_calc_structure_fn"),
+        run,
+        zip_on=("structure", "engine"),
         structure=wf.gb_seg_structure_list,
-        _calc_structure_fn=wf.calc_fn_calc_fn_kwargs_list.outputs.calc_fn_list,
-        _calc_structure_fn_kwargs=wf.gb_seg_calcs_kwargs,
+        engine=wf.gb_seg_engines,
     )
     wf.gb_seg_calcs_df = write_df(
         df=wf.gb_seg_calcs.outputs.df,

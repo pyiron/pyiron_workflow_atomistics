@@ -249,7 +249,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         cleaved_structures = [self.test_atoms, self.test_atoms.copy()]
         uncleaved_energy = 10.0
 
-        # Create mock DataFrame with calc_output column
+        # Create mock DataFrame with engine_output column
         class MockOutput:
             def __init__(
                 self,
@@ -283,7 +283,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         )
 
         mock_df = pd.DataFrame(
-            {"calc_output": [mock_output1, mock_output2], "convergence": [True, True]}
+            {"engine_output": [mock_output1, mock_output2], "convergence": [True, True]}
         )
         result = gb_cleavage_module.get_results_df(
             df=mock_df,
