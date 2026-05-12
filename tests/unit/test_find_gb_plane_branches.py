@@ -39,9 +39,11 @@ def _peaked_featuriser(approx_gb_frac: float):
     near 0.5, GB atoms get features near 0. So disorder = ||feat - bulk_template||
     has a single peak at the GB.
     """
+
     def feat(atoms, idx, **kwargs):
         z_frac = atoms.get_scaled_positions()[idx, 2] % 1.0
         return [abs(z_frac - approx_gb_frac)]
+
     return feat
 
 
@@ -53,10 +55,14 @@ def test_find_gb_plane_raises_when_slab_too_thin_to_catch_any_bulk_atoms():
     feat = _peaked_featuriser(0.5)
     with pytest.raises(ValueError, match="no bulk atoms found"):
         find_gb_plane.node_function(
-            atoms=atoms, featuriser=feat, axis="c",
-            approx_frac=0.5, tolerance=0.4,
-            slab_thickness=0.001,   # impossibly thin → catches nothing at 0.25/0.75
-            n_bulk=10, threshold_frac=0.5,
+            atoms=atoms,
+            featuriser=feat,
+            axis="c",
+            approx_frac=0.5,
+            tolerance=0.4,
+            slab_thickness=0.001,  # impossibly thin → catches nothing at 0.25/0.75
+            n_bulk=10,
+            threshold_frac=0.5,
         )
 
 
@@ -71,10 +77,14 @@ def test_find_gb_plane_caps_bulk_indices_at_n_bulk():
     atoms = _make_linear_chain(40, spacing=1.0)
     feat = _peaked_featuriser(0.5)
     out = find_gb_plane.node_function(
-        atoms=atoms, featuriser=feat, axis="c",
-        approx_frac=0.5, tolerance=10.0,    # GB window 0.5±0.25
-        slab_thickness=5.0,                 # generous bulk slab
-        n_bulk=4, threshold_frac=0.5,
+        atoms=atoms,
+        featuriser=feat,
+        axis="c",
+        approx_frac=0.5,
+        tolerance=10.0,  # GB window 0.5±0.25
+        slab_thickness=5.0,  # generous bulk slab
+        n_bulk=4,
+        threshold_frac=0.5,
     )
     assert len(out["bulk_indices"]) == 4
     # Deterministic axial-sort: bulk_indices should be in ascending fractional order.
@@ -88,16 +98,22 @@ def test_find_gb_plane_single_peak_branch():
 
     # 21-atom chain over 21 Å. Atoms at frac = 0.0238 .. 0.9762, evenly spaced.
     atoms = _make_linear_chain(21, spacing=1.0)
+
     # Single-peak featuriser: |z - 10|, so the atom at z=10 (frac~0.5) is the lone
     # peak; everything else is approximately linearly higher away from the GB.
     def feat(at, idx, **kwargs):
         z = at.get_positions()[idx, 2]
-        return [-abs(z - 10.0)]   # most-negative at z=10 → peak in disorder after norm
+        return [-abs(z - 10.0)]  # most-negative at z=10 → peak in disorder after norm
+
     out = find_gb_plane.node_function(
-        atoms=atoms, featuriser=feat, axis="c",
-        approx_frac=0.5, tolerance=5.0,
+        atoms=atoms,
+        featuriser=feat,
+        axis="c",
+        approx_frac=0.5,
+        tolerance=5.0,
         slab_thickness=2.0,
-        n_bulk=10, threshold_frac=0.3,
+        n_bulk=10,
+        threshold_frac=0.3,
     )
     # GB plane should be near z=10 (frac ~ 0.476) — the lone disorder peak.
     assert 0.4 < out["gb_frac"] < 0.55
@@ -109,18 +125,32 @@ def test_find_gb_plane_extends_selection_with_extend_region_length():
     from pyiron_workflow_atomistics.analysis.gb_plane import find_gb_plane
 
     atoms = _make_linear_chain(21, spacing=1.0)
+
     def feat(at, idx, **kwargs):
         z = at.get_positions()[idx, 2]
         return [-abs(z - 10.0)]
+
     base = find_gb_plane.node_function(
-        atoms=atoms, featuriser=feat, axis="c",
-        approx_frac=0.5, tolerance=5.0, slab_thickness=2.0,
-        n_bulk=10, threshold_frac=0.3, extend_region_length=0.0,
+        atoms=atoms,
+        featuriser=feat,
+        axis="c",
+        approx_frac=0.5,
+        tolerance=5.0,
+        slab_thickness=2.0,
+        n_bulk=10,
+        threshold_frac=0.3,
+        extend_region_length=0.0,
     )
     extended = find_gb_plane.node_function(
-        atoms=atoms, featuriser=feat, axis="c",
-        approx_frac=0.5, tolerance=5.0, slab_thickness=2.0,
-        n_bulk=10, threshold_frac=0.3, extend_region_length=3.0,
+        atoms=atoms,
+        featuriser=feat,
+        axis="c",
+        approx_frac=0.5,
+        tolerance=5.0,
+        slab_thickness=2.0,
+        n_bulk=10,
+        threshold_frac=0.3,
+        extend_region_length=3.0,
     )
     # Extended selection must contain at least as many atoms as the base one.
     assert len(extended["extended_sel_indices"]) >= len(base["extended_sel_indices"])

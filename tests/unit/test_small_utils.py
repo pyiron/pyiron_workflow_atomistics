@@ -14,7 +14,6 @@ from dataclasses import dataclass
 import pytest
 from ase.build import bulk
 
-
 # --- analysis/quantities ----------------------------------------------------
 
 
@@ -96,9 +95,7 @@ def test_modify_dataclass_multi_replaces_each_field_in_turn():
     )
 
     src = _Thing(a=1, b="x", c=0.0)
-    out = modify_dataclass_multi.node_function(
-        src, ["a", "c"], [42, 3.14]
-    )
+    out = modify_dataclass_multi.node_function(src, ["a", "c"], [42, 3.14])
     assert out.a == 42
     assert out.c == 3.14
     assert out.b == "x"  # untouched

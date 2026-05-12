@@ -20,13 +20,13 @@ import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-
 # --- dispatch fallback ------------------------------------------------------
 
 
 @dataclass
 class _BogusInput:
     """Not a CalcInputStatic / Minimize / MD — must trigger the dispatch fallback."""
+
     something: int = 1
 
 

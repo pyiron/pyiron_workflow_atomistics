@@ -40,12 +40,16 @@ def _build_s3_ra110_bcc_fe_bicrystal(size_z: int = 3) -> tuple:
     v1 = list(-np.cross(rotation_axis, surface1))
     v2 = list(-np.cross(rotation_axis, surface2))
     slab1 = bcc(
-        symbol="Fe", latticeconstant=lc,
-        directions=[rotation_axis, v1, surface1], size=[1, 1, size_z],
+        symbol="Fe",
+        latticeconstant=lc,
+        directions=[rotation_axis, v1, surface1],
+        size=[1, 1, size_z],
     )
     slab2 = bcc(
-        symbol="Fe", latticeconstant=lc,
-        directions=[rotation_axis, v2, surface2], size=[1, 1, size_z],
+        symbol="Fe",
+        latticeconstant=lc,
+        directions=[rotation_axis, v2, surface2],
+        size=[1, 1, size_z],
     )
     return stack(slab1, slab2), lc
 
@@ -56,8 +60,10 @@ def _bulk_fe_reference(lc: float):
     from ase.lattice.cubic import BodyCenteredCubic as bcc
 
     fe = bcc(
-        symbol="Fe", latticeconstant=lc,
-        directions=[[1, 0, 0], [0, 1, 0], [0, 0, 1]], size=[1, 1, 1],
+        symbol="Fe",
+        latticeconstant=lc,
+        directions=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        size=[1, 1, 1],
     )
     fe.calc = EAM(potential=str(EAM_PATH))
     return fe.get_potential_energy() / len(fe), fe.get_volume() / len(fe)
@@ -74,11 +80,11 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
         CalcInputMinimize,
         CalcInputStatic,
     )
-    from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
     from pyiron_workflow_atomistics.physics._grain_boundary_helpers.dataclass_storage import (
         CleaveGBStructureInput,
         PlotCleaveInput,
     )
+    from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
 
     gb, lc = _build_s3_ra110_bcc_fe_bicrystal(size_z=3)
     e0, v0 = _bulk_fe_reference(lc)
@@ -136,9 +142,9 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     vac_struct = out["pure_grain_boundary_structure_vacuum"]
     vac_energy = out["pure_grain_boundary_structure_vacuum_energy"]
     assert len(vac_struct) == len(gb)
-    assert vac_struct.cell[2, 2] > final_struct.cell[2, 2], (
-        "vacuum should make the c-vector longer than the bulk bicrystal"
-    )
+    assert (
+        vac_struct.cell[2, 2] > final_struct.cell[2, 2]
+    ), "vacuum should make the c-vector longer than the bulk bicrystal"
     assert np.isfinite(vac_energy)
 
     # Surface energy from rigid cleavage of the vacuum slab (J/m^2)
@@ -149,16 +155,18 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     assert isinstance(gb_dict, dict)
     assert "gb_cart" in gb_dict and np.isfinite(gb_dict["gb_cart"])
     assert "gb_frac" in gb_dict and 0.0 <= gb_dict["gb_frac"] <= 1.0
-    assert len(gb_dict["bulk_indices"]) > 0, (
-        "bulk-template sampling found zero atoms — slab_thickness too thin?"
-    )
+    assert (
+        len(gb_dict["bulk_indices"]) > 0
+    ), "bulk-template sampling found zero atoms — slab_thickness too thin?"
 
     # --- cleavage stage: both rigid and relaxed dfs are populated ---
     rigid_df = out["work_of_separation_rigid_df"]
     relax_df = out["work_of_separation_relaxed_df"]
     assert len(rigid_df) >= 1, "no cleavage planes were evaluated rigidly"
     assert len(relax_df) >= 1
-    assert len(rigid_df) == len(relax_df), "rigid and relax must process the same planes"
+    assert len(rigid_df) == len(
+        relax_df
+    ), "rigid and relax must process the same planes"
 
     # Minimum cleavage energies are finite scalars
     assert np.isfinite(out["work_of_separation_rigid"])
@@ -177,16 +185,18 @@ def test_pure_gb_study_constructs_graph_without_running():
         CalcInputMinimize,
         CalcInputStatic,
     )
-    from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
     from pyiron_workflow_atomistics.physics._grain_boundary_helpers.dataclass_storage import (
         CleaveGBStructureInput,
         PlotCleaveInput,
     )
+    from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
 
     gb, lc = _build_s3_ra110_bcc_fe_bicrystal(size_z=2)
 
     eng_min = ASEEngine(
-        EngineInput=CalcInputMinimize(force_convergence_tolerance=0.5, max_iterations=5),
+        EngineInput=CalcInputMinimize(
+            force_convergence_tolerance=0.5, max_iterations=5
+        ),
         calculator=EAM(potential=str(EAM_PATH)),
         working_directory=".",
     )

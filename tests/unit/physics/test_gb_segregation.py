@@ -88,7 +88,9 @@ def test_calculate_substitutional_segregation_GB_graph_constructs(tmp_path):
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
     engine = ASEEngine(
-        EngineInput=CalcInputMinimize(force_convergence_tolerance=0.5, max_iterations=2),
+        EngineInput=CalcInputMinimize(
+            force_convergence_tolerance=0.5, max_iterations=2
+        ),
         calculator=LennardJones(),
         working_directory=str(tmp_path),
     )

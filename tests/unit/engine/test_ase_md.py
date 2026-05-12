@@ -268,9 +268,13 @@ def test_ase_md_npt_berendsen_compressibility_is_threaded_into_dyn(tmp_path: Pat
 
     eng = ASEEngine(
         EngineInput=CalcInputMD(
-            mode="NPT", thermostat="berendsen", temperature=300.0,
-            n_ionic_steps=1, time_step=1.0,
-            pressure=1e5, compressibility=7.0e-7,  # Cu-ish
+            mode="NPT",
+            thermostat="berendsen",
+            temperature=300.0,
+            n_ionic_steps=1,
+            time_step=1.0,
+            pressure=1e5,
+            compressibility=7.0e-7,  # Cu-ish
         ),
         calculator=EMT(),
         working_directory=str(tmp_path),
