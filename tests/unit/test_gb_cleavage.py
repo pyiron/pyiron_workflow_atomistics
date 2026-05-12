@@ -13,8 +13,8 @@ from ase import Atoms
 from ase.build import stack
 from ase.lattice.cubic import BodyCenteredCubic as bcc
 
-import pyiron_workflow_atomistics.gb.cleavage as gb_cleavage_module
-from pyiron_workflow_atomistics.structure_manipulator.tools import add_vacuum
+import pyiron_workflow_atomistics.physics.grain_boundary as gb_cleavage_module
+from pyiron_workflow_atomistics.structure.transform import add_vacuum
 
 
 class TestGBCleavageFunctions(unittest.TestCase):

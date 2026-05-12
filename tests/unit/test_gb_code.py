@@ -44,7 +44,7 @@ class TestGBCode(unittest.TestCase):
 
     def test_get_gbstruct_from_gbcode_respects_axis_and_element(self):
         try:
-            from pyiron_workflow_atomistics.gb.gb_code.constructor import (
+            from pyiron_workflow_atomistics.physics._grain_boundary_code.constructor import (
                 get_gbstruct_from_gbcode,
             )
         except ModuleNotFoundError as exc:
@@ -70,7 +70,7 @@ class TestGBCode(unittest.TestCase):
 
     def test_get_gbstruct_from_gbcode_invalid_axis_raises(self):
         try:
-            from pyiron_workflow_atomistics.gb.gb_code.constructor import (
+            from pyiron_workflow_atomistics.physics._grain_boundary_code.constructor import (
                 get_gbstruct_from_gbcode,
             )
         except ModuleNotFoundError as exc:

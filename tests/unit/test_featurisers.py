@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from ase import Atoms
 
-import pyiron_workflow_atomistics.featurisers as featurisers_module
+import pyiron_workflow_atomistics.analysis.featurisers as featurisers_module
 
 
 class TestFeaturisersFunctions(unittest.TestCase):
@@ -30,7 +30,7 @@ class TestFeaturisersFunctions(unittest.TestCase):
         ]
         self.test_atoms = Atoms("H8", positions=positions, cell=[2, 2, 2])
 
-    @patch("pyiron_workflow_atomistics.featurisers.VoronoiNN")
+    @patch("pyiron_workflow_atomistics.analysis.featurisers.VoronoiNN")
     def test_voronoiSiteFeaturiser(self, mock_voronoi_nn):
         """Test Voronoi site featuriser."""
         # Mock the VoronoiNN
@@ -47,7 +47,7 @@ class TestFeaturisersFunctions(unittest.TestCase):
         }
         mock_nn.get_voronoi_polyhedra.return_value = mock_polyhedra
 
-        result = featurisers_module.voronoiSiteFeaturiser(self.test_atoms, 0)
+        result = featurisers_module.voronoi_site_featuriser(self.test_atoms, 0)
 
         # Check that result is a dictionary
         self.assertIsInstance(result, dict)
@@ -84,7 +84,7 @@ class TestFeaturisersFunctions(unittest.TestCase):
 
     def test_distanceMatrixSiteFeaturiser(self):
         """Test distance matrix site featuriser."""
-        result = featurisers_module.distanceMatrixSiteFeaturiser(
+        result = featurisers_module.distance_matrix_site_featuriser(
             self.test_atoms, 0, k=4
         )
 
@@ -115,7 +115,7 @@ class TestFeaturisersFunctions(unittest.TestCase):
         # Create a structure with only 2 atoms
         simple_atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
 
-        result = featurisers_module.distanceMatrixSiteFeaturiser(simple_atoms, 0, k=4)
+        result = featurisers_module.distance_matrix_site_featuriser(simple_atoms, 0, k=4)
 
         # Should still work, but with NaN values for missing neighbors
         self.assertIn("Dist_knn_1", result)
@@ -142,7 +142,7 @@ class TestFeaturisersFunctions(unittest.TestCase):
             mock_features = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
             mock_descriptor.create.return_value = mock_features
 
-            result = featurisers_module.soapSiteFeaturiser(
+            result = featurisers_module.soap_site_featuriser(
                 self.test_atoms, site_indices=[0, 1], r_cut=6.0, n_max=10, l_max=10
             )
 
@@ -167,7 +167,7 @@ class TestFeaturisersFunctions(unittest.TestCase):
         """Test SOAP featuriser when dscribe is not available."""
         with patch.dict("sys.modules", {"dscribe": None, "dscribe.descriptors": None}):
             with self.assertRaises(ImportError) as cm:
-                featurisers_module.soapSiteFeaturiser(
+                featurisers_module.soap_site_featuriser(
                     self.test_atoms, site_indices=[0, 1]
                 )
 
