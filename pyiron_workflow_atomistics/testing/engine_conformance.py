@@ -17,6 +17,9 @@ import os
 import pickle
 
 from dataclasses import is_dataclass
+from typing import Callable
+from ase import Atoms
+from ase.build import bulk
 
 from pyiron_workflow_atomistics.engine import Engine
 
@@ -27,6 +30,15 @@ class EngineConformanceTests:
     Optionally override ``test_structure_factory`` to swap the default
     4-atom Cu FCC bulk used by the run() smoke test.
     """
+
+    # Optional override
+    test_structure_factory: Callable | None = None
+
+    def _structure(self) -> Atoms:
+        factory = type(self).test_structure_factory
+        if factory is None:
+            return bulk("Cu", "fcc", a=3.6, cubic=True)
+        return factory()
 
     def test_satisfies_engine_protocol(self, tmp_path):
         """Engine instances must satisfy the runtime_checkable Protocol
@@ -77,3 +89,23 @@ class EngineConformanceTests:
             "Pickle round-trip lost or corrupted working_directory"
         )
         assert type(roundtrip) is type(eng)
+
+    def test_get_calculate_fn_signature(self, tmp_path):
+        """get_calculate_fn(structure) must return (callable, kwargs)
+        with `structure` NOT in the returned kwargs dict — the caller
+        invokes the callable as fn(structure=structure, **kwargs)."""
+        eng = type(self).engine_factory(tmp_path)
+        result = eng.get_calculate_fn(self._structure())
+
+        assert isinstance(result, tuple) and len(result) == 2, (
+            "get_calculate_fn must return a (callable, kwargs) tuple"
+        )
+        fn, kwargs = result
+        assert callable(fn), "First element of get_calculate_fn return must be callable"
+        assert isinstance(kwargs, dict), (
+            "Second element of get_calculate_fn return must be a dict"
+        )
+        assert "structure" not in kwargs, (
+            "structure must NOT appear in the kwargs dict — the caller "
+            "supplies it positionally as fn(structure=..., **kwargs)"
+        )
