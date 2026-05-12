@@ -24,6 +24,9 @@ def test_notebook_runs(nb_path: pathlib.Path):
     # Run the kernel with cwd set to the notebooks/ dir so any bundled
     # data files (e.g. Al-Fe.eam.fs) resolve via relative paths.
     client = NotebookClient(
-        nb, timeout=600, kernel_name="python3", resources={"metadata": {"path": str(NOTEBOOK_DIR)}}
+        nb,
+        timeout=600,
+        kernel_name="python3",
+        resources={"metadata": {"path": str(NOTEBOOK_DIR)}},
     )
     client.execute()

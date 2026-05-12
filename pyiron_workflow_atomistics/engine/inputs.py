@@ -5,6 +5,7 @@ physics-level terms (force tolerance, temperature, ensemble) — never in
 engine-specific jargon (no EDIFFG, no LAMMPS units style). The engine is
 responsible for translating these to its native parameters.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -73,15 +74,13 @@ class CalcInputMD:
     """
 
     mode: Literal["NVE", "NVT", "NPT"] = "NVT"
-    thermostat: Literal[
-        "nose-hoover", "langevin", "berendsen", "andersen"
-    ] = "langevin"
+    thermostat: Literal["nose-hoover", "langevin", "berendsen", "andersen"] = "langevin"
     temperature: float = 300.0
     n_ionic_steps: int = 10_000
     n_print: int = 100
     pressure: float | None = None
-    time_step: float = 1.0                       # fs
-    thermostat_time_constant: float = 100.0      # fs
-    pressure_damping_timescale: float = 1000.0   # fs
+    time_step: float = 1.0  # fs
+    thermostat_time_constant: float = 100.0  # fs
+    pressure_damping_timescale: float = 1000.0  # fs
     seed: int | None = None
     initial_temperature: float | None = None

@@ -104,13 +104,15 @@ def transform_cell(struc, x, y, filename):
     return s2
 
 
-def slice_cell(infile, xmax=10, ymax=5, zmax=30, disp=[0.0, 0.0, 0.0]):
+def slice_cell(infile, xmax=10, ymax=5, zmax=30, disp=None):
     """Create non-periodic cell of arbitrary height."""
+    if disp is None:
+        disp = [0.0, 0.0, 0.0]
     s = read_vasp(infile)
     s *= (1, 1, 10)
 
     # Rotate into place
-    for i in range(20):
+    for _i in range(20):
         ax, bx, cx = s.cell
         rotate(s, ax, (1, 0, 0), bx, (0, 1, 0), rotate_cell=True)
 

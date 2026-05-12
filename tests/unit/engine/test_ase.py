@@ -1,4 +1,5 @@
 """Characterisation tests for ASEEngine: real EMT round-trip + pickle round-trip."""
+
 from __future__ import annotations
 
 import pickle
@@ -57,7 +58,9 @@ def test_ase_engine_minimize_run_reduces_force(tmp_path: Path):
     # Perturb so the optimiser has work to do
     structure.rattle(0.05, seed=0)
     engine = ASEEngine(
-        EngineInput=CalcInputMinimize(force_convergence_tolerance=0.05, max_iterations=200),
+        EngineInput=CalcInputMinimize(
+            force_convergence_tolerance=0.05, max_iterations=200
+        ),
         calculator=EMT(),
         working_directory=str(tmp_path),
     )

@@ -1,24 +1,25 @@
 import warnings
-from typing import Optional
 
 import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms
 from pyiron_workflow import Workflow
 
+from pyiron_workflow_atomistics.analysis.quantities import get_per_atom_quantity
 from pyiron_workflow_atomistics.engine import Engine, run
 from pyiron_workflow_atomistics.structure.build import get_bulk
 from pyiron_workflow_atomistics.structure.transform import rattle
-from pyiron_workflow_atomistics.analysis.quantities import get_per_atom_quantity
 
 
 @pwf.as_function_node("structure_list")
 def generate_structures(
     base_structure: Atoms,
-    axes: list[str] = ["iso"],
+    axes: list[str] | None = None,
     strain_range: tuple[float, float] = (-0.2, 0.2),
     num_points: int = 11,
 ) -> list[Atoms]:
+    if axes is None:
+        axes = ["iso"]
     structure_list: list[Atoms] = []
     start, end = strain_range
 
@@ -40,7 +41,7 @@ def generate_structures(
                 elif ax_lower == "c":
                     new_cell[2] = cell[2] * (1 + epsilon)
                 else:
-                    warnings.warn(f"Unknown axis label: {ax}")
+                    warnings.warn(f"Unknown axis label: {ax}", stacklevel=2)
                     # ignore unknown axis labels
                     continue
         s.set_cell(new_cell, scale_atoms=True)
@@ -153,12 +154,14 @@ def eos_volume_scan(
     wf,
     base_structure,
     engine: Engine,
-    axes=["a", "b", "c"],
+    axes=None,
     strain_range=(-0.2, 0.2),
     num_points=11,
     eos_type="birchmurnaghan",
 ):
     # 1) generate strained structures
+    if axes is None:
+        axes = ["a", "b", "c"]
     wf.structures_list = generate_structures(
         base_structure,
         axes=axes,

@@ -2,12 +2,14 @@
 
 Consolidates and replaces engine_ase/{ase.py, ase_calculator.py, ase_engine.py}.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -23,12 +25,12 @@ from pyiron_workflow_atomistics.engine.inputs import (
 )
 from pyiron_workflow_atomistics.engine.protocol import EngineOutput
 
-
 # ---------------------------------------------------------------------------
 # Low-level helpers: gather() + attach_props()
 # ---------------------------------------------------------------------------
 
-def _gather(atoms: Atoms, properties: Tuple[str, ...]) -> dict[str, Any]:
+
+def _gather(atoms: Atoms, properties: tuple[str, ...]) -> dict[str, Any]:
     props = [p.strip() for p in properties]
     results: dict[str, Any] = {
         "energy": atoms.get_potential_energy(),
@@ -40,10 +42,8 @@ def _gather(atoms: Atoms, properties: Tuple[str, ...]) -> dict[str, Any]:
         "masses": atoms.get_masses().tolist(),
     }
     if "stresses" in props:
-        try:
+        with contextlib.suppress(Exception):
             results["stresses"] = atoms.get_stress().tolist()
-        except Exception:
-            pass
     optional_map = {
         "charges": "get_charges",
         "dipole": "get_dipole_moment",
@@ -94,9 +94,7 @@ def _build_engine_output(
             out.final_stress_voigt = s
             # Reconstruct full 3x3 from Voigt convention (xx,yy,zz,yz,xz,xy)
             out.final_stress = np.array(
-                [[s[0], s[5], s[4]],
-                 [s[5], s[1], s[3]],
-                 [s[4], s[3], s[2]]]
+                [[s[0], s[5], s[4]], [s[5], s[1], s[3]], [s[4], s[3], s[2]]]
             )
         elif s.shape == (3, 3):
             out.final_stress = s
@@ -114,7 +112,9 @@ def _build_engine_output(
             if "forces" in step["results"]
         ]
         if "stresses" in trajectory[0]["results"]:
-            out.stresses = [np.array(step["results"]["stresses"]) for step in trajectory]
+            out.stresses = [
+                np.array(step["results"]["stresses"]) for step in trajectory
+            ]
         out.structures = [step["structure"] for step in trajectory]
         out.n_ionic_steps = len(trajectory)
     return out
@@ -124,25 +124,26 @@ def _build_engine_output(
 # Core calc functions (static/minimize and MD)
 # ---------------------------------------------------------------------------
 
+
 def ase_calc_structure(
     structure: Atoms,
     calc: Calculator,
-    optimizer_class: Optional[type] = BFGS,
-    optimizer_kwargs: Optional[dict[str, Any]] = None,
+    optimizer_class: type | None = BFGS,
+    optimizer_kwargs: dict[str, Any] | None = None,
     record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10_000,
     relax_cell: bool = False,
-    energy_convergence_tolerance: Optional[float] = None,
-    properties: Tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
+    energy_convergence_tolerance: float | None = None,
+    properties: tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
     write_to_disk: bool = False,
     working_directory: str = "calc_output",
-    initial_struct_path: Optional[str] = "initial_structure.xyz",
-    initial_results_path: Optional[str] = "initial_results.json",
-    traj_struct_path: Optional[str] = "trajectory.xyz",
-    traj_results_path: Optional[str] = "trajectory_results.json",
-    final_struct_path: Optional[str] = "final_structure.xyz",
-    final_results_path: Optional[str] = "final_results.json",
+    initial_struct_path: str | None = "initial_structure.xyz",
+    initial_results_path: str | None = "initial_results.json",
+    traj_struct_path: str | None = "trajectory.xyz",
+    traj_results_path: str | None = "trajectory_results.json",
+    final_struct_path: str | None = "final_structure.xyz",
+    final_results_path: str | None = "final_results.json",
     data_pickle: str = "job_data.pkl.gz",
 ) -> EngineOutput:
     """Relax (or single-point) an ASE Atoms object and return an EngineOutput."""
@@ -154,7 +155,10 @@ def ase_calc_structure(
 
     initial_res = _gather(atoms, properties)
     if write_to_disk and initial_struct_path:
-        ase_write(os.path.join(working_directory, initial_struct_path), _attach_props(atoms.copy(), initial_res))
+        ase_write(
+            os.path.join(working_directory, initial_struct_path),
+            _attach_props(atoms.copy(), initial_res),
+        )
     if write_to_disk and initial_results_path:
         with open(os.path.join(working_directory, initial_results_path), "w") as f:
             json.dump(initial_res, f, indent=2)
@@ -165,21 +169,31 @@ def ase_calc_structure(
         # Static
         snap = atoms.copy()
         snap_res = _gather(atoms, properties)
-        trajectory.append({"structure": _attach_props(snap, snap_res), "results": snap_res})
+        trajectory.append(
+            {"structure": _attach_props(snap, snap_res), "results": snap_res}
+        )
         converged = True
     else:
         # Relaxation
         if relax_cell:
             from ase.constraints import ExpCellFilter
+
             atoms_filtered = ExpCellFilter(atoms)
             optimizer = optimizer_class(atoms_filtered, **optimizer_kwargs)
 
             def record_step():
                 actual = atoms_filtered.atoms.copy()
                 snap_res = _gather(actual, properties)
-                trajectory.append({"structure": _attach_props(actual, snap_res), "results": snap_res})
+                trajectory.append(
+                    {"structure": _attach_props(actual, snap_res), "results": snap_res}
+                )
                 if write_to_disk and traj_struct_path:
-                    ase_write(os.path.join(working_directory, traj_struct_path), _attach_props(actual.copy(), snap_res), append=True)
+                    ase_write(
+                        os.path.join(working_directory, traj_struct_path),
+                        _attach_props(actual.copy(), snap_res),
+                        append=True,
+                    )
+
             optimizer.attach(record_step, interval=record_interval)
             converged = optimizer.run(fmax=fmax, steps=max_steps)
             atoms = atoms_filtered.atoms.copy()
@@ -189,14 +203,24 @@ def ase_calc_structure(
             def record_step():
                 snap = atoms.copy()
                 snap_res = _gather(atoms, properties)
-                trajectory.append({"structure": _attach_props(snap, snap_res), "results": snap_res})
+                trajectory.append(
+                    {"structure": _attach_props(snap, snap_res), "results": snap_res}
+                )
                 if write_to_disk and traj_struct_path:
-                    ase_write(os.path.join(working_directory, traj_struct_path), _attach_props(atoms.copy(), snap_res), append=True)
+                    ase_write(
+                        os.path.join(working_directory, traj_struct_path),
+                        _attach_props(atoms.copy(), snap_res),
+                        append=True,
+                    )
+
             optimizer.attach(record_step, interval=record_interval)
             converged = optimizer.run(fmax=fmax, steps=max_steps)
 
         if energy_convergence_tolerance and len(trajectory) >= 2:
-            ediff = abs(trajectory[-1]["results"]["energy"] - trajectory[-2]["results"]["energy"])
+            ediff = abs(
+                trajectory[-1]["results"]["energy"]
+                - trajectory[-2]["results"]["energy"]
+            )
             if ediff < energy_convergence_tolerance:
                 converged = True
 
@@ -212,7 +236,9 @@ def ase_calc_structure(
         with open(os.path.join(working_directory, traj_results_path), "w") as f:
             json.dump([step["results"] for step in trajectory], f, indent=2)
 
-    df = pd.DataFrame([{"structure": s["structure"], **s["results"]} for s in trajectory])
+    df = pd.DataFrame(
+        [{"structure": s["structure"], **s["results"]} for s in trajectory]
+    )
     df.to_pickle(os.path.join(working_directory, data_pickle), compression="gzip")
 
     return _build_engine_output(
@@ -228,15 +254,15 @@ def ase_md_calc_structure(
     calc: Calculator,
     md_input: CalcInputMD,
     record_interval: int = 1,
-    properties: Tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
+    properties: tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
     write_to_disk: bool = False,
     working_directory: str = "calc_output",
-    initial_struct_path: Optional[str] = "initial_structure.xyz",
-    initial_results_path: Optional[str] = "initial_results.json",
-    traj_struct_path: Optional[str] = "trajectory.xyz",
-    traj_results_path: Optional[str] = "trajectory_results.json",
-    final_struct_path: Optional[str] = "final_structure.xyz",
-    final_results_path: Optional[str] = "final_results.json",
+    initial_struct_path: str | None = "initial_structure.xyz",
+    initial_results_path: str | None = "initial_results.json",
+    traj_struct_path: str | None = "trajectory.xyz",
+    traj_results_path: str | None = "trajectory_results.json",
+    final_struct_path: str | None = "final_structure.xyz",
+    final_results_path: str | None = "final_results.json",
     data_pickle: str = "job_data.pkl.gz",
 ) -> EngineOutput:
     """Run MD with ASE using the CalcInputMD dataclass for ensemble settings."""
@@ -253,51 +279,80 @@ def ase_md_calc_structure(
 
     initial_res = _gather(atoms, properties)
     if write_to_disk and initial_struct_path:
-        ase_write(os.path.join(working_directory, initial_struct_path), _attach_props(atoms.copy(), initial_res))
+        ase_write(
+            os.path.join(working_directory, initial_struct_path),
+            _attach_props(atoms.copy(), initial_res),
+        )
     if write_to_disk and initial_results_path:
         with open(os.path.join(working_directory, initial_results_path), "w") as f:
             json.dump(initial_res, f, indent=2)
 
     T0 = md_input.initial_temperature or md_input.temperature
     if T0 > 0:
-        MaxwellBoltzmannDistribution(atoms, temperature_K=T0, rng=np.random.RandomState(md_input.seed))
+        MaxwellBoltzmannDistribution(
+            atoms, temperature_K=T0, rng=np.random.RandomState(md_input.seed)
+        )
 
     trajectory: list[dict[str, Any]] = []
 
     def record_step():
         snap = atoms.copy()
         snap_res = _gather(atoms, properties)
-        trajectory.append({"structure": _attach_props(snap, snap_res), "results": snap_res})
+        trajectory.append(
+            {"structure": _attach_props(snap, snap_res), "results": snap_res}
+        )
         if write_to_disk and traj_struct_path:
-            ase_write(os.path.join(working_directory, traj_struct_path), _attach_props(atoms.copy(), snap_res), append=True)
+            ase_write(
+                os.path.join(working_directory, traj_struct_path),
+                _attach_props(atoms.copy(), snap_res),
+                append=True,
+            )
 
-    dt = md_input.time_step * units.fs   # CalcInputMD.time_step is in fs
+    dt = md_input.time_step * units.fs  # CalcInputMD.time_step is in fs
     T = md_input.temperature
     ttime = md_input.thermostat_time_constant * units.fs
 
     if md_input.mode == "NVE":
         from ase.md.verlet import VelocityVerlet
+
         dyn = VelocityVerlet(atoms, dt)
     elif md_input.mode == "NVT":
         if md_input.thermostat == "nose-hoover":
             from ase.md.nvt import NVT
+
             dyn = NVT(atoms, dt, temperature_K=T, ttime=ttime)
         elif md_input.thermostat == "berendsen":
             dyn = NVTBerendsen(atoms, dt, temperature_K=T, taut=ttime)
         else:  # langevin or andersen → langevin
-            dyn = Langevin(atoms, dt, temperature_K=T, friction=1.0 / ttime,
-                           rng=np.random.RandomState(md_input.seed))
+            dyn = Langevin(
+                atoms,
+                dt,
+                temperature_K=T,
+                friction=1.0 / ttime,
+                rng=np.random.RandomState(md_input.seed),
+            )
     elif md_input.mode == "NPT":
         if md_input.pressure is None:
             raise ValueError("Pressure must be specified for NPT ensemble")
         P_bar = md_input.pressure / 1e5
         taup = md_input.pressure_damping_timescale * units.fs
         if md_input.thermostat == "nose-hoover":
-            dyn = NPT(atoms, dt, temperature_K=T, externalstress=P_bar, ttime=ttime, pfactor=taup)
+            dyn = NPT(
+                atoms,
+                dt,
+                temperature_K=T,
+                externalstress=P_bar,
+                ttime=ttime,
+                pfactor=taup,
+            )
         elif md_input.thermostat == "berendsen":
-            dyn = NPTBerendsen(atoms, dt, temperature_K=T, pressure_au=P_bar, taut=ttime, taup=taup)
+            dyn = NPTBerendsen(
+                atoms, dt, temperature_K=T, pressure_au=P_bar, taut=ttime, taup=taup
+            )
         else:
-            raise ValueError(f"NPT supports only 'nose-hoover' or 'berendsen', got {md_input.thermostat!r}")
+            raise ValueError(
+                f"NPT supports only 'nose-hoover' or 'berendsen', got {md_input.thermostat!r}"
+            )
     else:
         raise ValueError(f"Unknown MD mode: {md_input.mode!r}")
 
@@ -316,7 +371,9 @@ def ase_md_calc_structure(
         with open(os.path.join(working_directory, traj_results_path), "w") as f:
             json.dump([s["results"] for s in trajectory], f, indent=2)
 
-    df = pd.DataFrame([{"structure": s["structure"], **s["results"]} for s in trajectory])
+    df = pd.DataFrame(
+        [{"structure": s["structure"], **s["results"]} for s in trajectory]
+    )
     df.to_pickle(os.path.join(working_directory, data_pickle), compression="gzip")
 
     return _build_engine_output(
@@ -331,6 +388,7 @@ def ase_md_calc_structure(
 # ASEEngine — the user-facing class
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ASEEngine:
     """An :class:`pyiron_workflow_atomistics.engine.protocol.Engine` backed by ASE."""
@@ -342,14 +400,14 @@ class ASEEngine:
     optimizer_kwargs: dict[str, Any] = field(default_factory=dict)
     record_interval: int = 1
     max_steps: int = 10_000
-    properties: Tuple[str, ...] = ("energy", "forces", "stresses", "volume")
+    properties: tuple[str, ...] = ("energy", "forces", "stresses", "volume")
     write_to_disk: bool = False
-    initial_struct_path: Optional[str] = "initial_structure.xyz"
-    initial_results_path: Optional[str] = "initial_results.json"
-    traj_struct_path: Optional[str] = "trajectory.xyz"
-    traj_results_path: Optional[str] = "trajectory_results.json"
-    final_struct_path: Optional[str] = "final_structure.xyz"
-    final_results_path: Optional[str] = "final_results.json"
+    initial_struct_path: str | None = "initial_structure.xyz"
+    initial_results_path: str | None = "initial_results.json"
+    traj_struct_path: str | None = "trajectory.xyz"
+    traj_results_path: str | None = "trajectory_results.json"
+    final_struct_path: str | None = "final_structure.xyz"
+    final_results_path: str | None = "final_results.json"
     data_pickle: str = "job_data.pkl.gz"
 
     def get_calculate_fn(self, structure: Atoms):
@@ -367,24 +425,40 @@ class ASEEngine:
             data_pickle=self.data_pickle,
         )
         if isinstance(self.EngineInput, CalcInputStatic):
-            kwargs = {**common, "optimizer_class": None, "optimizer_kwargs": {},
-                      "record_interval": 1, "fmax": 0.0, "max_steps": 0}
+            kwargs = {
+                **common,
+                "optimizer_class": None,
+                "optimizer_kwargs": {},
+                "record_interval": 1,
+                "fmax": 0.0,
+                "max_steps": 0,
+            }
             return ase_calc_structure, kwargs
         if isinstance(self.EngineInput, CalcInputMinimize):
             mi = self.EngineInput
-            kwargs = {**common,
-                      "optimizer_class": self.optimizer_class,
-                      "optimizer_kwargs": self.optimizer_kwargs,
-                      "record_interval": self.record_interval,
-                      "fmax": mi.force_convergence_tolerance,
-                      "max_steps": self.max_steps if self.max_steps else mi.max_iterations,
-                      "relax_cell": mi.relax_cell,
-                      "energy_convergence_tolerance": mi.energy_convergence_tolerance}
+            kwargs = {
+                **common,
+                "optimizer_class": self.optimizer_class,
+                "optimizer_kwargs": self.optimizer_kwargs,
+                "record_interval": self.record_interval,
+                "fmax": mi.force_convergence_tolerance,
+                "max_steps": self.max_steps if self.max_steps else mi.max_iterations,
+                "relax_cell": mi.relax_cell,
+                "energy_convergence_tolerance": mi.energy_convergence_tolerance,
+            }
             return ase_calc_structure, kwargs
         if isinstance(self.EngineInput, CalcInputMD):
-            kwargs = {**common, "md_input": self.EngineInput, "record_interval": self.record_interval}
+            kwargs = {
+                **common,
+                "md_input": self.EngineInput,
+                "record_interval": self.record_interval,
+            }
             return ase_md_calc_structure, kwargs
-        raise TypeError(f"Unsupported EngineInput type: {type(self.EngineInput).__name__}")
+        raise TypeError(
+            f"Unsupported EngineInput type: {type(self.EngineInput).__name__}"
+        )
 
-    def with_working_directory(self, subdir: str) -> "ASEEngine":
-        return replace(self, working_directory=os.path.join(self.working_directory, subdir))
+    def with_working_directory(self, subdir: str) -> ASEEngine:
+        return replace(
+            self, working_directory=os.path.join(self.working_directory, subdir)
+        )

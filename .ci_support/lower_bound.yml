@@ -16,3 +16,13 @@ dependencies:
   - pymatgen =2024.8.8
   - pyiron_workflow =0.14.1
   - pyiron_snippets =0.1.0
+  - tqdm
+
+  # Test runners / notebook execution
+  - pytest
+  - nbformat
+  - nbclient
+
+  # PyPI-only deps (not on conda-forge)
+  - pip:
+    - lz-GB-code==0.1.0

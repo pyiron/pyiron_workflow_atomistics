@@ -80,7 +80,7 @@ class TestBulkFunctions(unittest.TestCase):
 
         # Check that only the a-axis changes
         original_cell = self.test_atoms.get_cell()
-        for i, struct in enumerate(structures):
+        for _i, struct in enumerate(structures):
             new_cell = struct.get_cell()
             # a-axis should change
             self.assertNotEqual(
@@ -240,9 +240,7 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_get_bulk_structure_with_parameters(self):
         """Test getting bulk structure with specific parameters."""
-        struct = get_bulk(
-            name="Al", crystalstructure="fcc", a=4.0, cubic=True
-        ).run()
+        struct = get_bulk(name="Al", crystalstructure="fcc", a=4.0, cubic=True).run()
 
         self.assertIsInstance(struct, Atoms)
         self.assertAlmostEqual(np.linalg.norm(struct.get_cell()[0]), 4.0, places=2)

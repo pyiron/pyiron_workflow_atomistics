@@ -15,7 +15,6 @@ grain boundaries: A first-principles study. Phys. Rev. Mater., 8, 073601.
 doi:10.1103/PhysRevMaterials.8.073601
 """
 
-
 import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms as ASEAtoms
@@ -232,7 +231,7 @@ def calculate_voids(
     # calculate rvv
     rlist = []
     rdist = []
-    for count, pos in enumerate(sys.atoms.positions):
+    for count, _pos in enumerate(sys.atoms.positions):
         if sys.atoms.types[count] == maxcomp:
             indices = np.array(
                 [sys.atoms.types[x] for x in sys.atoms.neighbors.index[count]]

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from typing import List
 
 import pyiron_workflow as pwf
 
@@ -11,7 +10,7 @@ from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dict
 
 
 @pwf.as_function_node("output_dirs")
-def get_subdirpaths(parent_dir: str, output_subdirs: List[str]) -> List[str]:
+def get_subdirpaths(parent_dir: str, output_subdirs: list[str]) -> list[str]:
     output_dirs = [os.path.join(parent_dir, sub) for sub in output_subdirs]
     return output_dirs
 

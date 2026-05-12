@@ -1,12 +1,11 @@
 import numpy as np
 import pyiron_workflow as pwf
+from gb_code.gb_generator import GB_character
 from pyiron_snippets.logger import logger
 from pyiron_workflow import Workflow
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
-
-from gb_code.gb_generator import GB_character
 
 
 def _axis_index_to_label(axis: int) -> str:
@@ -217,7 +216,7 @@ def get_realigned_structure(
 
 @pwf.as_function_node
 def get_gbstruct_from_gbcode(
-    axis=[1, 1, 0],
+    axis=None,
     basis="bcc",
     lattice_param=2.828,
     m=2,
@@ -236,6 +235,8 @@ def get_gbstruct_from_gbcode(
     Returns:
         A pymatgen Structure object with the specified GB.
     """
+    if axis is None:
+        axis = [1, 1, 0]
     my_gb = GB_character()
     my_gb.ParseGB(axis, basis, lattice_param, m, n, GB1)
     my_gb.CSL_Bicrystal_Atom_generator()

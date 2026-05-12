@@ -1,6 +1,6 @@
 """Surface energy workflow."""
 
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np
 import pyiron_workflow as pwf
@@ -51,7 +51,7 @@ def calculate_surface_energy(
     wf,
     bulk_structure: Atoms,
     engine: Engine,
-    miller_indices: Union[Tuple[int, int, int], Tuple[int, int, int, int]] = (1, 1, 1),
+    miller_indices: Union[tuple[int, int, int], tuple[int, int, int, int]] = (1, 1, 1),
     layers: int = 3,
     vacuum: float = 10.0,
     periodic: bool = True,

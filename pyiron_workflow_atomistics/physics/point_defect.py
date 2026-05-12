@@ -1,4 +1,5 @@
 """Point-defect formation energies (vacancy, substitutional)."""
+
 from __future__ import annotations
 
 import pyiron_workflow as pwf
@@ -38,7 +39,7 @@ def get_vacancy_formation_energy(
     structure: Atoms,
     engine: Engine,
     remove_atom_index: int = 0,
-    min_dimensions: list = [12, 12, 12],
+    min_dimensions: list = None,
     vacancy_subdir: str = "vacancy",
     supercell_subdir: str = "supercell",
 ):
@@ -48,6 +49,8 @@ def get_vacancy_formation_energy(
     --------
     See ``notebooks/vacancy_formation_energy.ipynb``.
     """
+    if min_dimensions is None:
+        min_dimensions = [12, 12, 12]
     wf.structure_supercell = create_supercell_with_min_dimensions(
         structure, min_dimensions=min_dimensions
     )
@@ -88,13 +91,15 @@ def get_substitutional_formation_energy(
     new_symbol: str = "Ni",
     mu_solute: float = 0.0,
     mu_host: float = 0.0,
-    min_dimensions: list = [12, 12, 12],
+    min_dimensions: list = None,
     sub_subdir: str = "substitutional",
     supercell_subdir: str = "supercell",
 ):
     """Dilute substitutional formation energy:
     ``E_f = E_sub - E_supercell - mu_solute + mu_host``.
     """
+    if min_dimensions is None:
+        min_dimensions = [12, 12, 12]
     wf.structure_supercell = create_supercell_with_min_dimensions(
         structure, min_dimensions=min_dimensions
     )

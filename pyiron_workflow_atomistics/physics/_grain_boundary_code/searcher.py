@@ -1,13 +1,12 @@
 from math import degrees
 from multiprocessing import Pool, cpu_count
 
+import gb_code.csl_generator as csl
 import numpy as np
 import pandas as pd
+from gb_code.csl_generator import get_theta_m_n_list
 from pyiron_snippets.logger import logger
 from tqdm import tqdm
-
-import gb_code.csl_generator as csl
-from gb_code.csl_generator import get_theta_m_n_list
 
 
 def _construct_gb_for_sigma(args):
@@ -330,23 +329,25 @@ def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     def is_negation(t1, t2):
         return all(x == -y for x, y in zip(t1, t2))
 
-    for sigma, group in tqdm(df.groupby("Sigma"), desc="Removing negative duplicates"):
+    for _sigma, group in tqdm(df.groupby("Sigma"), desc="Removing negative duplicates"):
         processed = set()
         for idx1, row1 in group.iterrows():
             if idx1 in processed:
                 continue
             for idx2, row2 in group.iterrows():
-                if idx1 != idx2 and idx2 not in processed:
-                    if (
+                if (
+                    idx1 != idx2
+                    and idx2 not in processed
+                    and (
                         is_negation(row1["GB1"], row2["GB1"])
                         and is_negation(row1["GB2"], row2["GB2"])
                         and row1["n_atoms"] == row2["n_atoms"]
-                    ):
-
-                        rows_to_drop.add(idx2)
-                        processed.add(idx1)
-                        processed.add(idx2)
-                        break  # Remove only one of each mirrored pair
+                    )
+                ):
+                    rows_to_drop.add(idx2)
+                    processed.add(idx1)
+                    processed.add(idx2)
+                    break  # Remove only one of each mirrored pair
 
     return df.drop(rows_to_drop)
 
@@ -454,7 +455,9 @@ def _get_gbcode_df_multiple_axes(
 
     return pd.concat(all_results, ignore_index=True)
 
+
 import pyiron_workflow as pwf
+
 
 @pwf.as_function_node("gb_code_df")
 def get_gb_code_df(
@@ -469,11 +472,14 @@ def get_gb_code_df(
     equil_volume_per_atom: float = None,
 ) -> pd.DataFrame:
 
-    gb_code_df = _get_gbcode_df_multiple_axes(axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers)
+    gb_code_df = _get_gbcode_df_multiple_axes(
+        axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers
+    )
 
     if deduplicate:
         gb_code_df = _deduplicate_gbcode_df_miller_indices_equivalent(gb_code_df)
     return gb_code_df
+
 
 @pwf.as_function_node("gb_code_df_with_structures")
 def get_gb_code_df_with_structures(
@@ -494,20 +500,30 @@ def get_gb_code_df_with_structures(
 ) -> pd.DataFrame:
     if gb_code_df is not None:
         if equil_volume_per_atom is None | lattice_param is None:
-            raise ValueError("If gb_code_df is provided, equil_volume_per_atom and lattice_param must be provided")
-    if gb_code_df is None and any(x is None for x in [axes_list, basis, sigma_limit, lim_plane_index, max_atoms]):
-        raise ValueError("Either gb_code_df or (axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers) must be provided")
+            raise ValueError(
+                "If gb_code_df is provided, equil_volume_per_atom and lattice_param must be provided"
+            )
+    if gb_code_df is None and any(
+        x is None for x in [axes_list, basis, sigma_limit, lim_plane_index, max_atoms]
+    ):
+        raise ValueError(
+            "Either gb_code_df or (axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers) must be provided"
+        )
     if gb_code_df is None:
-        gb_code_df = _get_gbcode_df_multiple_axes(axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers)
+        gb_code_df = _get_gbcode_df_multiple_axes(
+            axes_list, basis, sigma_limit, lim_plane_index, max_atoms, max_workers
+        )
     if deduplicate:
         gb_code_df = _deduplicate_gbcode_df_miller_indices_equivalent(gb_code_df)
-    gb_code_df_with_structures = _get_gbcode_df_with_structures(df=gb_code_df,
-                                                                basis=basis,
-                                                                lattice_param=lattice_param,
-                                                                equil_volume_per_atom=equil_volume_per_atom,
-                                                                element=element,
-                                                                min_inplane_gb_length=min_inplane_gb_length,
-                                                                req_length_grain=req_length_grain,
-                                                                grain_length_axis=grain_length_axis,
-                                                                max_workers=max_workers)
+    gb_code_df_with_structures = _get_gbcode_df_with_structures(
+        df=gb_code_df,
+        basis=basis,
+        lattice_param=lattice_param,
+        equil_volume_per_atom=equil_volume_per_atom,
+        element=element,
+        min_inplane_gb_length=min_inplane_gb_length,
+        req_length_grain=req_length_grain,
+        grain_length_axis=grain_length_axis,
+        max_workers=max_workers,
+    )
     return gb_code_df_with_structures

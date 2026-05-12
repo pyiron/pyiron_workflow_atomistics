@@ -1,4 +1,5 @@
 """Structure manipulation — engine-agnostic builders, transformations, defects."""
+
 from .build import create_surface_slab, get_bulk
 from .defects import create_vacancy, substitutional_swap
 from .transform import (

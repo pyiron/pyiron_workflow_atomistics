@@ -12,9 +12,11 @@ class TestGBCode(unittest.TestCase):
         return gb
 
     def test_to_pymatgen_sets_grain_ids(self):
-        structure = self._get_sigma5_100_fcc().build(
-            dim=[1, 1, 1], gb_normal="z"
-        ).to_pymatgen(element="Al")
+        structure = (
+            self._get_sigma5_100_fcc()
+            .build(dim=[1, 1, 1], gb_normal="z")
+            .to_pymatgen(element="Al")
+        )
 
         self.assertGreater(len(structure), 0)
         self.assertEqual(set(structure.site_properties["grain_id"]), {1, 2})
@@ -22,9 +24,11 @@ class TestGBCode(unittest.TestCase):
         self.assertGreater(structure.lattice.c, 0)
 
     def test_to_ase_sets_arrays_and_info(self):
-        atoms = self._get_sigma5_100_fcc().build(
-            dim=[1, 1, 1], gb_normal="y"
-        ).to_ase(element="Al")
+        atoms = (
+            self._get_sigma5_100_fcc()
+            .build(dim=[1, 1, 1], gb_normal="y")
+            .to_ase(element="Al")
+        )
 
         self.assertGreater(len(atoms), 0)
         self.assertEqual(set(atoms.arrays["grain_id"]), {1, 2})
@@ -36,7 +40,9 @@ class TestGBCode(unittest.TestCase):
         gb.build(dim=[1, 1, 1])
 
         shifts = generate_shifts(gb, a=2, b=2)
-        structures = get_all_shifted_structures(gb, a=2, b=2, output="ase", element="Al")
+        structures = get_all_shifted_structures(
+            gb, a=2, b=2, output="ase", element="Al"
+        )
 
         self.assertEqual(len(shifts), 4)
         self.assertEqual(len(structures), 4)

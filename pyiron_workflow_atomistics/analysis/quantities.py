@@ -1,4 +1,5 @@
 """Derived scalar quantities (per-atom values, etc.)."""
+
 from __future__ import annotations
 
 import pyiron_workflow as pwf

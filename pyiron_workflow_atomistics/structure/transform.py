@@ -42,17 +42,17 @@ def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     new_atoms.center(vacuum=vacuum_length / 2, axis=axis_idx)
     return new_atoms
 
+
 @pwf.as_function_node("supercell")
-def create_supercell(
-    base_structure: Atoms, supercell_repeats: tuple
-) -> Atoms:
+def create_supercell(base_structure: Atoms, supercell_repeats: tuple) -> Atoms:
     # Create the supercell
     supercell = base_structure.repeat(supercell_repeats)
     return supercell
 
+
 @pwf.as_function_node("supercell")
 def create_supercell_with_min_dimensions(
-    base_structure: Atoms, min_dimensions=[6, 6, None]
+    base_structure: Atoms, min_dimensions=None
 ) -> Atoms:
     """
     Expand a base ASE structure into a supercell so that each cell vector
@@ -73,6 +73,8 @@ def create_supercell_with_min_dimensions(
         so that its cell lengths are >= the given minima.
     """
     # Get current cell vectors and their lengths
+    if min_dimensions is None:
+        min_dimensions = [6, 6, None]
     cell = base_structure.get_cell()
     lengths = np.linalg.norm(cell, axis=1)
 

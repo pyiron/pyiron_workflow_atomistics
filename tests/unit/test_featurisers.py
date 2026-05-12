@@ -115,7 +115,9 @@ class TestFeaturisersFunctions(unittest.TestCase):
         # Create a structure with only 2 atoms
         simple_atoms = Atoms("H2", positions=[[0, 0, 0], [1, 0, 0]])
 
-        result = featurisers_module.distance_matrix_site_featuriser(simple_atoms, 0, k=4)
+        result = featurisers_module.distance_matrix_site_featuriser(
+            simple_atoms, 0, k=4
+        )
 
         # Should still work, but with NaN values for missing neighbors
         self.assertIn("Dist_knn_1", result)

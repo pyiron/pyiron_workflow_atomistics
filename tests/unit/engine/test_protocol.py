@@ -1,9 +1,8 @@
 """Tests for the Engine Protocol, EngineOutput dataclass, and run() node."""
+
 from __future__ import annotations
 
-import pickle
-from dataclasses import dataclass, field
-from typing import Any, Callable
+from dataclasses import dataclass
 
 import numpy as np
 import pytest
@@ -22,7 +21,7 @@ def test_engine_protocol_is_runtime_checkable():
         def get_calculate_fn(self, structure: Atoms):
             return (lambda **kw: None, {})
 
-        def with_working_directory(self, subdir: str) -> "FakeEngine":
+        def with_working_directory(self, subdir: str) -> FakeEngine:
             return FakeEngine(working_directory=f"{self.working_directory}/{subdir}")
 
     assert isinstance(FakeEngine(), Engine)
@@ -76,9 +75,10 @@ def test_run_node_dispatches_to_engine():
         def get_calculate_fn(self, structure: Atoms):
             def fn(structure, **kwargs):
                 return sentinel_output
+
             return fn, {"some": "kwarg"}
 
-        def with_working_directory(self, subdir: str) -> "StubEngine":
+        def with_working_directory(self, subdir: str) -> StubEngine:
             return StubEngine(working_directory=f"./{subdir}")
 
     out = run.node_function(structure=structure, engine=StubEngine())

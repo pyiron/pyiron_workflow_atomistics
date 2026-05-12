@@ -3,9 +3,10 @@
 The Engine Protocol defines the contract every compute engine (ASE, VASP,
 LAMMPS, ...) must satisfy so physics workflows can use them interchangeably.
 """
+
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 import numpy as np
@@ -39,12 +40,12 @@ class Engine(Protocol):
 
     def get_calculate_fn(
         self, structure: Atoms
-    ) -> tuple[Callable[..., "EngineOutput"], dict[str, Any]]:
+    ) -> tuple[Callable[..., EngineOutput], dict[str, Any]]:
         """Return ``(callable, kwargs)``. The callable will be invoked as
         ``callable(structure=structure, **kwargs)`` and must return an
         :class:`EngineOutput`."""
 
-    def with_working_directory(self, subdir: str) -> "Engine":
+    def with_working_directory(self, subdir: str) -> Engine:
         """Return a *copy* of this engine whose ``working_directory`` is
         ``os.path.join(self.working_directory, subdir)``.
 
@@ -91,8 +92,8 @@ class EngineOutput:
     converged: bool
 
     final_forces: np.ndarray | None = None
-    final_stress: np.ndarray | None = None              # (3, 3)
-    final_stress_voigt: np.ndarray | None = None        # (6,)
+    final_stress: np.ndarray | None = None  # (3, 3)
+    final_stress_voigt: np.ndarray | None = None  # (6,)
     final_volume: float | None = None
     final_magmoms: np.ndarray | None = None
 

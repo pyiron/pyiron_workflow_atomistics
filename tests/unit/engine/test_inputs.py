@@ -1,7 +1,6 @@
 """Tests for the physics-level engine input dataclasses."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 
 def test_calc_input_static_is_empty_dataclass():

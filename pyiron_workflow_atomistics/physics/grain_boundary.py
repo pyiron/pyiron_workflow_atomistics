@@ -1,7 +1,6 @@
 """Grain-boundary workflows: pure_gb_study, cleavage_study, segregation_study."""
 
 import os
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -9,9 +8,13 @@ import pyiron_workflow as pwf
 from pyiron_workflow import Workflow
 from pyiron_workflow.api import for_node
 
-from pyiron_workflow_atomistics.engine import Engine, run, subengine, subdir_path
-from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
-from pyiron_workflow_atomistics._internal.engine_output import extract_outputs_from_EngineOutputs
+from pyiron_workflow_atomistics._internal.engine_output import (
+    extract_outputs_from_EngineOutputs,
+)
+from pyiron_workflow_atomistics.engine import Engine, run, subdir_path, subengine
+from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import (
+    axis_to_index,
+)
 
 
 @pwf.as_function_node
@@ -953,7 +956,7 @@ def cleave_gb_structure(
 def get_cleavage_calc_names(parent_dir, cleavage_planes):
     folder_name_list = []
     for plane in cleavage_planes:
-        calc_foldername = f"{os.path.basename(parent_dir)}_cp_{np.round(plane,3)}"
+        calc_foldername = f"{os.path.basename(parent_dir)}_cp_{np.round(plane, 3)}"
         folder_name_list.append(os.path.join(parent_dir, calc_foldername))
     return folder_name_list
 
@@ -962,7 +965,9 @@ def get_cleavage_calc_names(parent_dir, cleavage_planes):
 def get_results_df(
     df, cleavage_coords, cleaved_structures, uncleaved_energy, cleavage_axis: str = "c"
 ):
-    from pyiron_workflow_atomistics._internal.engine_output import extract_outputs_from_EngineOutputs
+    from pyiron_workflow_atomistics._internal.engine_output import (
+        extract_outputs_from_EngineOutputs,
+    )
 
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=df.engine_output,
@@ -1256,7 +1261,9 @@ def _get_surface_energy(total_energy_gb_vac, total_energy_gb_novac, area):
 
 @pwf.api.as_function_node("area")
 def _get_area(gb_with_vacuum_rel, axis="c"):
-    from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
+    from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import (
+        axis_to_index,
+    )
 
     axis = axis_to_index(axis)
     area = gb_with_vacuum_rel.cell.volume / gb_with_vacuum_rel.cell[axis][axis]
@@ -1290,7 +1297,7 @@ def pure_gb_study(
     length_interpolate_min_n_points=5,
     gb_normal_axis="c",
     vacuum_length=20,
-    min_inplane_cell_lengths=[6, 6, None],
+    min_inplane_cell_lengths=None,
     featuriser=voronoi_site_featuriser,
     approx_frac=0.5,
     tolerance=5.0,
@@ -1302,13 +1309,13 @@ def pure_gb_study(
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
 ):
+    if min_inplane_cell_lengths is None:
+        min_inplane_cell_lengths = [6, 6, None]
     wf.length_engine = subengine(engine=engine, subdir="gb_length_optimiser")
     wf.gb_vacuum_engine = subengine(engine=engine, subdir="gb_with_vacuum_rel")
     wf.gb_seg_engine = subengine(engine=engine, subdir="gb_seg_supercell")
     wf.cleavage_engine = subengine(engine=engine, subdir="cleavage_study")
-    wf.cleavage_static_engine = subengine(
-        engine=static_engine, subdir="cleavage_study"
-    )
+    wf.cleavage_static_engine = subengine(engine=static_engine, subdir="cleavage_study")
 
     wf.gb_length_optimiser = full_gb_length_optimization(
         gb_structure=gb_structure,
@@ -1355,7 +1362,10 @@ def pure_gb_study(
         wf.gb_length_optimiser.outputs.gb_structure_final_energy,
         wf.area,
     )
-    from pyiron_workflow_atomistics.analysis.gb_plane import find_gb_plane, plot_gb_plane
+    from pyiron_workflow_atomistics.analysis.gb_plane import (
+        find_gb_plane,
+        plot_gb_plane,
+    )
 
     wf.gb_plane_extractor = find_gb_plane(
         atoms=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,

@@ -1,7 +1,6 @@
 """Constructors for crystalline / surface structures."""
-from __future__ import annotations
 
-from typing import Optional, Tuple, Union
+from __future__ import annotations
 
 import pyiron_workflow as pwf
 from ase import Atoms
@@ -12,16 +11,16 @@ from ase.build import surface as ase_surface
 @pwf.as_function_node("equil_struct")
 def get_bulk(
     name: str,
-    crystalstructure: Optional[str] = None,
-    a: Optional[float] = None,
-    b: Optional[float] = None,
-    c: Optional[float] = None,
-    alpha: Optional[float] = None,
-    covera: Optional[float] = None,
-    u: Optional[float] = None,
+    crystalstructure: str | None = None,
+    a: float | None = None,
+    b: float | None = None,
+    c: float | None = None,
+    alpha: float | None = None,
+    covera: float | None = None,
+    u: float | None = None,
     orthorhombic: bool = False,
     cubic: bool = False,
-    basis: Optional[list] = None,
+    basis: list | None = None,
 ) -> Atoms:
     """Build a bulk crystal via ``ase.build.bulk``.
 
@@ -50,7 +49,7 @@ def get_bulk(
 @pwf.as_function_node("surface_slab")
 def create_surface_slab(
     bulk_structure: Atoms,
-    miller_indices: Union[Tuple[int, int, int], Tuple[int, int, int, int]] = (1, 1, 1),
+    miller_indices: tuple[int, int, int] | tuple[int, int, int, int] = (1, 1, 1),
     layers: int = 3,
     vacuum: float = 10.0,
     periodic: bool = True,

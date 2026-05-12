@@ -14,12 +14,13 @@ def voronoi_site_featuriser(atoms: Atoms, site_index: int) -> dict:
     distances = [poly[k]["face_dist"] for k in poly]
     areas = [poly[k]["area"] for k in poly]
 
-    stats = lambda arr, name: {
-        f"{name}_std": np.std(arr),
-        f"{name}_mean": np.mean(arr),
-        f"{name}_min": np.min(arr),
-        f"{name}_max": np.max(arr),
-    }
+    def stats(arr, name):
+        return {
+            f"{name}_std": np.std(arr),
+            f"{name}_mean": np.mean(arr),
+            f"{name}_min": np.min(arr),
+            f"{name}_max": np.max(arr),
+        }
 
     out = {
         "VorNN_CoordNo": coord_no,
@@ -50,7 +51,7 @@ def distance_matrix_site_featuriser(atoms: Atoms, site_index: int, k: int = 6) -
     else:
         knn = np.pad(dists_sorted, (0, k - len(dists_sorted)), constant_values=np.nan)
 
-    feats = {f"Dist_knn_{i+1}": float(d) for i, d in enumerate(knn)}
+    feats = {f"Dist_knn_{i + 1}": float(d) for i, d in enumerate(knn)}
     feats.update(
         {
             "Dist_min": float(dists_sorted.min()),
@@ -114,10 +115,7 @@ def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=Tru
     """
     A = np.asarray(A, dtype=np.float64)
     n = A.shape[0]
-    if ids is None:
-        ids = np.arange(n)
-    else:
-        ids = np.asarray(ids)
+    ids = np.arange(n) if ids is None else np.asarray(ids)
 
     # Normalize rows (cosine = dot of normalized rows)
     norms = np.linalg.norm(A, axis=1, keepdims=True)
@@ -174,8 +172,6 @@ def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=Tru
         sames.append([ids[m] for m in same])
 
     return pd.DataFrame({"rep": reps, "same": sames})
-
-
 
 
 def pca_whiten(

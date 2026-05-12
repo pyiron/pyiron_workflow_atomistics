@@ -8,7 +8,9 @@ from ase import Atoms
 from ase.atoms import Atom
 from pyiron_snippets.logger import logger
 
-from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import axis_to_index
+from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import (
+    axis_to_index,
+)
 
 
 @pwf.as_function_node("atom")
@@ -537,8 +539,6 @@ def get_sites_on_plane(
         ].tolist()
 
     return matched_indices
-
-
 
 
 def plot_structure_2d(

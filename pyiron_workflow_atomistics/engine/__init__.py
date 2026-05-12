@@ -7,9 +7,10 @@ Public API:
 
 Internal helpers live in ``pyiron_workflow_atomistics._internal``.
 """
-from .protocol import Engine, EngineOutput, run, subengine, subdir_path
-from .inputs import CalcInputStatic, CalcInputMinimize, CalcInputMD
+
 from .ase import ASEEngine
+from .inputs import CalcInputMD, CalcInputMinimize, CalcInputStatic
+from .protocol import Engine, EngineOutput, run, subdir_path, subengine
 
 __all__ = [
     "Engine",
