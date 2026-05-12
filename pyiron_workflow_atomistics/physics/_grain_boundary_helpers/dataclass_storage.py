@@ -19,7 +19,6 @@ class FindGBPlaneInput:
     gb_axis: str = "c"
     approx_frac: float = 0.5
     tolerance: float = 5.0
-    bulk_offset: float = 10.0
     slab_thickness: float = 2.0
     featuriser_kwargs: dict = field(default_factory=dict)
     n_bulk: int = 10

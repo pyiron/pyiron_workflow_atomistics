@@ -51,7 +51,6 @@ def find_gb_plane(
     axis: str = "c",
     approx_frac: float | None = None,
     tolerance: float = 5.0,
-    bulk_offset: float = 10.0,
     slab_thickness: float = 2.0,
     featuriser_kwargs: dict | None = None,
     n_bulk: int = 10,
@@ -74,10 +73,10 @@ def find_gb_plane(
         Rough fractional GB location (default = mean(frac coords)).
     tolerance : float
         Half-thickness (Å) around approx_frac for GB window.
-    bulk_offset : float
-        Distance (Å) from approx_frac to centre bulk sampling slabs.
     slab_thickness : float
-        Half-thickness (Å) of each bulk sampling slab.
+        Half-thickness (Å) of each bulk sampling slab. The slabs are
+        always centred at fractional coordinates 0.25 and 0.75 along
+        the GB-normal axis.
     featuriser_kwargs : dict, optional
     n_bulk : int
         Max number of bulk atoms to sample for template.
@@ -122,23 +121,34 @@ def find_gb_plane(
     if approx_frac is None:
         approx_frac = fracs.mean()
 
-    # 3) masks for GB window and bulk slabs (in fractional units)
+    # 3) masks for GB window and bulk slabs (in fractional units).
+    # Bulk regions are pinned to the geometric quarter-points (frac=0.25
+    # and frac=0.75) of the periodic cell along the GB normal: those are
+    # the points maximally distant from both the GB (~0.5) and its
+    # periodic image (~0/~1). This is deterministic by construction.
     tol_frac = tolerance / cell_len
-    off_frac = bulk_offset / cell_len
     slab_frac = slab_thickness / cell_len
 
     sel_mask = np.abs(fracs - approx_frac) <= tol_frac
     sel_indices = np.where(sel_mask)[0]
 
-    bulk1 = np.abs(fracs - (approx_frac - off_frac)) <= slab_frac
-    bulk2 = np.abs(fracs - (approx_frac + off_frac)) <= slab_frac
+    bulk1 = np.abs(fracs - 0.25) <= slab_frac
+    bulk2 = np.abs(fracs - 0.75) <= slab_frac
     bulk_all = np.where(bulk1 | bulk2)[0]
+    if bulk_all.size == 0:
+        raise ValueError(
+            "find_gb_plane: no bulk atoms found in the quarter-point slabs "
+            f"(slab_thickness={slab_thickness} A around frac=0.25, 0.75 in a "
+            f"cell of length {cell_len:.2f} A). Increase slab_thickness or "
+            "supply a larger cell."
+        )
 
-    # 4) sample bulk indices (up to n_bulk)
+    # 4) cap bulk indices at n_bulk; pick the lowest axial-coord atoms so the
+    # template — and therefore everything downstream — is deterministic.
     if len(bulk_all) <= n_bulk:
         bulk_indices = bulk_all
     else:
-        bulk_indices = np.random.choice(bulk_all, n_bulk, replace=False)
+        bulk_indices = bulk_all[np.argsort(fracs[bulk_all])][:n_bulk]
 
     # 5) build bulk template (mean of feature‐vectors)
     feats_bulk = [
@@ -466,7 +476,6 @@ def plot_gb_plane(
         os.makedirs(working_directory, exist_ok=True)
         fig.savefig(os.path.join(working_directory, save_filename), dpi=dpi)
 
-    plt.show()
     return fig, ax
 
 
@@ -619,5 +628,4 @@ def plot_structure_2d(
     else:
         plt.tight_layout()
 
-    plt.show()
     return fig, ax

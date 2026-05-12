@@ -19,12 +19,12 @@ def extract_outputs_from_EngineOutputs(
     keys
         Attribute names to extract from each output.
     only_converged
-        If True (default), skip outputs whose ``convergence`` attribute is
+        If True (default), skip outputs whose ``converged`` attribute is
         falsy or missing.
     """
     extracted: dict[str, list] = {key: [] for key in keys}
     for output in engine_outputs:
-        if only_converged and not getattr(output, "convergence", False):
+        if only_converged and not getattr(output, "converged", False):
             continue
         for key in keys:
             extracted[key].append(getattr(output, key, None))
