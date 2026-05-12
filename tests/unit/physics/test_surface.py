@@ -32,7 +32,9 @@ def test_calculate_surface_energy_runs(tmp_path):
     # EMT Cu(111) is ~1.0 J/m^2; DFT reports ~1.5. Bracket generously but
     # keep the lower bound positive so the slab_novac-as-bulk-reference
     # regression (which produced a sign-flipped result) cannot recur.
-    assert 0.3 < se < 3.0, f"Cu(111) EMT surface energy out of expected range: {se} J/m^2"
+    assert (
+        0.3 < se < 3.0
+    ), f"Cu(111) EMT surface energy out of expected range: {se} J/m^2"
 
 
 @pytest.mark.slow
