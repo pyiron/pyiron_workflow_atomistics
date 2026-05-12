@@ -15,21 +15,35 @@ from pyiron_workflow_atomistics.structure.transform import (
 )
 
 
+@pwf.as_function_node("n_atoms")
+def _count_atoms(structure: Atoms) -> int:
+    n_atoms = len(structure)
+    return n_atoms
+
+
 @pwf.as_function_node("formation_energy")
 def calculate_vacancy_formation_energy(
-    vacancy_energy: float, supercell_energy: float
+    vacancy_energy: float,
+    supercell_energy: float,
+    n_atoms_supercell: int,
 ) -> float:
-    """Vacancy formation energy as the bare difference (preserves the
-    existing semantics in ``bulk_defect/vacancy.py``).
+    """Vacancy formation energy with the correct (N−1)/N normalisation.
 
-    NOTE: the textbook formula uses the per-atom chemical potential
-    ``mu_bulk`` rather than the bulk supercell energy
-    (E_f = E_vac − (N−1)·mu_bulk). The current macro intentionally keeps
-    the simpler ``vacancy − supercell`` form for backwards compatibility;
-    switching to the (N−1)/N normalisation is tracked as a separate
-    physics improvement — out of scope for the cleanup.
+    .. math:: E_\\mathrm{f} = E_\\mathrm{vac} - \\frac{N-1}{N} E_\\mathrm{bulk}
+
+    where ``E_bulk`` is the perfect-supercell total energy with ``N`` atoms,
+    and ``E_vac`` is the supercell energy with one atom removed. Equivalent
+    to the textbook form ``E_vac − (N−1)·mu_bulk`` where
+    ``mu_bulk = E_bulk / N``.
+
+    The previous bare ``E_vac − E_bulk`` form was off by exactly ``mu_bulk``
+    (~3.7 eV/atom for typical foundation MLIPs in DFT-PBE; ~0.005 eV/atom
+    for EMT, which is why the bug was invisible against classical
+    references).
     """
-    formation_energy = vacancy_energy - supercell_energy
+    formation_energy = (
+        vacancy_energy - (n_atoms_supercell - 1) / n_atoms_supercell * supercell_energy
+    )
     return formation_energy
 
 
@@ -39,7 +53,7 @@ def get_vacancy_formation_energy(
     structure: Atoms,
     engine: Engine,
     remove_atom_index: int = 0,
-    min_dimensions: list = None,
+    min_dimensions: list | None = None,
     vacancy_subdir: str = "vacancy",
     supercell_subdir: str = "supercell",
 ):
@@ -65,9 +79,11 @@ def get_vacancy_formation_energy(
     wf.vacancy_calc = run(
         wf.structure_with_vacancy, engine=wf.vacancy_engine, label="vacancy_calc"
     )
+    wf.n_atoms_supercell = _count_atoms(wf.structure_supercell)
     wf.vacancy_formation_energy = calculate_vacancy_formation_energy(
         vacancy_energy=wf.vacancy_calc.outputs.engine_output.final_energy,
         supercell_energy=wf.supercell_calc.outputs.engine_output.final_energy,
+        n_atoms_supercell=wf.n_atoms_supercell,
     )
     return wf.supercell_calc, wf.vacancy_calc, wf.vacancy_formation_energy
 
@@ -91,7 +107,7 @@ def get_substitutional_formation_energy(
     new_symbol: str = "Ni",
     mu_solute: float = 0.0,
     mu_host: float = 0.0,
-    min_dimensions: list = None,
+    min_dimensions: list | None = None,
     sub_subdir: str = "substitutional",
     supercell_subdir: str = "supercell",
 ):
