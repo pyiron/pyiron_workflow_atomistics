@@ -136,7 +136,7 @@ def subdir_path(engine: Engine, subdir: str) -> str:
 
 
 @pwf.as_function_node("engine_output")
-def run(structure: Atoms, engine: Engine) -> EngineOutput:
+def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     """Execute ``engine`` on ``structure``.
 
     The one node every physics workflow uses to compute things.
@@ -145,13 +145,13 @@ def run(structure: Atoms, engine: Engine) -> EngineOutput:
     --------
     >>> from ase.build import bulk
     >>> from ase.calculators.emt import EMT
-    >>> from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMinimize, run
+    >>> from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMinimize, calculate
     >>> engine = ASEEngine(
     ...     EngineInput=CalcInputMinimize(force_convergence_tolerance=0.05),
     ...     calculator=EMT(),
     ...     working_directory="./_demo",
     ... )
-    >>> out = run.node_function(bulk("Cu", "fcc", a=3.6, cubic=True), engine)  # doctest: +SKIP
+    >>> out = calculate.node_function(bulk("Cu", "fcc", a=3.6, cubic=True), engine)  # doctest: +SKIP
     """
     fn, kwargs = engine.get_calculate_fn(structure)
     return fn(structure=structure, **kwargs)
