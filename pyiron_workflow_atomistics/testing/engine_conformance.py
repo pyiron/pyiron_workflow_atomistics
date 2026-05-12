@@ -14,6 +14,7 @@ The class needs no `__init__`; pytest discovers methods directly.
 from __future__ import annotations
 
 import os
+import pickle
 
 from dataclasses import is_dataclass
 
@@ -66,3 +67,13 @@ class EngineConformanceTests:
         )
         # Same dataclass type
         assert type(sub) is type(eng)
+
+    def test_pickleable(self, tmp_path):
+        """Engines must survive pickle round-trip — workflows are
+        checkpointed to disk and may be resubmitted to SLURM."""
+        eng = type(self).engine_factory(tmp_path)
+        roundtrip = pickle.loads(pickle.dumps(eng))
+        assert roundtrip.working_directory == eng.working_directory, (
+            "Pickle round-trip lost or corrupted working_directory"
+        )
+        assert type(roundtrip) is type(eng)
