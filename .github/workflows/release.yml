@@ -2,17 +2,15 @@
 name: Release
 
 on:
-  # pull_request:
+#  pull_request:
   release:
     types: [ published ]
 
-
-
 jobs:
   pyiron:
-    uses: pyiron/actions/.github/workflows/pyproject-release.yml@actions-4.0.8
+    uses: ./.github/workflows/pyproject-release.yml
     secrets: inherit
     with:
       semantic-upper-bound: 'minor'
       lower-bound-yaml: '.ci_support/lower_bound.yml'
-      # publish-to-pypi: true
+      pypi-to-conda-name-map-file: '.github/actions/.support/pypi_vs_conda_names.json'

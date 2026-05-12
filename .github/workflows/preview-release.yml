@@ -11,8 +11,10 @@ on:
 
 jobs:
   pyiron:
-    uses: pyiron/actions/.github/workflows/pyproject-release.yml@actions-4.0.1
+    uses: ./.github/workflows/pyproject-release.yml
     secrets: inherit
     with:
       semantic-upper-bound: 'minor'
+      lower-bound-yaml: '.ci_support/lower_bound.yml'
+      pypi-to-conda-name-map-file: '.github/actions/.support/pypi_vs_conda_names.json'
       publish-to-pypi: false
