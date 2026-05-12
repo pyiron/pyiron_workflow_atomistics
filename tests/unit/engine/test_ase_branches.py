@@ -72,15 +72,6 @@ def test_ase_calc_structure_static_path_records_one_frame(tmp_path):
 # --- relax_cell=True path ---------------------------------------------------
 
 
-@pytest.mark.xfail(
-    raises=ImportError,
-    reason=(
-        "engine bug: ExpCellFilter was moved out of ase.constraints in ASE 3.28+ "
-        "and now lives at ase.filters.ExpCellFilter (or use FrechetCellFilter). "
-        "engine/ase.py:179 needs the updated import path."
-    ),
-    strict=True,
-)
 def test_ase_engine_relax_cell_uses_ExpCellFilter(tmp_path):
     """CalcInputMinimize(relax_cell=True) exercises the ExpCellFilter branch."""
     from pyiron_workflow_atomistics.engine import (

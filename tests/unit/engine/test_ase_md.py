@@ -114,16 +114,6 @@ def test_ase_md_nve_runs(tmp_path: Path):
     assert out.converged is True
 
 
-@pytest.mark.xfail(
-    raises=TypeError,
-    reason=(
-        "engine bug: NPTBerendsen requires a `compressibility` argument; "
-        "ase_md_calc_structure does not pass one, so the first integrator "
-        "step fails with TypeError. Either default a value in CalcInputMD "
-        "or pass compressibility through in engine/ase.py."
-    ),
-    strict=True,
-)
 def test_ase_md_npt_berendsen_runs(tmp_path: Path):
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMD, run
 
@@ -264,6 +254,29 @@ def test_ase_engine_get_calculate_fn_dispatches_to_md(tmp_path: Path):
     assert "md_input" in kwargs
     assert kwargs["md_input"] is engine.EngineInput
     assert "record_interval" in kwargs
+
+
+def test_ase_md_npt_berendsen_compressibility_is_threaded_into_dyn(tmp_path: Path):
+    """Verify the CalcInputMD.compressibility value reaches the underlying
+    ASE NPTBerendsen integrator. Reading dyn.compressibility back out is
+    cheaper and more direct than running enough MD to see the volume
+    response numerically — which can be unstable for stiff combinations."""
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMD
+
+    structure = _cu_supercell()
+    structure.calc = EMT()
+
+    eng = ASEEngine(
+        EngineInput=CalcInputMD(
+            mode="NPT", thermostat="berendsen", temperature=300.0,
+            n_ionic_steps=1, time_step=1.0,
+            pressure=1e5, compressibility=7.0e-7,  # Cu-ish
+        ),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    fn, kwargs = eng.get_calculate_fn(structure=structure)
+    assert kwargs["md_input"].compressibility == 7.0e-7
 
 
 def test_ase_md_velocities_initialised_at_target_T(tmp_path: Path):

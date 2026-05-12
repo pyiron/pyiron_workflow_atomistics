@@ -176,27 +176,35 @@ def ase_calc_structure(
     else:
         # Relaxation
         if relax_cell:
-            from ase.constraints import ExpCellFilter
+            try:
+                from ase.filters import ExpCellFilter
+            except ImportError:  # pragma: no cover  (ASE < 3.23)
+                from ase.constraints import ExpCellFilter
 
             atoms_filtered = ExpCellFilter(atoms)
             optimizer = optimizer_class(atoms_filtered, **optimizer_kwargs)
 
             def record_step():
-                actual = atoms_filtered.atoms.copy()
-                snap_res = _gather(actual, properties)
+                # _gather must run on the live atoms (calculator attached);
+                # the copy only happens for trajectory storage.
+                snap_res = _gather(atoms_filtered.atoms, properties)
+                snap = atoms_filtered.atoms.copy()
                 trajectory.append(
-                    {"structure": _attach_props(actual, snap_res), "results": snap_res}
+                    {"structure": _attach_props(snap, snap_res), "results": snap_res}
                 )
                 if write_to_disk and traj_struct_path:
                     ase_write(
                         os.path.join(working_directory, traj_struct_path),
-                        _attach_props(actual.copy(), snap_res),
+                        _attach_props(snap.copy(), snap_res),
                         append=True,
                     )
 
             optimizer.attach(record_step, interval=record_interval)
             converged = optimizer.run(fmax=fmax, steps=max_steps)
-            atoms = atoms_filtered.atoms.copy()
+            # Unwrap the filter without dropping the calculator: a plain
+            # .copy() of an ASE Atoms strips .calc, so _gather() further
+            # down would raise "Atoms object has no calculator".
+            atoms = atoms_filtered.atoms
         else:
             optimizer = optimizer_class(atoms, **optimizer_kwargs)
 
@@ -347,7 +355,13 @@ def ase_md_calc_structure(
             )
         elif md_input.thermostat == "berendsen":
             dyn = NPTBerendsen(
-                atoms, dt, temperature_K=T, pressure_au=P_bar, taut=ttime, taup=taup
+                atoms,
+                dt,
+                temperature_K=T,
+                pressure_au=P_bar,
+                taut=ttime,
+                taup=taup,
+                compressibility=md_input.compressibility,
             )
         else:
             raise ValueError(
