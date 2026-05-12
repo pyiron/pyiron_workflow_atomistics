@@ -1,420 +1,276 @@
 # pyiron_workflow_atomistics
 
+[![Tests](https://github.com/pyiron/pyiron_workflow_atomistics/actions/workflows/push-pull.yml/badge.svg)](https://github.com/pyiron/pyiron_workflow_atomistics/actions/workflows/push-pull.yml)
+[![Coverage Status](https://coveralls.io/repos/github/pyiron/pyiron_workflow_atomistics/badge.svg?branch=main)](https://coveralls.io/github/pyiron/pyiron_workflow_atomistics?branch=main)
+[![PyPI version](https://img.shields.io/pypi/v/pyiron_workflow_atomistics.svg)](https://pypi.org/project/pyiron_workflow_atomistics/)
+[![Python versions](https://img.shields.io/pypi/pyversions/pyiron_workflow_atomistics.svg)](https://pypi.org/project/pyiron_workflow_atomistics/)
+[![Documentation Status](https://readthedocs.org/projects/pyiron_workflow_atomistics/badge/?version=latest)](https://pyiron_workflow_atomistics.readthedocs.io/en/latest/?badge=latest)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![License: BSD-3-Clause](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
+
 ## Overview
 
-This repository contains a pyiron module for atomistic simulation workflows, providing tools and utilities for working with atomic structures, calculations, and various atomistic studies. The package integrates seamlessly with the pyiron workflow system and supports multiple computational backends through a unified engine interface.
+`pyiron_workflow_atomistics` provides atomistic-simulation workflows for the [pyiron](https://pyiron.org) ecosystem. It exposes a single generic **`Engine`** interface that workflows talk to uniformly, plus topical physics macros (bulk, surface, point defects, grain boundaries) that compose into pyiron workflows.
 
-## Features
+## Layout
 
-- **Calculation Engines**: Unified interface for different computational backends:
-  - **ASE Engine**: Integration with ASE (Atomic Simulation Environment) for DFT, force fields, and ML potentials
-  - **LAMMPS Engine**: Integration with LAMMPS for classical MD simulations
-  - **Custom Engine Support**: Framework for implementing your own computational backend
+```
+pyiron_workflow_atomistics/
+├── engine/      # Engine Protocol, EngineOutput, run(), ASEEngine
+├── structure/   # Generic builders / transforms / defect-structure generation
+├── physics/     # Topical workflow macros — import per-topic
+│   ├── bulk.py
+│   ├── surface.py
+│   ├── point_defect.py
+│   └── grain_boundary.py
+├── analysis/    # Featurisers, GB-plane finder, derived quantities
+└── _internal/   # Private plumbing (not part of the public API)
+```
 
-- **Bulk Material Calculations**: Tools for bulk material properties:
-  - Equation of state (EOS) fitting
-  - Cubic lattice parameter optimization
-  - Volume-energy scans
-  - Bulk structure generation
-
-- **Surface Calculations**: Surface energy and structure analysis:
-  - Surface slab generation
-  - Surface energy calculations
-  - Surface structure optimization
-
-- **Bulk Defects**: Point defect calculations:
-  - Vacancy formation energy
-  - Interstitial defect calculations
-  - Defect structure generation
-
-- **Grain Boundary Analysis**: Tools for analyzing and manipulating grain boundaries:
-  - GB plane detection and analysis
-  - Cleavage plane identification
-  - GB segregation studies
-  - GB structure manipulation
-
-- **Structure Manipulation**: Utilities for working with atomic structures:
-  - Structure featurization
-  - Interstitial insertion
-  - Structure transformation tools
-
-- **Workflow Integration**: Seamless integration with pyiron workflow system:
-  - Automated structure calculations
-  - Standardized input/output formats (`CalcInputStatic`, `CalcInputMinimize`, `CalcInputMD`, `EngineOutput`)
-  - Data processing and analysis
-  - Results visualization
+Users import from the four public subpackages (`engine`, `structure`, `physics.*`, `analysis`); `_internal` is intentionally private.
 
 ## Installation
 
-The package can be installed via pip:
-
 ```bash
 pip install pyiron_workflow_atomistics
-```
-
-Or via conda:
-
-```bash
+# or
 conda install -c conda-forge pyiron_workflow_atomistics
 ```
 
-## Dependencies
+## Quick start
 
-The package requires:
-- Python >= 3.9, < 3.14
-- numpy == 1.26.4
-- pandas == 2.3.2
-- matplotlib == 3.10.6
-- ase == 3.26.0
-- scipy == 1.16.2
-- pyiron-workflow == 0.15.2
-- pymatgen == 2025.6.14
-- pyiron_snippets == 0.2.0
-- scikit-learn == 1.7.2
-
-Note: For development or if you need different versions, you can install from source and adjust dependencies as needed.
-
-## Usage
-
-### Using Calculation Engines
-
-The package provides engines for different computational backends. Here's how to use the ASE engine:
+Every workflow follows the same pattern: build an `Engine`, build a structure, and either call `run(structure, engine)` directly or drop into a topical macro.
 
 ```python
-from pyiron_workflow_atomistics.engine_ase.ase import ASEEngine
-from pyiron_workflow_atomistics.dataclass_storage import CalcInputMinimize
-from ase.optimize import BFGS
 from ase.build import bulk
-from mace.calculators import MACECalculator
+from ase.calculators.emt import EMT
 
-# Create input parameters
-inp = CalcInputMinimize()
-inp.force_convergence_tolerance = 0.01
-inp.relax_cell = False
+from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMinimize, run
 
-# Create calculator
-calculator = MACECalculator(model_path='model.model', device='cpu')
-
-# Create engine
 engine = ASEEngine(
-    EngineInput=inp,
-    calculator=calculator,
-    optimizer_class=BFGS,
-    working_directory="calculations"
+    EngineInput=CalcInputMinimize(force_convergence_tolerance=0.05),
+    calculator=EMT(),
+    working_directory="./_runs",
 )
 
-# Use with workflow functions
-from pyiron_workflow_atomistics.bulk import optimise_cubic_lattice_parameter
-from pyiron_workflow import Workflow
+structure = bulk("Cu", "fcc", a=3.6, cubic=True)
+node = run(structure, engine=engine)
+node.run()
 
-wf = Workflow("my_workflow")
-wf.opt = optimise_cubic_lattice_parameter(
-    structure=bulk("Fe", a=2.88, cubic=True),
-    name="Fe",
-    crystalstructure="bcc",
-    calculation_engine=engine,
-    parent_working_directory="opt_cubic_cell",
-    num_points=11
-)
-wf.run()
+out = node.outputs.engine_output.value           # EngineOutput dataclass
+print(out.final_energy, out.converged)
 ```
 
-### Bulk Material Calculations
+`Engine.with_working_directory("subdir")` returns a pickleable copy with the path composed — use it to fan out per-calculation directories.
+
+## The Engine layer
 
 ```python
-from pyiron_workflow_atomistics.bulk import (
-    optimise_cubic_lattice_parameter,
-    eos_volume_scan,
-    equation_of_state
-)
-from pyiron_workflow import Workflow
-
-wf = Workflow("bulk_calc")
-
-# Optimize cubic lattice parameter
-wf.opt = optimise_cubic_lattice_parameter(
-    structure=atoms,
-    name="Fe",
-    crystalstructure="bcc",
-    calculation_engine=engine,
-    strain_range=(-0.02, 0.02),
-    num_points=11,
-    eos_type="birchmurnaghan"
-)
-
-# Access results
-equilibrium_lattice_param = wf.opt.outputs.a0
-bulk_modulus = wf.opt.outputs.B
-equilibrium_energy = wf.opt.outputs.equil_energy_per_atom
-```
-
-### Surface Calculations
-
-```python
-from pyiron_workflow_atomistics.surface.surface_study import surface_energy_study
-from pyiron_workflow import Workflow
-
-wf = Workflow("surface_calc")
-wf.surface = surface_energy_study(
-    structure=bulk_structure,
-    miller_indices=(1, 1, 1),
-    calculation_engine=engine,
-    vacuum=10.0
-)
-wf.run()
-```
-
-### Bulk Defects
-
-```python
-from pyiron_workflow_atomistics.bulk_defect.vacancy import vacancy_formation_energy
-from pyiron_workflow import Workflow
-
-wf = Workflow("defect_calc")
-wf.vacancy = vacancy_formation_energy(
-    structure=bulk_structure,
-    calculation_engine=engine
-)
-wf.run()
-```
-
-### Grain Boundary Analysis
-
-```python
-from pyiron_workflow_atomistics.gb.analysis import find_GB_plane
-from pyiron_workflow_atomistics.gb.cleavage import cleave_gb_structure
-
-# Find GB plane in a structure
-gb_info = find_GB_plane(atoms, featuriser, axis="c")
-
-# Cleave structure at GB
-cleaved_structures, cleavage_planes = cleave_gb_structure(
-    base_structure=atoms,
-    axis_to_cleave="c",
-    target_coord=target_coord
-)
-```
-
-### Structure Calculations
-
-```python
-from pyiron_workflow_atomistics.calculator import calculate_structure_node
-
-# Run structure calculations with an engine
-results = calculate_structure_node(
-    structure=atoms,
-    calculation_engine=engine
-)
-
-# Or with explicit function and kwargs
-results = calculate_structure_node(
-    structure=atoms,
-    _calc_structure_fn=my_calc_function,
-    _calc_structure_fn_kwargs={"param": "value"}
-)
-```
-
-## Implementing Custom Engines
-
-To implement your own calculation engine, you need to create a class that inherits from `Engine` and implements the required methods. The engine system allows you to integrate any computational backend (e.g., DFT codes, force fields, ML potentials) into the pyiron workflow framework.
-
-### Requirements
-
-Your custom engine must:
-
-1. **Inherit from `Engine`**: Your engine class should be a dataclass inheriting from `pyiron_workflow_atomistics.dataclass_storage.Engine`
-
-2. **Accept `EngineInput` dataclasses**: The engine should accept one of the standardized input dataclasses:
-   - `CalcInputStatic` - for single-point energy/force calculations
-   - `CalcInputMinimize` - for structure optimization/minimization
-   - `CalcInputMD` - for molecular dynamics simulations
-
-3. **Implement `get_calculate_fn()` method**: This method must return a tuple `(Callable, dict[str, Any])` where:
-   - The `Callable` is a function that performs the calculation
-   - The `dict` contains keyword arguments to pass to the function
-   - **Important**: The function should accept `structure: Atoms` as its first argument (or as a keyword argument), but `structure` should NOT be included in the returned kwargs dict
-
-4. **Return `EngineOutput` objects**: Your calculation function must return an `EngineOutput` object (not a tuple or dict). The `EngineOutput` class has the following attributes that should be populated:
-
-   ```python
-   class EngineOutput:
-       final_structure = None          # ASE Atoms object of final structure
-       final_results = None            # Raw results dict (optional)
-       convergence = None              # bool indicating if calculation converged
-       final_energy = None             # float: final energy
-       final_forces = None            # numpy array: final forces
-       final_stress = None            # numpy array: final stress (pressure)
-       final_volume = None            # float: final volume
-       final_stress_tensor = None     # numpy array: full stress tensor (optional)
-       final_stress_tensor_voigt = None  # numpy array: stress in Voigt notation (optional)
-       energies = None                # list: trajectory energies
-       forces = None                  # list: trajectory forces
-       stresses = None                # list: trajectory stresses
-       structures = None              # list: trajectory structures (ASE Atoms objects)
-       magmoms = None                # numpy array: magnetic moments (optional)
-       n_ionic_steps = None          # int: number of ionic steps
-   ```
-
-### Example Implementation
-
-Here's a minimal example of a custom engine:
-
-```python
-import os
-from dataclasses import dataclass, field
-from typing import Any, Literal
-from ase import Atoms
-from pyiron_workflow_atomistics.dataclass_storage import (
-    Engine,
+from pyiron_workflow_atomistics.engine import (
+    Engine,              # the Protocol every backend implements (runtime-checkable)
+    EngineOutput,        # @dataclass returned by every engine call
+    run,                 # the single workflow node: run(structure, engine)
+    subengine,           # @as_function_node wrapper around engine.with_working_directory
+    subdir_path,         # @as_function_node returning os.path.join(engine.wd, subdir)
     CalcInputStatic,
     CalcInputMinimize,
     CalcInputMD,
-    EngineOutput
+    ASEEngine,
 )
-
-@dataclass
-class MyCustomEngine(Engine):
-    """
-    Custom engine for your computational backend.
-    """
-    EngineInput: CalcInputStatic | CalcInputMinimize | CalcInputMD
-    working_directory: str = field(default_factory=os.getcwd)
-    mode: Literal["static", "minimize", "md"] = field(init=False)
-    # Add your engine-specific parameters here
-    my_backend_config: dict[str, Any] = None
-    
-    def __post_init__(self):
-        # Infer mode from EngineInput type
-        if isinstance(self.EngineInput, CalcInputMinimize):
-            self.mode = "minimize"
-        elif isinstance(self.EngineInput, CalcInputMD):
-            self.mode = "md"
-        elif isinstance(self.EngineInput, CalcInputStatic):
-            self.mode = "static"
-        else:
-            raise TypeError(f"Unsupported EngineInput type: {type(self.EngineInput)}")
-    
-    def get_calculate_fn(self, structure: Atoms) -> tuple[Callable, dict[str, Any]]:
-        """
-        Return the calculation function and its kwargs.
-        
-        The function should:
-        - Accept 'structure' as first argument (or keyword)
-        - Return an EngineOutput object
-        - NOT include 'structure' in the returned kwargs
-        """
-        from my_backend import my_calculation_function
-        
-        # Build kwargs based on mode and EngineInput
-        calc_kwargs = {
-            "working_directory": self.working_directory,
-            # Map EngineInput parameters to your backend's parameters
-            # For minimize mode:
-            # "fmax": self.EngineInput.force_convergence_tolerance,
-            # "max_steps": self.EngineInput.max_iterations,
-            # "relax_cell": self.EngineInput.relax_cell,
-            # For MD mode, pass the entire md_input object or extract specific fields
-            # "md_input": self.EngineInput,  # or extract specific fields
-        }
-        
-        return my_calculation_function, calc_kwargs
 ```
 
-### Calculation Function Requirements
+The three `CalcInput*` dataclasses are jargon-free physics-level inputs (`force_convergence_tolerance`, `temperature`, `thermostat_time_constant`, ...) — engines map them to their backend's native parameters.
 
-Your calculation function (returned by `get_calculate_fn()`) must:
+## Topical physics workflows
 
-1. **Accept structure**: The function signature should be:
-   ```python
-   def my_calculation_function(
-       structure: Atoms,
-       **kwargs
-   ) -> EngineOutput:
-   ```
+`physics/__init__.py` deliberately re-exports nothing — import per-topic so the path tells you what you're using.
 
-2. **Return EngineOutput**: Create and populate an `EngineOutput` object:
-   ```python
-   def my_calculation_function(structure: Atoms, **kwargs) -> EngineOutput:
-       # Perform your calculation
-       final_atoms = ...  # Your final structure
-       final_energy = ...  # Your final energy
-       final_forces = ...  # Your final forces
-       
-       # Create EngineOutput
-       output = EngineOutput()
-       output.final_structure = final_atoms
-       output.final_energy = final_energy
-       output.final_forces = np.array(final_forces)
-       output.final_volume = final_atoms.get_volume()
-       output.convergence = True  # or False
-       
-       # For trajectory data (if available)
-       if trajectory:
-           output.energies = [step["energy"] for step in trajectory]
-           output.forces = [np.array(step["forces"]) for step in trajectory]
-           output.structures = [step["structure"] for step in trajectory]
-           output.n_ionic_steps = len(trajectory)
-       
-       return output
-   ```
-
-3. **Map EngineInput parameters**: Extract relevant parameters from `EngineInput` dataclasses:
-   - **CalcInputMinimize**: `force_convergence_tolerance`, `energy_convergence_tolerance`, `max_iterations`, `relax_cell`
-   - **CalcInputMD**: `mode`, `thermostat`, `temperature`, `n_ionic_steps`, `time_step`, `pressure`, etc.
-   - **CalcInputStatic**: No parameters (empty dataclass)
-
-### Reference Implementations
-
-For complete examples, see:
-- **ASE Engine**: `pyiron_workflow_atomistics.engine_ase.ase.ASEEngine`
-- **LAMMPS Engine**: `pyiron_workflow_lammps.engine.LammpsEngine`
-
-These implementations demonstrate:
-- Mode inference from `EngineInput` types
-- Parameter mapping from dataclasses to backend-specific parameters
-- Proper `EngineOutput` population
-- Handling of static, minimize, and MD modes
-
-### Integration with Workflows
-
-Once implemented, your engine can be used with any workflow function that accepts a `calculation_engine` parameter:
+### Bulk
 
 ```python
-from pyiron_workflow_atomistics.bulk import optimise_cubic_lattice_parameter
+from pyiron_workflow_atomistics.physics.bulk import eos_volume_scan, optimise_cubic_lattice_parameter
+from pyiron_workflow_atomistics.structure import get_bulk
 
-my_engine = MyCustomEngine(
-    EngineInput=CalcInputMinimize(),
-    my_backend_config={"param": "value"}
+structure = get_bulk.node_function("Cu", crystalstructure="fcc", a=3.6, cubic=True)
+wf = eos_volume_scan(base_structure=structure, engine=engine,
+                     axes=["a", "b", "c"], strain_range=(-0.05, 0.05), num_points=7)
+wf.run()
+print(f"v0 = {wf.outputs.v0.value:.3f} Å^3   B = {wf.outputs.B.value:.1f} GPa")
+```
+
+### Surface
+
+```python
+from ase.build import bulk
+from pyiron_workflow_atomistics.physics.surface import calculate_surface_energy
+
+cu_bulk = bulk("Cu", "fcc", a=3.6, cubic=True)
+wf = calculate_surface_energy(
+    bulk_structure=cu_bulk, engine=engine,
+    miller_indices=(1, 1, 1), layers=3, vacuum=10.0,
+)
+wf.run()
+print(wf.outputs.surface_energy.value, "J/m²")
+```
+
+### Point defects (vacancy + substitutional)
+
+```python
+from pyiron_workflow_atomistics.physics.point_defect import (
+    get_vacancy_formation_energy,
+    get_substitutional_formation_energy,
 )
 
-wf.opt = optimise_cubic_lattice_parameter(
-    structure=atoms,
-    calculation_engine=my_engine,
-    # ... other parameters
+wf = get_vacancy_formation_energy(
+    structure=bulk("Cu", "fcc", a=3.6, cubic=True),
+    engine=engine,
+    min_dimensions=[12, 12, 12],
+)
+wf.run()
+print(wf.outputs.vacancy_formation_energy.value, "eV")
+
+wf_sub = get_substitutional_formation_energy(
+    structure=bulk("Cu", "fcc", a=3.6, cubic=True),
+    engine=engine,
+    new_symbol="Ni",
+    min_dimensions=[12, 12, 12],
+)
+wf_sub.run()
+```
+
+### Grain boundaries
+
+```python
+from pyiron_workflow_atomistics.physics.grain_boundary import (
+    cleave_gb_structure,
+    find_viable_cleavage_planes_around_plane,
+    get_GB_energy,
+    pure_gb_study,
 )
 ```
+
+`pure_gb_study` composes length optimisation, segregation, and cleavage in one macro; the individual functions are available for finer control. See `notebooks/pure_grain_boundary_study.ipynb` and `notebooks/gb_cleavage.ipynb`.
+
+## Structure manipulation
+
+```python
+from pyiron_workflow_atomistics.structure import (
+    get_bulk, create_surface_slab,
+    add_vacuum, create_supercell, create_supercell_with_min_dimensions, rattle,
+    create_vacancy, substitutional_swap,
+)
+```
+
+## Analysis
+
+```python
+from pyiron_workflow_atomistics.analysis import (
+    voronoi_site_featuriser,
+    distance_matrix_site_featuriser,
+    soap_site_featuriser,
+    find_gb_plane, plot_gb_plane,
+    get_per_atom_quantity,
+)
+```
+
+## Implementing a custom engine
+
+`Engine` is a `typing.Protocol` — any class that satisfies the contract works. There is no base class to inherit from.
+
+```python
+import os
+from dataclasses import dataclass, field, replace
+from typing import Any, Callable
+from ase import Atoms
+
+from pyiron_workflow_atomistics.engine import (
+    CalcInputStatic, CalcInputMinimize, CalcInputMD, EngineOutput,
+)
+
+
+@dataclass
+class MyCustomEngine:
+    """Drop-in replacement for ASEEngine targeting your backend."""
+
+    EngineInput: CalcInputStatic | CalcInputMinimize | CalcInputMD
+    backend_config: dict[str, Any] = field(default_factory=dict)
+    working_directory: str = field(default_factory=os.getcwd)
+
+    def get_calculate_fn(self, structure: Atoms) -> tuple[Callable[..., EngineOutput], dict[str, Any]]:
+        """Return ``(callable, kwargs)``. The callable is invoked as
+        ``callable(structure=structure, **kwargs)`` and must return an
+        :class:`EngineOutput`. ``structure`` must NOT be in kwargs."""
+
+        from my_backend import run_calculation
+
+        kwargs = {
+            "working_directory": self.working_directory,
+            "config": self.backend_config,
+            # map self.EngineInput.* into your backend's native parameters
+        }
+        return run_calculation, kwargs
+
+    def with_working_directory(self, subdir: str) -> "MyCustomEngine":
+        """Pure copy with the working directory composed — never mutate self."""
+        return replace(
+            self, working_directory=os.path.join(self.working_directory, subdir)
+        )
+```
+
+The contract:
+- **Pickleable** — workflows checkpoint to disk and may resubmit to SLURM.
+- **`with_working_directory` is pure** — return a copy, do not mutate `self`. The recommended idiom is `dataclasses.replace`.
+- **`get_calculate_fn(structure)`** returns `(callable, kwargs)`; the callable returns an `EngineOutput`.
+
+Use `subengine(engine=engine, subdir="foo")` inside `@pwf.as_macro_node` bodies — calling `engine.with_working_directory(...)` directly on a channel input crashes pyiron_workflow's readiness checks.
+
+## EngineOutput
+
+```python
+@dataclass
+class EngineOutput:
+    final_structure: Atoms
+    final_energy: float
+    converged: bool
+
+    final_forces:        np.ndarray | None = None
+    final_stress:        np.ndarray | None = None   # (3, 3)
+    final_stress_voigt:  np.ndarray | None = None   # (6,)
+    final_volume:        float       | None = None
+    final_magmoms:       np.ndarray  | None = None
+
+    energies:      list[float]        | None = None
+    forces:        list[np.ndarray]   | None = None
+    stresses:      list[np.ndarray]   | None = None
+    structures:    list[Atoms]        | None = None
+    n_ionic_steps: int                | None = None
+```
+
+`EngineOutput.to_dict()` returns a `dataclasses.asdict` view, with ASE objects preserved by reference.
+
+## Notebooks
+
+Worked examples covering every public workflow live in [`notebooks/`](../notebooks/). Each notebook supplies its own calculator (EMT for the Cu / Ni / Pd / Ag / Pt / Au / Al demos; EAM with the bundled `Al-Fe.eam.fs` for the Fe ones) so it executes self-contained.
 
 ## Documentation
 
-For detailed documentation, visit our [ReadTheDocs page](https://pyiron_workflow_atomistics.readthedocs.io).
+For full API documentation: [ReadTheDocs](https://pyiron_workflow_atomistics.readthedocs.io).
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.rst) for details.
+We welcome contributions — see [CONTRIBUTING.rst](../CONTRIBUTING.rst) for the development workflow.
 
 ## License
 
-This project is licensed under the BSD License - see the [LICENSE](LICENSE) file for details.
+BSD 3-Clause — see [LICENSE](../LICENSE).
 
 ## Citation
-
-If you use this package in your research, please cite:
 
 ```bibtex
 @software{pyiron_workflow_atomistics,
   author = {pyiron team},
-  title = {pyiron_workflow_atomistics},
-  year = {2024},
-  url = {https://github.com/pyiron/pyiron_workflow_atomistics}
+  title  = {pyiron_workflow_atomistics},
+  year   = {2024},
+  url    = {https://github.com/pyiron/pyiron_workflow_atomistics}
 }
 ```
