@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.0.7] — 2026-05-14
+
+### Added
+
+- **`pyiron_workflow_atomistics.physics.phonons`** — new subpackage for
+  phonon properties. The user-facing entry point is
+  `calculate_phonon_thermal_conductivity(structure, engine,
+  fc2_supercell_matrix, ...)`, which returns a `PhononOutput` dataclass
+  containing the lattice thermal conductivity tensor κ(T) plus
+  optional mode-resolved data, harmonic side-products, and raw
+  force-constant arrays. Reuses the existing `Engine` Protocol — every
+  force evaluation goes through `engine.calculate`, no new engine code.
+- **`[phonons]` install extra** — `pip install
+  pyiron_workflow_atomistics[phonons]` pulls in `phonopy`, `phono3py`,
+  and `symfc`. The base install is unaffected; lazy imports keep
+  non-phonon users from paying for the extra.
+
+### Out of scope (v2 follow-ups)
+
+- Non-analytic correction (BORN effective charges + ε∞) for polar
+  materials. Macro accepts `born_charges` / `epsilon_inf` kwargs and
+  raises `NotImplementedError` if either is non-None.
+- dynaphopy-based post-MD anharmonic renormalisation.
+
 ## [0.0.6] — 2026-05-13
 
 ### Changed (breaking)

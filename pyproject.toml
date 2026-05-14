@@ -46,6 +46,11 @@ test = [
     "nbformat",
     "nbclient",
 ]
+phonons = [
+    "phonopy",
+    "phono3py",
+    "symfc",
+]
 
 [project.license]
 file = "LICENSE"
