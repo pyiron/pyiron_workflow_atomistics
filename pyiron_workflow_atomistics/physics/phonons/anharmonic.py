@@ -72,3 +72,26 @@ def _generate_fc3_supercells(
         _phonopy_to_ase(s) for s in ph3.supercells_with_displacements
     ]
     return fc3_supercells
+
+
+from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate
+
+
+@pwf.as_function_node("engine_outputs")
+def _evaluate_supercells(
+    supercells: list[Atoms],
+    engine: Engine,
+    prefix: str,
+) -> list[EngineOutput]:
+    """Loop ``calculate`` over a list of supercells, routing each to its own subdir.
+
+    Mirrors ``physics.bulk.evaluate_structures`` — the canonical "fan out
+    `calculate` over a list of structures" pattern in this codebase.
+    """
+    engine_outputs: list[EngineOutput] = []
+    for i, supercell in enumerate(supercells):
+        sub_engine = engine.with_working_directory(f"{prefix}{i:04d}")
+        engine_outputs.append(
+            calculate.node_function(structure=supercell, engine=sub_engine)
+        )
+    return engine_outputs

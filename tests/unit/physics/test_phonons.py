@@ -214,6 +214,41 @@ def test_fd_fc2_supercells_deterministic():
         np.testing.assert_allclose(x.get_cell()[:], y.get_cell()[:])
 
 
+# ---------------------------------------------------------------------------
+# Tier 1 — _evaluate_supercells using mock engine
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_supercells_uses_with_working_directory(tmp_path):
+    """Each supercell gets its own engine subdir; the node returns one
+    EngineOutput per input supercell."""
+    from dataclasses import replace as dc_replace
+
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _evaluate_supercells,
+    )
+
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    cu = bulk("Cu", "fcc", a=3.6, cubic=True)
+    supercells = [cu.copy(), cu.copy(), cu.copy()]
+    outs = _evaluate_supercells.node_function(
+        supercells=supercells, engine=engine, prefix="fc2_disp_"
+    )
+    assert len(outs) == 3
+    assert all(o.converged for o in outs)
+    # Each supercell got its own working_directory under tmp_path
+    for i in range(3):
+        assert (tmp_path / f"fc2_disp_{i:04d}").exists()
+
+
 @pytest.mark.slow
 def test_fd_fc3_supercells_deterministic():
     from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
