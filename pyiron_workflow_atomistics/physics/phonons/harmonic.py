@@ -107,3 +107,78 @@ def _generate_fc2_supercells(
         _phonopy_to_ase(s) for s in ph3.phonon_supercells_with_displacements
     ]
     return fc2_supercells
+
+
+def _compute_harmonic_observables(
+    ph3,
+    temperatures: np.ndarray,
+    band_path: list[list[list[float]]] | None = None,
+    band_labels: list[str] | None = None,
+) -> tuple[dict, dict, dict]:
+    """Compute band structure, total DOS, and Helmholtz free energy F(T).
+
+    Builds a lightweight ``Phonopy`` view from ph3's already-computed FC2
+    data (primitive cell, supercell matrix, force constants), avoiding any
+    double force-evaluation.  The default band path is derived automatically
+    by ASE from the primitive cell (``ase.dft.kpoints.bandpath``).
+
+    Returns
+    -------
+    (band_structure, dos, free_energy) — each a plain dict suitable for
+    PhononOutput.
+
+    Notes
+    -----
+    The plan originally suggested ``ase_bandpath("GXG", ...)``, but "GXG"
+    is not a recognised high-symmetry label.  We use ``path=None`` instead
+    so ASE auto-derives the canonical path for the lattice (e.g. FCC →
+    "GXWLGKUWLKG").
+
+    ``ph3.phonon`` does not exist in the installed phono3py version; instead
+    we build a ``Phonopy`` instance directly from ``ph3.phonon_primitive``,
+    ``ph3.phonon_supercell_matrix``, and ``ph3.fc2``.
+    """
+    import phonopy
+
+    # Build a Phonopy view from the already-computed FC2 data.
+    phonopy_view = phonopy.Phonopy(
+        unitcell=ph3.phonon_primitive,
+        supercell_matrix=ph3.phonon_supercell_matrix,
+        primitive_matrix="auto",
+    )
+    phonopy_view.force_constants = ph3.fc2
+
+    # ---- band structure (auto path from the unit cell) ----
+    from ase.dft.kpoints import bandpath as ase_bandpath
+
+    # Use the primitive cell as ASE knows it
+    primitive_cell = np.asarray(phonopy_view.primitive.cell)
+    bp = ase_bandpath(path=None, cell=primitive_cell, npoints=51)
+    q_segment = bp.kpts.tolist()
+    phonopy_view.run_band_structure([q_segment])
+    bs = phonopy_view.get_band_structure_dict()
+    band_structure = {
+        "path": bp.path,
+        "q": np.asarray(bs["qpoints"][0]),
+        "frequencies": np.asarray(bs["frequencies"][0]),
+    }
+
+    # ---- total DOS ----
+    phonopy_view.run_mesh(mesh=[20, 20, 20])
+    phonopy_view.run_total_dos()
+    tdos = phonopy_view.get_total_dos_dict()
+    dos = {
+        "frequencies": np.asarray(tdos["frequency_points"]),
+        "dos": np.asarray(tdos["total_dos"]),
+    }
+
+    # ---- free energy F(T), entropy S(T), heat capacity Cv(T) ----
+    phonopy_view.run_thermal_properties(temperatures=temperatures)
+    tp = phonopy_view.get_thermal_properties_dict()
+    free_energy = {
+        "temperatures": np.asarray(tp["temperatures"]),
+        "F": np.asarray(tp["free_energy"]),
+        "S": np.asarray(tp["entropy"]),
+        "Cv": np.asarray(tp["heat_capacity"]),
+    }
+    return band_structure, dos, free_energy

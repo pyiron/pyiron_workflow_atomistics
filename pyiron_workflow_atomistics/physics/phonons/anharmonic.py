@@ -286,6 +286,18 @@ def _run_phono3py_thermal_conductivity(
         extras["gamma"] = np.asarray(tc.gamma[0])  # (n_T, n_q, n_band)
         # gruneisen needs phono3py.gruneisen.Gruneisen — skip in v1.
 
+    if harmonic_observables:
+        from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+            _compute_harmonic_observables,
+        )
+
+        band_structure, dos, free_energy = _compute_harmonic_observables(
+            ph3=ph3, temperatures=T
+        )
+        extras["band_structure"] = band_structure
+        extras["dos"] = dos
+        extras["free_energy"] = free_energy
+
     return PhononOutput(
         structure=structure,
         fc2_supercell_matrix=_normalise_supercell_matrix(fc2_supercell_matrix),

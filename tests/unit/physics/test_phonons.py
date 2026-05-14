@@ -661,3 +661,40 @@ def test_mode_resolved_on_populates_all_fields(tmp_path):
     n_band = out.frequencies.shape[1]
     assert out.frequencies.shape == (n_q, n_band)
     assert out.mode_kappa.shape == (1, n_q, n_band, 6)
+
+
+@pytest.mark.slow
+def test_harmonic_observables_populates_bands_dos_freeenergy(tmp_path):
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        calculate_phonon_thermal_conductivity,
+    )
+
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    out = calculate_phonon_thermal_conductivity(
+        structure=bulk("Cu", "fcc", a=3.6),
+        engine=engine,
+        fc2_supercell_matrix=(2 * np.eye(3)).astype(int),
+        temperatures=[300.0, 500.0],
+        q_mesh=(5, 5, 5),
+        harmonic_observables=True,
+    ).run()
+    out = out["phonon_output"] if isinstance(out, dict) else out
+
+    assert out.band_structure is not None
+    assert "q" in out.band_structure and "frequencies" in out.band_structure
+    assert out.dos is not None
+    assert out.dos["frequencies"].ndim == 1
+    assert out.dos["dos"].shape == out.dos["frequencies"].shape
+    assert out.free_energy is not None
+    assert out.free_energy["temperatures"].shape == (2,)
+    assert out.free_energy["F"].shape == (2,)
+    assert out.free_energy["S"].shape == (2,)
+    assert out.free_energy["Cv"].shape == (2,)
