@@ -37,27 +37,52 @@ def _check_polar_unsupported(
         )
 
 
-@pwf.as_function_node("fc3_supercell_matrix_out", "fc_calculator_out")
+def _resolve_random_seed(
+    *,
+    number_of_snapshots: int | None,
+    random_seed: int | None,
+) -> int | None:
+    """Auto-fill the random seed when random mode is on but user didn't pick one.
+
+    Without this, generation and synthesis would draw fresh randomness on
+    each rebuild of the Phono3py object → identical supercell counts but
+    different positions → silent corruption (the count guard in
+    _run_phono3py_thermal_conductivity catches mismatched counts, not
+    mismatched positions).
+    """
+    if number_of_snapshots is None:
+        return random_seed
+    if random_seed is not None:
+        return random_seed
+    return int(np.random.SeedSequence().entropy % (2**32))
+
+
+@pwf.as_function_node("fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out")
 def _resolve_defaults(
     fc2_supercell_matrix,
     fc3_supercell_matrix,
     number_of_snapshots,
     fc_calculator,
+    random_seed,
     born_charges,
     epsilon_inf,
 ):
     """Runtime guard + default resolution for the macro.
 
     Checks polar kwargs (raises before any phono3py import), defaults
-    fc3_supercell_matrix to fc2_supercell_matrix when not supplied, and
-    auto-selects 'symfc' for random-displacement mode.
+    fc3_supercell_matrix to fc2_supercell_matrix when not supplied,
+    auto-selects 'symfc' for random-displacement mode, and auto-fills
+    random_seed when random mode is active but user didn't provide one.
     """
     _check_polar_unsupported(born_charges=born_charges, epsilon_inf=epsilon_inf)
     if fc3_supercell_matrix is None:
         fc3_supercell_matrix = fc2_supercell_matrix
     if number_of_snapshots is not None and fc_calculator is None:
         fc_calculator = "symfc"
-    return fc3_supercell_matrix, fc_calculator
+    resolved_seed = _resolve_random_seed(
+        number_of_snapshots=number_of_snapshots, random_seed=random_seed
+    )
+    return fc3_supercell_matrix, fc_calculator, resolved_seed
 
 
 @pwf.as_function_node("fc3_supercells")
@@ -294,6 +319,7 @@ def calculate_phonon_thermal_conductivity(
         fc3_supercell_matrix=fc3_supercell_matrix,
         number_of_snapshots=number_of_snapshots,
         fc_calculator=fc_calculator,
+        random_seed=random_seed,
         born_charges=born_charges,
         epsilon_inf=epsilon_inf,
     )
@@ -312,7 +338,7 @@ def calculate_phonon_thermal_conductivity(
         is_plusminus=is_plusminus,
         cutoff_pair_distance=cutoff_pair_distance,
         number_of_snapshots=number_of_snapshots,
-        random_seed=random_seed,
+        random_seed=wf.defaults.outputs.random_seed_out,
     )
     wf.fc2_eval = _evaluate_supercells(
         supercells=wf.fc2_supercells.outputs.fc2_supercells,
@@ -332,7 +358,7 @@ def calculate_phonon_thermal_conductivity(
         is_plusminus=is_plusminus,
         cutoff_pair_distance=cutoff_pair_distance,
         number_of_snapshots=number_of_snapshots,
-        random_seed=random_seed,
+        random_seed=wf.defaults.outputs.random_seed_out,
         fc_calculator=wf.defaults.outputs.fc_calculator_out,
         fc2_engine_outputs=wf.fc2_eval.outputs.engine_outputs,
         fc3_engine_outputs=wf.fc3_eval.outputs.engine_outputs,

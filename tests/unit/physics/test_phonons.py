@@ -494,3 +494,29 @@ def test_calculate_phonon_thermal_conductivity_macro_emt(tmp_path):
     # Engine got the per-supercell subdirs
     assert (tmp_path / "fc2_disp_0000").exists()
     assert (tmp_path / "fc3_disp_0000").exists()
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — seed auto-resolution helper
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_random_seed_passthrough_when_explicit():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _resolve_random_seed,
+    )
+
+    assert _resolve_random_seed(number_of_snapshots=10, random_seed=42) == 42
+    assert _resolve_random_seed(number_of_snapshots=None, random_seed=None) is None
+    assert _resolve_random_seed(number_of_snapshots=None, random_seed=7) == 7
+
+
+def test_resolve_random_seed_auto_fills_when_random_mode_without_seed():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _resolve_random_seed,
+    )
+
+    seed = _resolve_random_seed(number_of_snapshots=10, random_seed=None)
+    assert seed is not None
+    assert isinstance(seed, int)
+    assert 0 <= seed < 2**32
