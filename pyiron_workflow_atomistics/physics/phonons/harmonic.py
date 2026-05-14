@@ -21,12 +21,10 @@ def _normalise_supercell_matrix(m: ArrayLike) -> np.ndarray:
     """Accept int / list[int] of length 3 / (3,3) ndarray; return (3,3) int."""
     arr = np.asarray(m)
     if arr.ndim == 0:
-        return (int(arr) * np.eye(3, dtype=int))
+        return int(arr) * np.eye(3, dtype=int)
     if arr.ndim == 1:
         if arr.shape != (3,):
-            raise ValueError(
-                f"supercell_matrix 1d shape must be (3,), got {arr.shape}"
-            )
+            raise ValueError(f"supercell_matrix 1d shape must be (3,), got {arr.shape}")
         return np.diag(arr.astype(int))
     if arr.ndim == 2:
         if arr.shape != (3, 3):

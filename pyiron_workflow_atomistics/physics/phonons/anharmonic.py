@@ -62,7 +62,9 @@ def _resolve_random_seed(
     return int(np.random.SeedSequence().entropy % (2**32))
 
 
-@pwf.as_function_node("fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out")
+@pwf.as_function_node(
+    "fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out"
+)
 def _resolve_defaults(
     fc2_supercell_matrix,
     fc3_supercell_matrix,
@@ -124,9 +126,7 @@ def _generate_fc3_supercells(
             is_plusminus=is_plusminus,
             cutoff_pair_distance=cutoff_pair_distance,
         )
-    fc3_supercells = [
-        _phonopy_to_ase(s) for s in ph3.supercells_with_displacements
-    ]
+    fc3_supercells = [_phonopy_to_ase(s) for s in ph3.supercells_with_displacements]
     return fc3_supercells
 
 
@@ -162,15 +162,18 @@ def _is_kappa_not_converged(messages: list[str]) -> bool:
 def _check_all_converged(engine_outputs, label: str) -> None:
     """Raise RuntimeError listing failed supercell indices + working_directory."""
     failed = [
-        (i, getattr(out.final_structure, "info", {}).get("working_directory", "<unknown>"))
+        (
+            i,
+            getattr(out.final_structure, "info", {}).get(
+                "working_directory", "<unknown>"
+            ),
+        )
         for i, out in enumerate(engine_outputs)
         if not out.converged
     ]
     if failed:
         details = ", ".join(f"{i} ({wd})" for i, wd in failed)
-        raise RuntimeError(
-            f"Force calc failed for {label} supercells: {details}"
-        )
+        raise RuntimeError(f"Force calc failed for {label} supercells: {details}")
 
 
 def _stack_forces(engine_outputs) -> np.ndarray:

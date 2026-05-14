@@ -13,7 +13,6 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-
 # ---------------------------------------------------------------------------
 # Tier 1 — PhononOutput dataclass shape
 # ---------------------------------------------------------------------------
@@ -42,9 +41,9 @@ def test_phonon_output_required_fields_have_no_default():
     by_name = {f.name: f for f in fields(PhononOutput)}
     for name in required_names:
         f = by_name[name]
-        assert f.default is MISSING and f.default_factory is MISSING, (
-            f"{name} must be required (no default)"
-        )
+        assert (
+            f.default is MISSING and f.default_factory is MISSING
+        ), f"{name} must be required (no default)"
 
 
 def test_phonon_output_optional_fields_default_to_none():
@@ -146,9 +145,7 @@ def test_born_charges_raises_not_implemented():
     )
 
     with pytest.raises(NotImplementedError) as exc:
-        _check_polar_unsupported(
-            born_charges=np.zeros((4, 3, 3)), epsilon_inf=None
-        )
+        _check_polar_unsupported(born_charges=np.zeros((4, 3, 3)), epsilon_inf=None)
     msg = str(exc.value)
     assert "BORN" in msg or "Non-analytic" in msg
     assert "v1" in msg
@@ -160,9 +157,7 @@ def test_epsilon_inf_raises_not_implemented():
     )
 
     with pytest.raises(NotImplementedError):
-        _check_polar_unsupported(
-            born_charges=None, epsilon_inf=np.eye(3)
-        )
+        _check_polar_unsupported(born_charges=None, epsilon_inf=np.eye(3))
 
 
 def test_no_polar_kwargs_returns_silently():
@@ -429,8 +424,7 @@ def test_synthesis_raises_on_supercell_force_mismatch():
         for _ in range(len(fc2_supercells) - 1)  # ← one too few
     ]
     fc3_outs = [
-        _make_fake_engine_output(converged=True, n_atoms=n_fc3)
-        for _ in fc3_supercells
+        _make_fake_engine_output(converged=True, n_atoms=n_fc3) for _ in fc3_supercells
     ]
 
     with pytest.raises(RuntimeError) as exc:
@@ -754,9 +748,10 @@ def test_kappa_convergence_predicate_matches_phono3py_message():
         _is_kappa_not_converged,
     )
 
-    assert _is_kappa_not_converged(
-        ["Iteration is not converged.", "Other warning"]
-    ) is True
+    assert (
+        _is_kappa_not_converged(["Iteration is not converged.", "Other warning"])
+        is True
+    )
     assert _is_kappa_not_converged(["NOT CONVERGED in 100 iterations"]) is True
     assert _is_kappa_not_converged(["Successfully ran BTE"]) is False
     assert _is_kappa_not_converged([]) is False
