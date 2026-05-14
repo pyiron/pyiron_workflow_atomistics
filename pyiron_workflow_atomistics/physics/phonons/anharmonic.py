@@ -298,6 +298,11 @@ def _run_phono3py_thermal_conductivity(
         extras["dos"] = dos
         extras["free_energy"] = free_energy
 
+    if keep_handles:
+        extras["fc2"] = np.asarray(ph3.fc2)
+        extras["fc3"] = np.asarray(ph3.fc3)
+        extras["phono3py"] = ph3
+
     return PhononOutput(
         structure=structure,
         fc2_supercell_matrix=_normalise_supercell_matrix(fc2_supercell_matrix),

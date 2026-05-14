@@ -698,3 +698,37 @@ def test_harmonic_observables_populates_bands_dos_freeenergy(tmp_path):
     assert out.free_energy["F"].shape == (2,)
     assert out.free_energy["S"].shape == (2,)
     assert out.free_energy["Cv"].shape == (2,)
+
+
+@pytest.mark.slow
+def test_keep_handles_returns_fc2_fc3_and_phono3py_handle(tmp_path):
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        calculate_phonon_thermal_conductivity,
+    )
+
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    out = calculate_phonon_thermal_conductivity(
+        structure=bulk("Cu", "fcc", a=3.6),
+        engine=engine,
+        fc2_supercell_matrix=(2 * np.eye(3)).astype(int),
+        temperatures=[300.0],
+        q_mesh=(5, 5, 5),
+        keep_handles=True,
+    ).run()
+    out = out["phonon_output"] if isinstance(out, dict) else out
+
+    assert out.fc2 is not None
+    assert out.fc2.ndim == 4 and out.fc2.shape[-1] == 3
+    assert out.fc3 is not None
+    assert out.fc3.ndim == 6 and out.fc3.shape[-1] == 3
+    # phono3py handle is the live Phono3py object
+    assert out.phono3py is not None
+    assert hasattr(out.phono3py, "thermal_conductivity")
