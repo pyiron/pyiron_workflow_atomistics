@@ -175,20 +175,25 @@ def _run_phono3py_thermal_conductivity(
         cutoff_pair_distance=cutoff_pair_distance,
     )
 
+    n_fc2_forces = len(fc2_engine_outputs)
+    n_fc2_expected = len(ph3.phonon_supercells_with_displacements)
+    if n_fc2_forces != n_fc2_expected:
+        raise RuntimeError(
+            f"FC2 force/supercell mismatch: {n_fc2_forces} forces vs "
+            f"{n_fc2_expected} expected. "
+            "Displacement kwargs likely drifted between generation and synthesis."
+        )
+    n_fc3_forces = len(fc3_engine_outputs)
+    n_fc3_expected = len(ph3.supercells_with_displacements)
+    if n_fc3_forces != n_fc3_expected:
+        raise RuntimeError(
+            f"FC3 force/supercell mismatch: {n_fc3_forces} forces vs "
+            f"{n_fc3_expected} expected. "
+            "Displacement kwargs likely drifted between generation and synthesis."
+        )
+
     fc2_forces = _stack_forces(fc2_engine_outputs)
     fc3_forces = _stack_forces(fc3_engine_outputs)
-    if fc2_forces.shape[0] != len(ph3.phonon_supercells_with_displacements):
-        raise RuntimeError(
-            f"FC2 force/supercell mismatch: {fc2_forces.shape[0]} forces vs "
-            f"{len(ph3.phonon_supercells_with_displacements)} expected. "
-            "Displacement kwargs likely drifted between generation and synthesis."
-        )
-    if fc3_forces.shape[0] != len(ph3.supercells_with_displacements):
-        raise RuntimeError(
-            f"FC3 force/supercell mismatch: {fc3_forces.shape[0]} forces vs "
-            f"{len(ph3.supercells_with_displacements)} expected. "
-            "Displacement kwargs likely drifted between generation and synthesis."
-        )
 
     ph3.phonon_forces = fc2_forces
     ph3.forces = fc3_forces

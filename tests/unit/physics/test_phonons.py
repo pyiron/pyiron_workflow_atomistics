@@ -344,3 +344,113 @@ def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
     assert out.q_points is None
     assert out.band_structure is None
     assert out.fc2 is None
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — error guards (gated; need phono3py for _build_phono3py to work)
+# ---------------------------------------------------------------------------
+
+
+def _make_fake_engine_output(*, converged: bool, n_atoms: int = 32):
+    """Minimal EngineOutput-shaped object for testing the synthesis-node guards."""
+    from pyiron_workflow_atomistics.engine import EngineOutput
+
+    return EngineOutput(
+        final_structure=bulk("Cu", "fcc", a=3.6, cubic=True),
+        final_energy=-1.0,
+        converged=converged,
+        final_forces=np.zeros((n_atoms, 3)),
+    )
+
+
+@pytest.mark.slow
+def test_synthesis_raises_when_force_calc_failed():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _run_phono3py_thermal_conductivity,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    sc = (2 * np.eye(3)).astype(int)
+
+    # Build minimal fake FC2 / FC3 force lists with one failed entry at index 3.
+    fc2_outs = [_make_fake_engine_output(converged=(i != 3)) for i in range(6)]
+    fc3_outs = [_make_fake_engine_output(converged=True) for _ in range(2)]
+
+    with pytest.raises(RuntimeError) as exc:
+        _run_phono3py_thermal_conductivity.node_function(
+            structure=cu,
+            fc2_supercell_matrix=sc,
+            fc3_supercell_matrix=sc,
+            displacement_distance=0.03,
+            is_plusminus="auto",
+            cutoff_pair_distance=None,
+            number_of_snapshots=None,
+            random_seed=None,
+            fc_calculator=None,
+            fc2_engine_outputs=fc2_outs,
+            fc3_engine_outputs=fc3_outs,
+            temperatures=np.array([300.0]),
+            q_mesh=(5, 5, 5),
+            mode_resolved=False,
+            harmonic_observables=False,
+            keep_handles=False,
+        )
+    msg = str(exc.value)
+    assert "FC2" in msg
+    assert "3" in msg  # the failed index
+
+
+@pytest.mark.slow
+def test_synthesis_raises_on_supercell_force_mismatch():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _evaluate_supercells,
+        _generate_fc3_supercells,
+        _run_phono3py_thermal_conductivity,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+        _generate_fc2_supercells,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    sc = (2 * np.eye(3)).astype(int)
+
+    fc2_supercells = _generate_fc2_supercells.node_function(
+        structure=cu, fc2_supercell_matrix=sc
+    )
+    fc3_supercells = _generate_fc3_supercells.node_function(
+        structure=cu, fc2_supercell_matrix=sc, fc3_supercell_matrix=sc
+    )
+    n_fc2 = len(fc2_supercells[0])
+    n_fc3 = len(fc3_supercells[0])
+    fc2_outs = [
+        _make_fake_engine_output(converged=True, n_atoms=n_fc2)
+        for _ in range(len(fc2_supercells) - 1)  # ← one too few
+    ]
+    fc3_outs = [
+        _make_fake_engine_output(converged=True, n_atoms=n_fc3)
+        for _ in fc3_supercells
+    ]
+
+    with pytest.raises(RuntimeError) as exc:
+        _run_phono3py_thermal_conductivity.node_function(
+            structure=cu,
+            fc2_supercell_matrix=sc,
+            fc3_supercell_matrix=sc,
+            displacement_distance=0.03,
+            is_plusminus="auto",
+            cutoff_pair_distance=None,
+            number_of_snapshots=None,
+            random_seed=None,
+            fc_calculator=None,
+            fc2_engine_outputs=fc2_outs,
+            fc3_engine_outputs=fc3_outs,
+            temperatures=np.array([300.0]),
+            q_mesh=(5, 5, 5),
+            mode_resolved=False,
+            harmonic_observables=False,
+            keep_handles=False,
+        )
+    msg = str(exc.value)
+    assert "FC2 force/supercell mismatch" in msg
+    assert str(len(fc2_supercells) - 1) in msg
+    assert str(len(fc2_supercells)) in msg
