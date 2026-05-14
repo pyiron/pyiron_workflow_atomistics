@@ -95,3 +95,125 @@ def _evaluate_supercells(
             calculate.node_function(structure=supercell, engine=sub_engine)
         )
     return engine_outputs
+
+
+import warnings
+
+from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+    _normalise_supercell_matrix,
+)
+from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
+
+
+def _check_all_converged(engine_outputs, label: str) -> None:
+    """Raise RuntimeError listing failed supercell indices + working_directory."""
+    failed = [
+        (i, getattr(out.final_structure, "info", {}).get("working_directory", "<unknown>"))
+        for i, out in enumerate(engine_outputs)
+        if not out.converged
+    ]
+    if failed:
+        details = ", ".join(f"{i} ({wd})" for i, wd in failed)
+        raise RuntimeError(
+            f"Force calc failed for {label} supercells: {details}"
+        )
+
+
+def _stack_forces(engine_outputs) -> np.ndarray:
+    """(n_supercells, n_atoms, 3) — phono3py's expected forces layout."""
+    return np.stack([np.asarray(o.final_forces) for o in engine_outputs], axis=0)
+
+
+def _kappa_voigt_to_tensor(kappa_voigt: np.ndarray) -> np.ndarray:
+    """Convert (n_T, 6) Voigt → (n_T, 3, 3) full tensor.
+
+    phono3py returns κ as (n_T, 6) in (xx, yy, zz, yz, xz, xy) order.
+    """
+    n_T = kappa_voigt.shape[0]
+    out = np.zeros((n_T, 3, 3))
+    for t in range(n_T):
+        xx, yy, zz, yz, xz, xy = kappa_voigt[t]
+        out[t] = [[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]]
+    return out
+
+
+@pwf.as_function_node("phonon_output")
+def _run_phono3py_thermal_conductivity(
+    structure: Atoms,
+    fc2_supercell_matrix: ArrayLike,
+    fc3_supercell_matrix: ArrayLike,
+    displacement_distance: float,
+    is_plusminus: str | bool,
+    cutoff_pair_distance: float | None,
+    number_of_snapshots: int | None,
+    random_seed: int | None,
+    fc_calculator: str | None,
+    fc2_engine_outputs: list,
+    fc3_engine_outputs: list,
+    temperatures: ArrayLike,
+    q_mesh: ArrayLike,
+    mode_resolved: bool,
+    harmonic_observables: bool,
+    keep_handles: bool,
+) -> PhononOutput:
+    """Synthesis node: rebuild Phono3py, attach forces, fit FCs, run BTE."""
+    _check_all_converged(fc2_engine_outputs, label="FC2")
+    _check_all_converged(fc3_engine_outputs, label="FC3")
+
+    ph3 = _build_phono3py(
+        structure,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        fc3_supercell_matrix=fc3_supercell_matrix,
+    )
+    # Re-generate displacements identically so the dataset matches the forces.
+    ph3.generate_fc2_displacements(
+        distance=displacement_distance, is_plusminus=is_plusminus
+    )
+    ph3.generate_displacements(
+        distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        cutoff_pair_distance=cutoff_pair_distance,
+    )
+
+    fc2_forces = _stack_forces(fc2_engine_outputs)
+    fc3_forces = _stack_forces(fc3_engine_outputs)
+    if fc2_forces.shape[0] != len(ph3.phonon_supercells_with_displacements):
+        raise RuntimeError(
+            f"FC2 force/supercell mismatch: {fc2_forces.shape[0]} forces vs "
+            f"{len(ph3.phonon_supercells_with_displacements)} expected. "
+            "Displacement kwargs likely drifted between generation and synthesis."
+        )
+    if fc3_forces.shape[0] != len(ph3.supercells_with_displacements):
+        raise RuntimeError(
+            f"FC3 force/supercell mismatch: {fc3_forces.shape[0]} forces vs "
+            f"{len(ph3.supercells_with_displacements)} expected. "
+            "Displacement kwargs likely drifted between generation and synthesis."
+        )
+
+    ph3.phonon_forces = fc2_forces
+    ph3.forces = fc3_forces
+    ph3.produce_fc2()
+    ph3.produce_fc3(fc_calculator=fc_calculator)
+
+    T = np.asarray(temperatures, dtype=float)
+    mesh = np.asarray(q_mesh, dtype=int)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        ph3.mesh_numbers = mesh
+        ph3.init_phph_interaction()
+        ph3.run_thermal_conductivity(temperatures=T, write_kappa=False)
+        converged = not any(
+            "not converged" in str(w.message).lower() for w in caught
+        )
+
+    tc = ph3.thermal_conductivity
+    kappa = _kappa_voigt_to_tensor(np.asarray(tc.kappa[0]))  # (n_T, 3, 3)
+
+    return PhononOutput(
+        structure=structure,
+        fc2_supercell_matrix=_normalise_supercell_matrix(fc2_supercell_matrix),
+        fc3_supercell_matrix=_normalise_supercell_matrix(fc3_supercell_matrix),
+        temperatures=T,
+        kappa=kappa,
+        converged=converged,
+    )

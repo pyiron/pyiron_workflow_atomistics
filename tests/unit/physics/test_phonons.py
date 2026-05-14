@@ -270,3 +270,77 @@ def test_fd_fc3_supercells_deterministic():
     assert len(a) == len(b) and len(a) > 0
     for x, y in zip(a, b):
         np.testing.assert_allclose(x.get_positions(), y.get_positions())
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — synthesis-node smoke (EMT-Cu, ~60s)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
+    """End-to-end smoke through the synthesis node only (skipping macro plumbing).
+
+    Calls the FC2/FC3 generation + evaluate nodes manually, hands the
+    EngineOutputs to the synthesis node, and asserts a sensible
+    PhononOutput comes out. ~60s with EMT.
+    """
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _evaluate_supercells,
+        _generate_fc3_supercells,
+        _run_phono3py_thermal_conductivity,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+        _generate_fc2_supercells,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    sc = (2 * np.eye(3)).astype(int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
+    )
+
+    fc2_supercells = _generate_fc2_supercells.node_function(
+        structure=cu, fc2_supercell_matrix=sc
+    )
+    fc3_supercells = _generate_fc3_supercells.node_function(
+        structure=cu, fc2_supercell_matrix=sc, fc3_supercell_matrix=sc
+    )
+    fc2_outs = _evaluate_supercells.node_function(
+        supercells=fc2_supercells, engine=engine, prefix="fc2_disp_"
+    )
+    fc3_outs = _evaluate_supercells.node_function(
+        supercells=fc3_supercells, engine=engine, prefix="fc3_disp_"
+    )
+    out = _run_phono3py_thermal_conductivity.node_function(
+        structure=cu,
+        fc2_supercell_matrix=sc,
+        fc3_supercell_matrix=sc,
+        displacement_distance=0.03,
+        is_plusminus="auto",
+        cutoff_pair_distance=None,
+        number_of_snapshots=None,
+        random_seed=None,
+        fc_calculator=None,
+        fc2_engine_outputs=fc2_outs,
+        fc3_engine_outputs=fc3_outs,
+        temperatures=np.array([300.0]),
+        q_mesh=(5, 5, 5),
+        mode_resolved=False,
+        harmonic_observables=False,
+        keep_handles=False,
+    )
+
+    assert out.converged is True
+    assert out.kappa.shape == (1, 3, 3)
+    # Diagonal κ should be positive (BTE), trace > 0.
+    diag = np.array([out.kappa[0, i, i] for i in range(3)])
+    assert (diag > 0).all(), f"Non-positive diagonal κ: {diag}"
+    # Optional fields all None at this tier.
+    assert out.q_points is None
+    assert out.band_structure is None
+    assert out.fc2 is None
