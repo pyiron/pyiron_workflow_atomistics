@@ -132,3 +132,43 @@ def test_require_symfc_missing_actionable(monkeypatch):
     msg = str(exc.value)
     assert "pip install pyiron_workflow_atomistics[phonons]" in msg
     assert "symfc" in msg
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — polar-material kwargs early exit
+# ---------------------------------------------------------------------------
+
+
+def test_born_charges_raises_not_implemented():
+    """Passing born_charges raises before any phono3py import."""
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _check_polar_unsupported,
+    )
+
+    with pytest.raises(NotImplementedError) as exc:
+        _check_polar_unsupported(
+            born_charges=np.zeros((4, 3, 3)), epsilon_inf=None
+        )
+    msg = str(exc.value)
+    assert "BORN" in msg or "Non-analytic" in msg
+    assert "v1" in msg
+
+
+def test_epsilon_inf_raises_not_implemented():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _check_polar_unsupported,
+    )
+
+    with pytest.raises(NotImplementedError):
+        _check_polar_unsupported(
+            born_charges=None, epsilon_inf=np.eye(3)
+        )
+
+
+def test_no_polar_kwargs_returns_silently():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _check_polar_unsupported,
+    )
+
+    # Should return without raising
+    _check_polar_unsupported(born_charges=None, epsilon_inf=None)
