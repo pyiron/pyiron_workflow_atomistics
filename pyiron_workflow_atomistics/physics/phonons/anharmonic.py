@@ -6,6 +6,8 @@ Everything else in this module is a private node or helper.
 
 from __future__ import annotations
 
+from typing import Literal
+
 import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms
@@ -35,13 +37,36 @@ def _check_polar_unsupported(
         )
 
 
+@pwf.as_function_node("fc3_supercell_matrix_out", "fc_calculator_out")
+def _resolve_defaults(
+    fc2_supercell_matrix,
+    fc3_supercell_matrix,
+    number_of_snapshots,
+    fc_calculator,
+    born_charges,
+    epsilon_inf,
+):
+    """Runtime guard + default resolution for the macro.
+
+    Checks polar kwargs (raises before any phono3py import), defaults
+    fc3_supercell_matrix to fc2_supercell_matrix when not supplied, and
+    auto-selects 'symfc' for random-displacement mode.
+    """
+    _check_polar_unsupported(born_charges=born_charges, epsilon_inf=epsilon_inf)
+    if fc3_supercell_matrix is None:
+        fc3_supercell_matrix = fc2_supercell_matrix
+    if number_of_snapshots is not None and fc_calculator is None:
+        fc_calculator = "symfc"
+    return fc3_supercell_matrix, fc_calculator
+
+
 @pwf.as_function_node("fc3_supercells")
 def _generate_fc3_supercells(
     structure: Atoms,
-    fc2_supercell_matrix: ArrayLike,
-    fc3_supercell_matrix: ArrayLike,
+    fc2_supercell_matrix,
+    fc3_supercell_matrix,
     displacement_distance: float = 0.03,
-    is_plusminus: str | bool = "auto",
+    is_plusminus="auto",
     cutoff_pair_distance: float | None = None,
     number_of_snapshots: int | None = None,
     random_seed: int | None = None,
@@ -140,18 +165,18 @@ def _kappa_voigt_to_tensor(kappa_voigt: np.ndarray) -> np.ndarray:
 @pwf.as_function_node("phonon_output")
 def _run_phono3py_thermal_conductivity(
     structure: Atoms,
-    fc2_supercell_matrix: ArrayLike,
-    fc3_supercell_matrix: ArrayLike,
+    fc2_supercell_matrix,
+    fc3_supercell_matrix,
     displacement_distance: float,
-    is_plusminus: str | bool,
-    cutoff_pair_distance: float | None,
-    number_of_snapshots: int | None,
-    random_seed: int | None,
-    fc_calculator: str | None,
-    fc2_engine_outputs: list,
-    fc3_engine_outputs: list,
-    temperatures: ArrayLike,
-    q_mesh: ArrayLike,
+    is_plusminus,
+    cutoff_pair_distance,
+    number_of_snapshots,
+    random_seed,
+    fc_calculator,
+    fc2_engine_outputs,
+    fc3_engine_outputs,
+    temperatures,
+    q_mesh,
     mode_resolved: bool,
     harmonic_observables: bool,
     keep_handles: bool,
@@ -222,3 +247,100 @@ def _run_phono3py_thermal_conductivity(
         kappa=kappa,
         converged=converged,
     )
+
+
+from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+    _generate_fc2_supercells,
+)
+
+
+@pwf.api.as_macro_node("phonon_output")
+def calculate_phonon_thermal_conductivity(
+    wf,
+    structure: Atoms,
+    engine: Engine,
+    fc2_supercell_matrix,
+    fc3_supercell_matrix=None,
+    temperatures=(300.0,),
+    q_mesh=(11, 11, 11),
+    # phono3py.generate_displacements kwargs
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
+    cutoff_pair_distance: float | None = None,
+    number_of_snapshots: int | None = None,
+    random_seed: int | None = None,
+    fc_calculator: str | None = None,
+    # output tiers
+    mode_resolved: bool = False,
+    harmonic_observables: bool = False,
+    keep_handles: bool = False,
+    # polar-material kwargs (v1: must be None)
+    born_charges=None,
+    epsilon_inf=None,
+):
+    """Compute lattice thermal conductivity κ(T) via phono3py.
+
+    Reuses the existing Engine Protocol — every supercell force evaluation
+    goes through ``engine.calculate``. Returns a :class:`PhononOutput`.
+
+    See spec: docs/design/specs/2026-05-13-phono3py-thermal-conductivity-design.md
+    """
+    # Node 0: runtime polar-guard + default resolution.
+    # (Cannot call _check_polar_unsupported directly in the macro body because
+    # the macro body runs during __init__ with proxy UserInput objects, not
+    # real values. This node runs it at execution time.)
+    wf.defaults = _resolve_defaults(
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        fc3_supercell_matrix=fc3_supercell_matrix,
+        number_of_snapshots=number_of_snapshots,
+        fc_calculator=fc_calculator,
+        born_charges=born_charges,
+        epsilon_inf=epsilon_inf,
+    )
+
+    wf.fc2_supercells = _generate_fc2_supercells(
+        structure=structure,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
+    )
+    wf.fc3_supercells = _generate_fc3_supercells(
+        structure=structure,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        fc3_supercell_matrix=wf.defaults.outputs.fc3_supercell_matrix_out,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        cutoff_pair_distance=cutoff_pair_distance,
+        number_of_snapshots=number_of_snapshots,
+        random_seed=random_seed,
+    )
+    wf.fc2_eval = _evaluate_supercells(
+        supercells=wf.fc2_supercells.outputs.fc2_supercells,
+        engine=engine,
+        prefix="fc2_disp_",
+    )
+    wf.fc3_eval = _evaluate_supercells(
+        supercells=wf.fc3_supercells.outputs.fc3_supercells,
+        engine=engine,
+        prefix="fc3_disp_",
+    )
+    wf.synthesis = _run_phono3py_thermal_conductivity(
+        structure=structure,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        fc3_supercell_matrix=wf.defaults.outputs.fc3_supercell_matrix_out,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        cutoff_pair_distance=cutoff_pair_distance,
+        number_of_snapshots=number_of_snapshots,
+        random_seed=random_seed,
+        fc_calculator=wf.defaults.outputs.fc_calculator_out,
+        fc2_engine_outputs=wf.fc2_eval.outputs.engine_outputs,
+        fc3_engine_outputs=wf.fc3_eval.outputs.engine_outputs,
+        temperatures=temperatures,
+        q_mesh=q_mesh,
+        mode_resolved=mode_resolved,
+        harmonic_observables=harmonic_observables,
+        keep_handles=keep_handles,
+    )
+
+    return wf.synthesis.outputs.phonon_output

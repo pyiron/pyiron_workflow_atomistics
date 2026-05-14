@@ -454,3 +454,43 @@ def test_synthesis_raises_on_supercell_force_mismatch():
     assert "FC2 force/supercell mismatch" in msg
     assert str(len(fc2_supercells) - 1) in msg
     assert str(len(fc2_supercells)) in msg
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — full-macro smoke test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_calculate_phonon_thermal_conductivity_macro_emt(tmp_path):
+    """End-to-end through the public macro. ~60s with EMT."""
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        calculate_phonon_thermal_conductivity,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    sc = (2 * np.eye(3)).astype(int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    out = calculate_phonon_thermal_conductivity(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=sc,
+        temperatures=[300.0],
+        q_mesh=(5, 5, 5),
+    ).run()
+
+    out = out["phonon_output"] if isinstance(out, dict) else out
+    assert out.converged is True
+    assert out.kappa.shape == (1, 3, 3)
+    # Engine got the per-supercell subdirs
+    assert (tmp_path / "fc2_disp_0000").exists()
+    assert (tmp_path / "fc3_disp_0000").exists()
