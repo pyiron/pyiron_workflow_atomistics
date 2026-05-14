@@ -172,3 +172,66 @@ def test_no_polar_kwargs_returns_silently():
 
     # Should return without raising
     _check_polar_unsupported(born_charges=None, epsilon_inf=None)
+
+
+# ---------------------------------------------------------------------------
+# Tier 3 — displacement generation determinism (gated)
+# ---------------------------------------------------------------------------
+
+
+phono3py = pytest.importorskip("phono3py", reason="phonons extra not installed")
+
+
+def _cu_fcc_primitive():
+    return bulk("Cu", "fcc", a=3.6)
+
+
+def _two_by_two_by_two():
+    return (2 * np.eye(3)).astype(int)
+
+
+@pytest.mark.slow
+def test_fd_fc2_supercells_deterministic():
+    from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+        _generate_fc2_supercells,
+    )
+
+    a = _generate_fc2_supercells.node_function(
+        structure=_cu_fcc_primitive(),
+        fc2_supercell_matrix=_two_by_two_by_two(),
+        displacement_distance=0.03,
+        is_plusminus="auto",
+    )
+    b = _generate_fc2_supercells.node_function(
+        structure=_cu_fcc_primitive(),
+        fc2_supercell_matrix=_two_by_two_by_two(),
+        displacement_distance=0.03,
+        is_plusminus="auto",
+    )
+    assert len(a) == len(b) and len(a) > 0
+    for x, y in zip(a, b):
+        np.testing.assert_allclose(x.get_positions(), y.get_positions())
+        np.testing.assert_allclose(x.get_cell()[:], y.get_cell()[:])
+
+
+@pytest.mark.slow
+def test_fd_fc3_supercells_deterministic():
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _generate_fc3_supercells,
+    )
+
+    kwargs = dict(
+        structure=_cu_fcc_primitive(),
+        fc2_supercell_matrix=_two_by_two_by_two(),
+        fc3_supercell_matrix=_two_by_two_by_two(),
+        displacement_distance=0.03,
+        is_plusminus="auto",
+        cutoff_pair_distance=None,
+        number_of_snapshots=None,
+        random_seed=None,
+    )
+    a = _generate_fc3_supercells.node_function(**kwargs)
+    b = _generate_fc3_supercells.node_function(**kwargs)
+    assert len(a) == len(b) and len(a) > 0
+    for x, y in zip(a, b):
+        np.testing.assert_allclose(x.get_positions(), y.get_positions())
