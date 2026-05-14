@@ -16,5 +16,8 @@ dependencies:
 - pytest
 - nbformat
 - nbclient
+- phonopy
+- phono3py
+- symfc
 - pip:
   - lz-GB-code==0.1.0

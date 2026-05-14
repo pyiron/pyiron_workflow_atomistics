@@ -23,6 +23,11 @@ dependencies:
   - nbformat
   - nbclient
 
+  # Optional [phonons] extra — needed for the phono3py example notebook
+  - phonopy
+  - phono3py
+  - symfc
+
   # PyPI-only deps (not on conda-forge)
   - pip:
     - lz-GB-code==0.1.0
