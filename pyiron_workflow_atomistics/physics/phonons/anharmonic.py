@@ -16,6 +16,7 @@ from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate
 from pyiron_workflow_atomistics.physics.phonons._compat import require_symfc
 from pyiron_workflow_atomistics.physics.phonons.harmonic import (
     _build_phono3py,
+    _compute_harmonic_observables,
     _generate_fc2_supercells,
     _normalise_supercell_matrix,
     _phonopy_to_ase,
@@ -286,10 +287,6 @@ def _run_phono3py_thermal_conductivity(
         # gruneisen needs phono3py.gruneisen.Gruneisen — skip in v1.
 
     if harmonic_observables:
-        from pyiron_workflow_atomistics.physics.phonons.harmonic import (
-            _compute_harmonic_observables,
-        )
-
         band_structure, dos, free_energy = _compute_harmonic_observables(
             ph3=ph3, temperatures=T
         )
