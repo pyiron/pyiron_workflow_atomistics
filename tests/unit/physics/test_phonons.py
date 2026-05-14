@@ -751,3 +751,19 @@ def test_kappa_convergence_predicate_matches_phono3py_message():
     assert _is_kappa_not_converged(["NOT CONVERGED in 100 iterations"]) is True
     assert _is_kappa_not_converged(["Successfully ran BTE"]) is False
     assert _is_kappa_not_converged([]) is False
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — public re-exports
+# ---------------------------------------------------------------------------
+
+
+def test_public_reexports():
+    """All publicly-documented symbols are importable from the subpackage."""
+    from pyiron_workflow_atomistics.physics.phonons import (
+        PhononOutput,
+        calculate_phonon_thermal_conductivity,
+    )
+
+    assert PhononOutput is not None
+    assert callable(calculate_phonon_thermal_conductivity)
