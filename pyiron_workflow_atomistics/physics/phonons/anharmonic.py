@@ -155,6 +155,15 @@ from pyiron_workflow_atomistics.physics.phonons.harmonic import (
 from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
 
 
+def _is_kappa_not_converged(messages: list[str]) -> bool:
+    """Return True if any phono3py warning indicates the κ solver failed.
+
+    phono3py prints variants like 'Iteration is not converged.' or
+    'NOT CONVERGED in N iterations'; both lowercase to a stable substring.
+    """
+    return any("not converged" in str(m).lower() for m in messages)
+
+
 def _check_all_converged(engine_outputs, label: str) -> None:
     """Raise RuntimeError listing failed supercell indices + working_directory."""
     failed = [
@@ -269,9 +278,7 @@ def _run_phono3py_thermal_conductivity(
         ph3.mesh_numbers = mesh
         ph3.init_phph_interaction()
         ph3.run_thermal_conductivity(temperatures=T, write_kappa=False)
-        converged = not any(
-            "not converged" in str(w.message).lower() for w in caught
-        )
+        converged = not _is_kappa_not_converged([w.message for w in caught])
 
     tc = ph3.thermal_conductivity
     kappa = _kappa_voigt_to_tensor(np.asarray(tc.kappa[0]))  # (n_T, 3, 3)

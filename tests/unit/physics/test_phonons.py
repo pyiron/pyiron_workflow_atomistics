@@ -732,3 +732,22 @@ def test_keep_handles_returns_fc2_fc3_and_phono3py_handle(tmp_path):
     # phono3py handle is the live Phono3py object
     assert out.phono3py is not None
     assert hasattr(out.phono3py, "thermal_conductivity")
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — κ-solver non-convergence predicate
+# ---------------------------------------------------------------------------
+
+
+def test_kappa_convergence_predicate_matches_phono3py_message():
+    """The predicate should flag phono3py's documented non-convergence text."""
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _is_kappa_not_converged,
+    )
+
+    assert _is_kappa_not_converged(
+        ["Iteration is not converged.", "Other warning"]
+    ) is True
+    assert _is_kappa_not_converged(["NOT CONVERGED in 100 iterations"]) is True
+    assert _is_kappa_not_converged(["Successfully ran BTE"]) is False
+    assert _is_kappa_not_converged([]) is False
