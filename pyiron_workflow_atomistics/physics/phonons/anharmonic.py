@@ -276,6 +276,16 @@ def _run_phono3py_thermal_conductivity(
     tc = ph3.thermal_conductivity
     kappa = _kappa_voigt_to_tensor(np.asarray(tc.kappa[0]))  # (n_T, 3, 3)
 
+    extras: dict = {}
+    if mode_resolved:
+        # phono3py stores mode-resolved data on .thermal_conductivity
+        extras["q_points"] = np.asarray(tc.qpoints)
+        extras["frequencies"] = np.asarray(tc.frequencies)
+        extras["group_velocities"] = np.asarray(tc.group_velocities)
+        extras["mode_kappa"] = np.asarray(tc.mode_kappa[0])  # (n_T, n_q, n_band, 6)
+        extras["gamma"] = np.asarray(tc.gamma[0])  # (n_T, n_q, n_band)
+        # gruneisen needs phono3py.gruneisen.Gruneisen — skip in v1.
+
     return PhononOutput(
         structure=structure,
         fc2_supercell_matrix=_normalise_supercell_matrix(fc2_supercell_matrix),
@@ -283,6 +293,7 @@ def _run_phono3py_thermal_conductivity(
         temperatures=T,
         kappa=kappa,
         converged=converged,
+        **extras,
     )
 
 
