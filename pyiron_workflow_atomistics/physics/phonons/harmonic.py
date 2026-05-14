@@ -93,6 +93,9 @@ def _generate_fc2_supercells(
     Returns a list of ASE Atoms. The same kwargs reconstruct an identical
     Phono3py object inside the synthesis node — FD is deterministic in
     structure + supercell + distance + symmetry.
+
+    Note: `cutoff_pair_distance` is FC3-specific (an anharmonic pair cutoff)
+    and is intentionally not accepted by the FC2 generator.
     """
     ph3 = _build_phono3py(
         structure,

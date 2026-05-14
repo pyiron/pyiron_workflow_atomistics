@@ -179,9 +179,6 @@ def test_no_polar_kwargs_returns_silently():
 # ---------------------------------------------------------------------------
 
 
-phono3py = pytest.importorskip("phono3py", reason="phonons extra not installed")
-
-
 def _cu_fcc_primitive():
     return bulk("Cu", "fcc", a=3.6)
 
@@ -192,6 +189,7 @@ def _two_by_two_by_two():
 
 @pytest.mark.slow
 def test_fd_fc2_supercells_deterministic():
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from pyiron_workflow_atomistics.physics.phonons.harmonic import (
         _generate_fc2_supercells,
     )
@@ -251,6 +249,7 @@ def test_evaluate_supercells_uses_with_working_directory(tmp_path):
 
 @pytest.mark.slow
 def test_fd_fc3_supercells_deterministic():
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
         _generate_fc3_supercells,
     )
@@ -285,6 +284,7 @@ def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
     EngineOutputs to the synthesis node, and asserts a sensible
     PhononOutput comes out. ~60s with EMT.
     """
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
 
@@ -365,6 +365,7 @@ def _make_fake_engine_output(*, converged: bool, n_atoms: int = 32):
 
 @pytest.mark.slow
 def test_synthesis_raises_when_force_calc_failed():
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
         _run_phono3py_thermal_conductivity,
     )
@@ -402,6 +403,7 @@ def test_synthesis_raises_when_force_calc_failed():
 
 @pytest.mark.slow
 def test_synthesis_raises_on_supercell_force_mismatch():
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
         _evaluate_supercells,
         _generate_fc3_supercells,
@@ -464,6 +466,7 @@ def test_synthesis_raises_on_supercell_force_mismatch():
 @pytest.mark.slow
 def test_calculate_phonon_thermal_conductivity_macro_emt(tmp_path):
     """End-to-end through the public macro. ~60s with EMT."""
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
 
@@ -529,6 +532,7 @@ def test_resolve_random_seed_auto_fills_when_random_mode_without_seed():
 
 @pytest.mark.slow
 def test_random_fc3_supercells_deterministic_with_seed():
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     pytest.importorskip("symfc", reason="symfc not installed")
     from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
         _generate_fc3_supercells,
@@ -558,6 +562,7 @@ def test_random_fc3_supercells_deterministic_with_seed():
 
 @pytest.mark.slow
 def test_random_displacement_macro_emt(tmp_path):
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     pytest.importorskip("symfc", reason="symfc not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
@@ -599,6 +604,7 @@ def test_random_displacement_macro_emt(tmp_path):
 @pytest.mark.slow
 def test_mode_resolved_off_by_default(tmp_path):
     """Without mode_resolved=True, all mode-resolved fields are None."""
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
 
@@ -630,6 +636,7 @@ def test_mode_resolved_off_by_default(tmp_path):
 
 @pytest.mark.slow
 def test_mode_resolved_on_populates_all_fields(tmp_path):
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
 
@@ -665,6 +672,7 @@ def test_mode_resolved_on_populates_all_fields(tmp_path):
 
 @pytest.mark.slow
 def test_harmonic_observables_populates_bands_dos_freeenergy(tmp_path):
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
 
@@ -702,6 +710,7 @@ def test_harmonic_observables_populates_bands_dos_freeenergy(tmp_path):
 
 @pytest.mark.slow
 def test_keep_handles_returns_fc2_fc3_and_phono3py_handle(tmp_path):
+    pytest.importorskip("phono3py", reason="phonons extra not installed")
     from ase.build import bulk
     from ase.calculators.emt import EMT
 

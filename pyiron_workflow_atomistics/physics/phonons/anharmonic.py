@@ -6,17 +6,21 @@ Everything else in this module is a private node or helper.
 
 from __future__ import annotations
 
-from typing import Literal
+import warnings
 
 import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms
-from numpy.typing import ArrayLike
 
+from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate
+from pyiron_workflow_atomistics.physics.phonons._compat import require_symfc
 from pyiron_workflow_atomistics.physics.phonons.harmonic import (
     _build_phono3py,
+    _generate_fc2_supercells,
+    _normalise_supercell_matrix,
     _phonopy_to_ase,
 )
+from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
 
 
 def _check_polar_unsupported(
@@ -107,6 +111,7 @@ def _generate_fc3_supercells(
         fc3_supercell_matrix=fc3_supercell_matrix,
     )
     if number_of_snapshots is not None:
+        require_symfc()
         ph3.generate_displacements(
             distance=displacement_distance,
             number_of_snapshots=number_of_snapshots,
@@ -122,9 +127,6 @@ def _generate_fc3_supercells(
         _phonopy_to_ase(s) for s in ph3.supercells_with_displacements
     ]
     return fc3_supercells
-
-
-from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate
 
 
 @pwf.as_function_node("engine_outputs")
@@ -145,14 +147,6 @@ def _evaluate_supercells(
             calculate.node_function(structure=supercell, engine=sub_engine)
         )
     return engine_outputs
-
-
-import warnings
-
-from pyiron_workflow_atomistics.physics.phonons.harmonic import (
-    _normalise_supercell_matrix,
-)
-from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
 
 
 def _is_kappa_not_converged(messages: list[str]) -> bool:
@@ -220,8 +214,6 @@ def _run_phono3py_thermal_conductivity(
     _check_all_converged(fc3_engine_outputs, label="FC3")
 
     if fc_calculator == "symfc":
-        from pyiron_workflow_atomistics.physics.phonons._compat import require_symfc
-
         require_symfc()
 
     ph3 = _build_phono3py(
@@ -319,11 +311,6 @@ def _run_phono3py_thermal_conductivity(
         converged=converged,
         **extras,
     )
-
-
-from pyiron_workflow_atomistics.physics.phonons.harmonic import (
-    _generate_fc2_supercells,
-)
 
 
 @pwf.api.as_macro_node("phonon_output")
