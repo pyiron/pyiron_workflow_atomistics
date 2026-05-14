@@ -87,3 +87,48 @@ def test_phonon_output_to_dict_round_trip():
     assert d["kappa"].shape == (1, 3, 3)
     assert d["converged"] is True
     assert d["q_points"] is None
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — lazy-import shims
+# ---------------------------------------------------------------------------
+
+
+def _patch_missing(monkeypatch, module_name):
+    """Make `import <module_name>` raise ImportError inside the shim."""
+    import sys
+
+    monkeypatch.setitem(sys.modules, module_name, None)
+
+
+def test_require_phonopy_missing_actionable(monkeypatch):
+    from pyiron_workflow_atomistics.physics.phonons import _compat
+
+    _patch_missing(monkeypatch, "phonopy")
+    with pytest.raises(ImportError) as exc:
+        _compat.require_phonopy()
+    msg = str(exc.value)
+    assert "pip install pyiron_workflow_atomistics[phonons]" in msg
+    assert "phonopy" in msg
+
+
+def test_require_phono3py_missing_actionable(monkeypatch):
+    from pyiron_workflow_atomistics.physics.phonons import _compat
+
+    _patch_missing(monkeypatch, "phono3py")
+    with pytest.raises(ImportError) as exc:
+        _compat.require_phono3py()
+    msg = str(exc.value)
+    assert "pip install pyiron_workflow_atomistics[phonons]" in msg
+    assert "phono3py" in msg
+
+
+def test_require_symfc_missing_actionable(monkeypatch):
+    from pyiron_workflow_atomistics.physics.phonons import _compat
+
+    _patch_missing(monkeypatch, "symfc")
+    with pytest.raises(ImportError) as exc:
+        _compat.require_symfc()
+    msg = str(exc.value)
+    assert "pip install pyiron_workflow_atomistics[phonons]" in msg
+    assert "symfc" in msg
