@@ -520,3 +520,72 @@ def test_resolve_random_seed_auto_fills_when_random_mode_without_seed():
     assert seed is not None
     assert isinstance(seed, int)
     assert 0 <= seed < 2**32
+
+
+# ---------------------------------------------------------------------------
+# Tier 3 — random-displacement determinism (gated additionally on symfc)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_random_fc3_supercells_deterministic_with_seed():
+    pytest.importorskip("symfc", reason="symfc not installed")
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _generate_fc3_supercells,
+    )
+
+    kwargs = dict(
+        structure=bulk("Cu", "fcc", a=3.6),
+        fc2_supercell_matrix=(2 * np.eye(3)).astype(int),
+        fc3_supercell_matrix=(2 * np.eye(3)).astype(int),
+        displacement_distance=0.03,
+        is_plusminus="auto",
+        cutoff_pair_distance=None,
+        number_of_snapshots=10,
+        random_seed=42,
+    )
+    a = _generate_fc3_supercells.node_function(**kwargs)
+    b = _generate_fc3_supercells.node_function(**kwargs)
+    assert len(a) == len(b) == 10
+    for x, y in zip(a, b):
+        np.testing.assert_allclose(x.get_positions(), y.get_positions())
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — random-mode end-to-end smoke (gated additionally on symfc)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_random_displacement_macro_emt(tmp_path):
+    pytest.importorskip("symfc", reason="symfc not installed")
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        calculate_phonon_thermal_conductivity,
+    )
+
+    # Al 3x3x3: symfc 1.7.0 requires ≥27-atom supercells for the FC3 O3 basis set;
+    # the 2x2x2 FCC supercell (8 atoms) triggers an internal assertion failure in
+    # symfc.utils.eig_tools_division that is fixed in later symfc releases.
+    al = bulk("Al", "fcc", a=4.05)
+    sc = (3 * np.eye(3)).astype(int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    out = calculate_phonon_thermal_conductivity(
+        structure=al,
+        engine=engine,
+        fc2_supercell_matrix=sc,
+        temperatures=[300.0],
+        q_mesh=(3, 3, 3),
+        number_of_snapshots=10,
+        random_seed=0,
+    ).run()
+    out = out["phonon_output"] if isinstance(out, dict) else out
+    assert out.converged is True
+    assert np.all(np.isfinite(out.kappa))

@@ -101,23 +101,23 @@ def _generate_fc3_supercells(
     Finite-difference path is used when number_of_snapshots is None;
     random-displacement path (and symfc fitting) lands in Task 11.
     """
-    if number_of_snapshots is not None:
-        # Filled in by Task 11. Until then, refuse random mode loudly so a
-        # user who passes the kwarg too early gets a clear message.
-        raise NotImplementedError(
-            "Random-displacement FC3 sampling is added in a later task; "
-            "set number_of_snapshots=None for the FD path."
-        )
     ph3 = _build_phono3py(
         structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
         fc3_supercell_matrix=fc3_supercell_matrix,
     )
-    ph3.generate_displacements(
-        distance=displacement_distance,
-        is_plusminus=is_plusminus,
-        cutoff_pair_distance=cutoff_pair_distance,
-    )
+    if number_of_snapshots is not None:
+        ph3.generate_displacements(
+            distance=displacement_distance,
+            number_of_snapshots=number_of_snapshots,
+            random_seed=random_seed,
+        )
+    else:
+        ph3.generate_displacements(
+            distance=displacement_distance,
+            is_plusminus=is_plusminus,
+            cutoff_pair_distance=cutoff_pair_distance,
+        )
     fc3_supercells = [
         _phonopy_to_ase(s) for s in ph3.supercells_with_displacements
     ]
@@ -210,6 +210,11 @@ def _run_phono3py_thermal_conductivity(
     _check_all_converged(fc2_engine_outputs, label="FC2")
     _check_all_converged(fc3_engine_outputs, label="FC3")
 
+    if fc_calculator == "symfc":
+        from pyiron_workflow_atomistics.physics.phonons._compat import require_symfc
+
+        require_symfc()
+
     ph3 = _build_phono3py(
         structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
@@ -219,11 +224,18 @@ def _run_phono3py_thermal_conductivity(
     ph3.generate_fc2_displacements(
         distance=displacement_distance, is_plusminus=is_plusminus
     )
-    ph3.generate_displacements(
-        distance=displacement_distance,
-        is_plusminus=is_plusminus,
-        cutoff_pair_distance=cutoff_pair_distance,
-    )
+    if number_of_snapshots is not None:
+        ph3.generate_displacements(
+            distance=displacement_distance,
+            number_of_snapshots=number_of_snapshots,
+            random_seed=random_seed,
+        )
+    else:
+        ph3.generate_displacements(
+            distance=displacement_distance,
+            is_plusminus=is_plusminus,
+            cutoff_pair_distance=cutoff_pair_distance,
+        )
 
     n_fc2_forces = len(fc2_engine_outputs)
     n_fc2_expected = len(ph3.phonon_supercells_with_displacements)
