@@ -1432,3 +1432,72 @@ def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
     )
     with pytest.warns(UserWarning, match=r"⟨T⟩ drift.*exceeds tolerance"):
         wf.run()
+
+
+@pytest.mark.slow
+def test_power_spectra_off_by_default(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+    assert out.power_spectra is None
+    assert out.frequency_grid is None
+
+
+@pytest.mark.slow
+def test_power_spectra_on_populates_arrays(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+        power_spectra=True,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+    assert out.power_spectra is not None
+    assert out.frequency_grid is not None
+    # (n_q, n_band, n_freq_bins) — but n_band index ordering may differ
+    # by dynaphopy version; just check first two axes.
+    assert out.power_spectra.shape[0] == 1
+    assert out.power_spectra.shape[1] == 3 or out.power_spectra.ndim == 2
