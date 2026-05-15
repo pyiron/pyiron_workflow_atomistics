@@ -858,9 +858,9 @@ def test_md_phonon_output_dataclass_shape():
     by_name = {f.name: f for f in fields(MdPhononOutput)}
     for name in required_names:
         f = by_name[name]
-        assert f.default is MISSING and f.default_factory is MISSING, (
-            f"{name} must be required (no default)"
-        )
+        assert (
+            f.default is MISSING and f.default_factory is MISSING
+        ), f"{name} must be required (no default)"
     for name in optional_names:
         assert by_name[name].default is None, f"{name} must default to None"
 
@@ -1252,13 +1252,12 @@ def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
     nonzero = np.abs(out.harmonic_frequencies) > 0.1  # THz
     if nonzero.any():
         rel_drift = np.abs(
-            (out.renormalised_frequencies[nonzero]
-             - out.harmonic_frequencies[nonzero])
+            (out.renormalised_frequencies[nonzero] - out.harmonic_frequencies[nonzero])
             / out.harmonic_frequencies[nonzero]
         )
-        assert (rel_drift < 0.5).all(), (
-            f"Anomalous renormalisation: rel_drift = {rel_drift}"
-        )
+        assert (
+            rel_drift < 0.5
+        ).all(), f"Anomalous renormalisation: rel_drift = {rel_drift}"
     # Acoustic modes at Gamma should be ~0 (within Lorentzian-fit noise).
     acoustic_mask = ~nonzero
     if acoustic_mask.any():
@@ -1313,19 +1312,32 @@ def test_project_with_dynaphopy_non_gamma_units_regression(tmp_path):
         working_directory=str(tmp_path),
     )
     fc2_array = _compute_fc2_from_scratch.node_function(
-        structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell,
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=fc2_supercell,
     )
     pack = _run_nvt_trajectory.node_function(
-        structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell,
-        temperature=300.0, equilibration_steps=200, production_steps=2000,
-        time_step=1.0, thermostat_time_constant=100.0, seed=42,
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=fc2_supercell,
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        thermostat_time_constant=100.0,
+        seed=42,
     )
 
     q_non_gamma = np.array([[0.25, 0.0, 0.0]])
     out = _project_with_dynaphopy.node_function(
-        structure=cu, fc2_array=fc2_array, resolved_fc2_supercell=fc2_supercell,
-        trajectory_pack=pack, resolved_q_points=q_non_gamma,
-        temperature=300.0, power_spectra=False, keep_handles=False,
+        structure=cu,
+        fc2_array=fc2_array,
+        resolved_fc2_supercell=fc2_supercell,
+        trajectory_pack=pack,
+        resolved_q_points=q_non_gamma,
+        temperature=300.0,
+        power_spectra=False,
+        keep_handles=False,
     )
 
     assert out.renormalised_frequencies.shape == (1, 3)
