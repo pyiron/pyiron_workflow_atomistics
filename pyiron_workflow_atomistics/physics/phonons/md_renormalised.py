@@ -543,3 +543,112 @@ def _project_with_dynaphopy(
         )
 
     return out
+
+
+@pwf.as_function_node("fc2_array")
+def _select_or_compute_fc2(
+    structure: Atoms,
+    engine: Engine,
+    resolved_fc2_supercell,
+    fc2_source_tag: str,
+    fc2_array_reused,
+) -> np.ndarray:
+    """Pick FC2 between reuse (from phono3py_output) and recomputation.
+
+    pyiron_workflow macros can't branch on proxy `UserInput` values at graph
+    construction time, so the if/elif lives here in a function-node that runs
+    at execution time.
+    """
+    if fc2_source_tag == "reuse":
+        if fc2_array_reused is None:
+            raise RuntimeError(
+                "Internal error: fc2_source_tag='reuse' but fc2_array_reused is None"
+            )
+        fc2_array = np.asarray(fc2_array_reused)
+    elif fc2_source_tag == "recompute":
+        fc2_array = _compute_fc2_from_scratch.node_function(
+            structure=structure,
+            engine=engine,
+            resolved_fc2_supercell=resolved_fc2_supercell,
+        )
+    else:
+        raise ValueError(f"Unknown fc2_source_tag: {fc2_source_tag!r}")
+    return fc2_array
+
+
+@pwf.api.as_macro_node("md_phonon_output")
+def calculate_phonon_md_renormalisation(
+    wf,
+    structure: Atoms,
+    engine: Engine,
+    fc2_supercell_matrix=None,
+    temperature: float = 300.0,
+    # MD plumbing
+    equilibration_steps: int = 2000,
+    production_steps: int = 10000,
+    time_step: float = 1.0,
+    thermostat_time_constant: float = 100.0,
+    seed=None,
+    # q-point selection
+    q_points=None,
+    band_npoints: int = 30,
+    # FC2 source — optional re-use from phono3py
+    phono3py_output: PhononOutput | None = None,
+    # output tiers
+    power_spectra: bool = False,
+    keep_handles: bool = False,
+):
+    """Compute anharmonic phonon renormalisation at finite T via dynaphopy.
+
+    Reuses the existing Engine Protocol — FC2 force evaluations go through
+    ``engine.calculate``; MD trajectory generation borrows the engine's
+    calculator directly (per the spec's documented carve-out for step-by-step
+    MD control).
+
+    See spec: docs/design/specs/2026-05-15-dynaphopy-md-renormalisation-design.md
+    """
+    # Node 0: runtime arg resolution (proxy-safe).
+    wf.defaults = _resolve_md_defaults(
+        structure=structure,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        phono3py_output=phono3py_output,
+        q_points=q_points,
+        band_npoints=band_npoints,
+        seed=seed,
+    )
+
+    # Node 1: FC2 source — recompute or reuse.
+    wf.fc2 = _select_or_compute_fc2(
+        structure=structure,
+        engine=engine,
+        resolved_fc2_supercell=wf.defaults.outputs.resolved_fc2_supercell,
+        fc2_source_tag=wf.defaults.outputs.fc2_source_tag,
+        fc2_array_reused=wf.defaults.outputs.fc2_array,
+    )
+
+    # Node 2: MD trajectory.
+    wf.trajectory = _run_nvt_trajectory(
+        structure=structure,
+        engine=engine,
+        resolved_fc2_supercell=wf.defaults.outputs.resolved_fc2_supercell,
+        temperature=temperature,
+        equilibration_steps=equilibration_steps,
+        production_steps=production_steps,
+        time_step=time_step,
+        thermostat_time_constant=thermostat_time_constant,
+        seed=wf.defaults.outputs.resolved_seed,
+    )
+
+    # Node 3: dynaphopy projection synthesis.
+    wf.projection = _project_with_dynaphopy(
+        structure=structure,
+        fc2_array=wf.fc2.outputs.fc2_array,
+        resolved_fc2_supercell=wf.defaults.outputs.resolved_fc2_supercell,
+        trajectory_pack=wf.trajectory.outputs.trajectory_pack,
+        resolved_q_points=wf.defaults.outputs.resolved_q_points,
+        temperature=temperature,
+        power_spectra=power_spectra,
+        keep_handles=keep_handles,
+    )
+
+    return wf.projection.outputs.md_phonon_output

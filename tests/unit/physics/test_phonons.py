@@ -1270,3 +1270,46 @@ def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
             "Acoustic-mode renormalisation deviates from harmonic ~0: "
             f"{out.renormalised_frequencies[acoustic_mask]}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — full-macro smoke test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_calculate_phonon_md_renormalisation_macro_emt(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        q_points=[[0.0, 0.0, 0.0]],  # Gamma-only for runtime
+        seed=42,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+
+    assert out.converged is True
+    assert out.renormalised_frequencies.shape == (1, 3)
+    assert out.q_points.shape == (1, 3)
+    # FC2 was recomputed -> fc2_disp_NNNN dirs on disk
+    assert (tmp_path / "fc2_disp_0000").exists()
