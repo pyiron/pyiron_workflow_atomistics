@@ -435,13 +435,23 @@ def _project_with_dynaphopy(
         )
 
     # Build dynaphopy Dynamics from the trajectory pack. dynaphopy expects:
-    #   trajectory / velocity : complex ndarray (n_steps, n_atoms, 3) — Angstrom
-    #   time                  : ndarray (n_steps,) in picoseconds
-    #   supercell             : 3x3 cell vectors of the MD simulation cell
+    #   trajectory : complex ndarray (n_steps, n_atoms, 3) — Angstrom
+    #   velocity   : Angstrom/ps consistent with `time` in ps.
+    #                Pass `None` so dynaphopy reconstructs velocity from
+    #                `np.gradient(positions, time_step)` — this is unit-clean
+    #                and matches the convention used by dynaphopy's own
+    #                example workflows. Passing ASE's `get_velocities()`
+    #                values directly would feed dynaphopy values in
+    #                Angstrom/AU_t (1 AU_t ~= 10.18 fs), biasing the
+    #                power-spectrum peaks by a constant factor across all
+    #                bands. `_run_nvt_trajectory` still records velocities
+    #                in the trajectory_pack for diagnostics and future use.
+    #   time       : ndarray (n_steps,) in picoseconds
+    #   supercell  : 3x3 cell vectors of the MD simulation cell
     dynamics = Dynamics(
         structure=dyn_structure,
         trajectory=np.asarray(trajectory_pack["positions"], dtype=complex),
-        velocity=np.asarray(trajectory_pack["velocities"], dtype=complex),
+        velocity=None,
         time=np.asarray(trajectory_pack["time"]) * 1e-3,  # fs → ps
         supercell=actual_cell_vectors,
     )
