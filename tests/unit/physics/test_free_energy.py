@@ -842,3 +842,59 @@ def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
             pressure_range=1000.0,  # scalar — must be 2-tuple
             reference_phase="solid",
         )
+
+
+# ---------------------------------------------------------------------------
+# melting_temperature
+# ---------------------------------------------------------------------------
+
+
+def test_melting_temperature_validates_positive_guess(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import melting_temperature
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    with pytest.raises(ValueError, match=r"positive"):
+        melting_temperature.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature_guess=-100.0,
+        )
+
+
+@requires_lammps
+@pytest.mark.slow
+def test_melting_temperature_runs(tmp_path):
+    pytest.importorskip("calphy")
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import melting_temperature
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
+    )
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+    out = melting_temperature.node_function(
+        structure=cu,
+        lammps_engine=eng,
+        potential=pot,
+        working_directory=str(tmp_path),
+        temperature_guess=1300.0,
+        step=400,
+        max_attempts=3,
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    assert out.mode == "melting_temperature"
+    assert out.reference_phase == "both"
+    assert 800.0 < out.melting_temperature < 2000.0

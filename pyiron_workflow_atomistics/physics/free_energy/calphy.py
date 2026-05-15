@@ -229,3 +229,57 @@ def reversible_scaling_pressure(
             equilibration_control=equilibration_control,
         ),
     )
+
+
+@pwf.as_function_node("free_energy_output")
+def melting_temperature(
+    *,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str = ".",
+    subdir: str = "melting_temperature",
+    temperature_guess: float | None = None,
+    pressure: float = 0.0,
+    step: int = 200,
+    max_attempts: int = 5,
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+) -> FreeEnergyOutput:
+    """Automated solid+liquid free-energy crossover via calphy's MeltingTemp.
+
+    ``temperature_guess`` is calphy's starting temperature in K (if
+    ``None``, calphy guesses from ``mendeleev``). ``step`` (K) and
+    ``max_attempts`` route to ``Calculation.melting_temperature``.
+    Result has ``reference_phase="both"`` and populates
+    ``melting_temperature`` + ``melting_temperature_error``.
+    """
+    if temperature_guess is not None and temperature_guess <= 0:
+        raise ValueError(
+            f"`temperature_guess` must be positive, got {temperature_guess}"
+        )
+    return _run_one(
+        mode="melting_temperature",
+        structure=structure,
+        lammps_engine=lammps_engine,
+        potential=potential,
+        working_directory=working_directory,
+        subdir=subdir,
+        reference_phase="both",
+        temperature=temperature_guess or 0.0,
+        pressure=pressure,
+        builder_kwargs=dict(
+            temperature_guess=temperature_guess,
+            pressure=pressure,
+            melting_step=step,
+            melting_max_attempts=max_attempts,
+            n_equilibration_steps=n_equilibration_steps,
+            n_switching_steps=n_switching_steps,
+            n_iterations=n_iterations,
+            npt=npt,
+            equilibration_control=equilibration_control,
+        ),
+    )
