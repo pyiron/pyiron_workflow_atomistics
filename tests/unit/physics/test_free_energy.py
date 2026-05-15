@@ -814,3 +814,31 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
     assert out.temperature_array.shape == out.free_energy_array.shape
     import numpy as np
     assert np.all(np.diff(out.temperature_array) >= 0)
+
+
+# ---------------------------------------------------------------------------
+# reversible_scaling_pressure
+# ---------------------------------------------------------------------------
+
+
+def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        reversible_scaling_pressure,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    with pytest.raises(ValueError, match=r"pressure_range"):
+        reversible_scaling_pressure.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature=300.0,
+            pressure_range=1000.0,  # scalar — must be 2-tuple
+            reference_phase="solid",
+        )

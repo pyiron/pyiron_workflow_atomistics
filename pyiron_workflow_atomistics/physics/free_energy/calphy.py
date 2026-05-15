@@ -178,3 +178,54 @@ def reversible_scaling_temperature(
             equilibration_control=equilibration_control,
         ),
     )
+
+
+@pwf.as_function_node("free_energy_output")
+def reversible_scaling_pressure(
+    *,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str = ".",
+    subdir: str = "reversible_scaling_pressure",
+    temperature: float,
+    pressure_range: tuple[float, float],
+    reference_phase: Literal["solid", "liquid"],
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+) -> FreeEnergyOutput:
+    """Free energy along an isotherm by reversible scaling in pressure.
+
+    ``pressure_range`` is (lo, hi) in bar (calphy native).
+    """
+    if (pressure_range is None
+            or not hasattr(pressure_range, "__len__")
+            or len(pressure_range) != 2):
+        raise ValueError(
+            "reversible_scaling_pressure requires "
+            "`pressure_range=(lo, hi)` (length-2 tuple)"
+        )
+    return _run_one(
+        mode="pscale",
+        structure=structure,
+        lammps_engine=lammps_engine,
+        potential=potential,
+        working_directory=working_directory,
+        subdir=subdir,
+        reference_phase=reference_phase,
+        temperature=temperature,
+        pressure=float(pressure_range[0]),
+        builder_kwargs=dict(
+            temperature=temperature,
+            pressure_range=pressure_range,
+            reference_phase=reference_phase,
+            n_equilibration_steps=n_equilibration_steps,
+            n_switching_steps=n_switching_steps,
+            n_iterations=n_iterations,
+            npt=npt,
+            equilibration_control=equilibration_control,
+        ),
+    )
