@@ -168,12 +168,12 @@ def _n_atoms_node(structure: Atoms) -> int:
     return len(structure)
 
 
-@pwf.as_function_node("guarded_frequencies")
+@pwf.as_function_node("guarded_frequencies", "n_guarded")
 def _guard_unphysical_frequencies(
     renormalised_frequencies: np.ndarray,
     harmonic_frequencies: np.ndarray,
     max_relative_shift: float = 0.5,
-) -> np.ndarray:
+):
     """Fall back to harmonic frequencies for clearly-unphysical renorm fits.
 
     dynaphopy fits each (q, band) Lorentzian independently. With short MD
@@ -185,6 +185,9 @@ def _guard_unphysical_frequencies(
     more than ``max_relative_shift`` (default 50%) is replaced by the
     harmonic value. NaN renormalised entries are also replaced. The check
     runs per-(q, band) so good fits are preserved.
+
+    Returns both the guarded array and the count of substituted entries so
+    callers can warn / record how much of the result fell back to harmonic.
     """
     renorm = np.asarray(renormalised_frequencies, dtype=float)
     harm = np.asarray(harmonic_frequencies, dtype=float)
@@ -208,9 +211,10 @@ def _guard_unphysical_frequencies(
         np.abs(renorm - harm) / np.where(abs_harm > 0, abs_harm, 1.0),
         0.0,
     )
-    bad = ~np.isfinite(renorm) | (relative_shift > max_relative_shift)
-    out = np.where(bad, harm, out)
-    return out
+    needs_guard = ~np.isfinite(renorm) | (relative_shift > max_relative_shift)
+    out = np.where(needs_guard, harm, out)
+    n_guarded = int(np.sum(needs_guard))
+    return out, n_guarded
 
 
 @pwf.as_function_node("free_energy_output")
@@ -223,6 +227,7 @@ def _pack_anharmonic_dynaphopy_output(
     cv_per_atom: float,
     temperature: float,
     q_mesh,
+    n_guarded: int,
     simfolder: str,
     keep_handles: bool,
 ) -> FreeEnergyOutput:
@@ -231,10 +236,28 @@ def _pack_anharmonic_dynaphopy_output(
     Units follow the ``FreeEnergyOutput`` spec: ``free_energy`` in eV/atom,
     ``entropy`` / ``heat_capacity`` in (eV/K)/atom. ``_free_energy_from_spectrum``
     already produces values in these units, so no conversion is needed here.
+
+    Records the count of (q, band) entries that fell back to harmonic via
+    ``_guard_unphysical_frequencies`` in ``report["n_guarded_modes"]`` and
+    emits a ``UserWarning`` when any guard fired — the renormalised spectrum
+    was not entirely trusted and the result is a partial harmonic fall-back.
     """
+    import warnings
+
     healthy, issues = md_phonon_output.check_md_health()
     elements = list(dict.fromkeys(structure.get_chemical_symbols()))
     q_mesh_tuple = tuple(int(x) for x in q_mesh)
+    if n_guarded > 0:
+        n_total = int(
+            np.prod(np.asarray(md_phonon_output.renormalised_frequencies).shape)
+        )
+        warnings.warn(
+            f"_guard_unphysical_frequencies replaced {n_guarded}/{n_total} (q, band) "
+            "entries with their harmonic values (renormalisation differed by >50% or was "
+            "NaN). The result reflects a partial fall-back to harmonic; bump "
+            "`production_steps` or `q_mesh` for more trustworthy anharmonic values.",
+            stacklevel=2,
+        )
     return FreeEnergyOutput(
         mode="anharmonic_dynaphopy",
         reference_phase="solid",
@@ -252,6 +275,7 @@ def _pack_anharmonic_dynaphopy_output(
             "md_temperature_mean": float(md_phonon_output.md_temperature_mean),
             "md_temperature_std": float(md_phonon_output.md_temperature_std),
             "md_health": {"healthy": bool(healthy), "issues": list(issues)},
+            "n_guarded_modes": int(n_guarded),
         },
         entropy=float(entropy_per_atom),
         heat_capacity=float(cv_per_atom),
@@ -287,6 +311,14 @@ def anharmonic_free_energy_dynaphopy(
     keep_handles: bool = False,
 ):
     """Anharmonic free energy at one T via dynaphopy MD projection + harmonic-formula sum.
+
+    This macro applies a defensive guard: any (q, band) whose renormalised
+    frequency deviates from its harmonic counterpart by more than 50% (or is
+    NaN) is replaced by the harmonic value, and the number of guarded entries
+    is recorded in ``report["n_guarded_modes"]`` with a warning when it fires.
+    The default 50% threshold catches under-converged Lorentzian fits from
+    short MD trajectories; bump ``production_steps`` and ``q_mesh`` for results
+    that lean less on the harmonic fall-back.
 
     Engine must expose ``.calculator`` (inherited from
     ``calculate_phonon_md_renormalisation``).
@@ -353,6 +385,7 @@ def anharmonic_free_energy_dynaphopy(
         cv_per_atom=wf.spectrum.outputs.cv_per_atom,
         temperature=temperature,
         q_mesh=q_mesh,
+        n_guarded=wf.guarded.outputs.n_guarded,
         simfolder=wf.paths.outputs.simfolder,
         keep_handles=keep_handles,
     )

@@ -113,11 +113,19 @@ def _pack_harmonic_output(
     """Compute thermal properties from the FC2 view and pack into FreeEnergyOutput.
 
     Note: phonopy's ``ThermalProperties`` reports ``free_energy`` in kJ/mol
-    and ``entropy``/``heat_capacity`` in J/K/mol per *primitive* unit cell.
-    The spec for ``FreeEnergyOutput`` documents eV/atom and (eV/K)/atom,
-    so we convert here. Downstream callers that expect phonopy's native
-    units (e.g. ``phonopy.qha.QHA`` in ``quasiharmonic._harmonic_grid_over_volumes``)
-    must multiply back by ``c.eV * c.Avogadro / 1000`` (= ``EvTokJmol``).
+    and ``entropy``/``heat_capacity`` in J/K/mol per *primitive cell* (not
+    per atom). The spec for ``FreeEnergyOutput`` documents eV / (eV/K) per
+    **primitive-cell atom**, so we divide by both ``ev_to_kj_mol`` and the
+    number of atoms in phonopy's primitive cell. For users who pass a
+    conventional (non-primitive) cell, phonopy's ``primitive_matrix="auto"``
+    decides the primitive cell — e.g. ``bulk("Al", "fcc", cubic=True)``
+    (4-atom conventional) reduces to a 1-atom fcc primitive.
+
+    Downstream callers that expect phonopy's native units per primitive
+    cell (e.g. ``phonopy.qha.QHA`` in
+    ``quasiharmonic._harmonic_grid_over_volumes``) must multiply back by
+    ``c.eV * c.Avogadro / 1000`` (= ``EvTokJmol``) AND by
+    ``n_atoms_primitive`` (stashed in ``report["n_atoms_primitive"]``).
     """
     import scipy.constants as c
 
@@ -126,10 +134,11 @@ def _pack_harmonic_output(
         ph3=_Phono3pyShim(phonopy_view), temperatures=T
     )
     # phonopy → eV / (eV/K) per primitive-cell atom.
+    n_atoms_primitive = len(phonopy_view.primitive)
     ev_to_kj_mol = c.eV * c.Avogadro / 1000.0  # ≈ 96.485
-    F = np.asarray(free_energy_dict["F"]) / ev_to_kj_mol
-    S = np.asarray(free_energy_dict["S"]) / (ev_to_kj_mol * 1000.0)
-    Cv = np.asarray(free_energy_dict["Cv"]) / (ev_to_kj_mol * 1000.0)
+    F = np.asarray(free_energy_dict["F"]) / (ev_to_kj_mol * n_atoms_primitive)
+    S = np.asarray(free_energy_dict["S"]) / (ev_to_kj_mol * 1000.0 * n_atoms_primitive)
+    Cv = np.asarray(free_energy_dict["Cv"]) / (ev_to_kj_mol * 1000.0 * n_atoms_primitive)
 
     elements = list(dict.fromkeys(structure.get_chemical_symbols()))
     return FreeEnergyOutput(
@@ -148,6 +157,7 @@ def _pack_harmonic_output(
                 fc2_supercell_matrix
             ).tolist(),
             "displacement_distance": float(displacement_distance),
+            "n_atoms_primitive": int(n_atoms_primitive),
         },
         temperature_array=T,
         free_energy_array=F,
