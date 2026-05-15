@@ -16,7 +16,7 @@
 
 ```
 pyiron_workflow_atomistics/
-├── engine/      # Engine Protocol, EngineOutput, run(), ASEEngine
+├── engine/      # Engine Protocol, EngineOutput, calculate(), ASEEngine
 ├── structure/   # Generic builders / transforms / defect-structure generation
 ├── physics/     # Topical workflow macros — import per-topic
 │   ├── bulk.py
@@ -51,13 +51,13 @@ pip install "pyiron_workflow_atomistics[phonons-md]"
 
 ## Quick start
 
-Every workflow follows the same pattern: build an `Engine`, build a structure, and either call `run(structure, engine)` directly or drop into a topical macro.
+Every workflow follows the same pattern: build an `Engine`, build a structure, and either call `calculate(structure, engine)` directly or drop into a topical macro.
 
 ```python
 from ase.build import bulk
 from ase.calculators.emt import EMT
 
-from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMinimize, run
+from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMinimize, calculate
 
 engine = ASEEngine(
     EngineInput=CalcInputMinimize(force_convergence_tolerance=0.05),
@@ -66,7 +66,7 @@ engine = ASEEngine(
 )
 
 structure = bulk("Cu", "fcc", a=3.6, cubic=True)
-node = run(structure, engine=engine)
+node = calculate(structure, engine=engine)
 node.run()
 
 out = node.outputs.engine_output.value           # EngineOutput dataclass
@@ -81,7 +81,7 @@ print(out.final_energy, out.converged)
 from pyiron_workflow_atomistics.engine import (
     Engine,              # the Protocol every backend implements (runtime-checkable)
     EngineOutput,        # @dataclass returned by every engine call
-    run,                 # the single workflow node: run(structure, engine)
+    calculate,           # the single workflow node: calculate(structure, engine)
     subengine,           # @as_function_node wrapper around engine.with_working_directory
     subdir_path,         # @as_function_node returning os.path.join(engine.wd, subdir)
     CalcInputStatic,
