@@ -787,3 +787,112 @@ def test_public_reexports():
 
     assert PhononOutput is not None
     assert callable(calculate_phonon_thermal_conductivity)
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — MdPhononOutput dataclass + check_md_health
+# ---------------------------------------------------------------------------
+
+
+def _make_md_output(
+    *,
+    temperature: float = 300.0,
+    md_temperature_mean: float | None = None,
+    md_temperature_std: float | None = None,
+    n_atoms_supercell: int = 32,
+):
+    """Build a minimal MdPhononOutput for testing the dataclass shape + health checks."""
+    from pyiron_workflow_atomistics.physics.phonons.output import MdPhononOutput
+
+    if md_temperature_mean is None:
+        md_temperature_mean = temperature
+    if md_temperature_std is None:
+        # Langevin expectation: T * sqrt(2 / (3 * N))
+        md_temperature_std = temperature * np.sqrt(2.0 / (3.0 * n_atoms_supercell))
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    return MdPhononOutput(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=temperature,
+        q_points=np.zeros((1, 3)),
+        harmonic_frequencies=np.array([[5.0, 5.0, 8.0]]),
+        renormalised_frequencies=np.array([[4.9, 4.9, 7.8]]),
+        linewidths=np.array([[0.1, 0.1, 0.2]]),
+        converged=True,
+        n_md_steps=2000,
+        time_step_fs=1.0,
+        md_temperature_mean=md_temperature_mean,
+        md_temperature_std=md_temperature_std,
+    )
+
+
+def test_md_phonon_output_dataclass_shape():
+    from dataclasses import MISSING, fields, is_dataclass
+
+    from pyiron_workflow_atomistics.physics.phonons.output import MdPhononOutput
+
+    assert is_dataclass(MdPhononOutput)
+
+    required_names = {
+        "structure",
+        "fc2_supercell_matrix",
+        "temperature",
+        "q_points",
+        "harmonic_frequencies",
+        "renormalised_frequencies",
+        "linewidths",
+        "converged",
+        "n_md_steps",
+        "time_step_fs",
+        "md_temperature_mean",
+        "md_temperature_std",
+    }
+    optional_names = {
+        "power_spectra",
+        "frequency_grid",
+        "quasiparticle",
+        "dynamics",
+        "phonopy",
+    }
+    by_name = {f.name: f for f in fields(MdPhononOutput)}
+    for name in required_names:
+        f = by_name[name]
+        assert f.default is MISSING and f.default_factory is MISSING, (
+            f"{name} must be required (no default)"
+        )
+    for name in optional_names:
+        assert by_name[name].default is None, f"{name} must default to None"
+
+
+def test_md_phonon_output_to_dict_round_trip():
+    out = _make_md_output()
+    d = out.to_dict()
+    assert d["temperature"] == 300.0
+    assert d["renormalised_frequencies"].shape == (1, 3)
+    assert d["power_spectra"] is None
+
+
+def test_check_md_health_passes_on_clean_run():
+    out = _make_md_output()
+    healthy, issues = out.check_md_health()
+    assert healthy is True
+    assert issues == []
+
+
+def test_check_md_health_flags_temperature_drift():
+    # 10% drift below requested
+    out = _make_md_output(temperature=300.0, md_temperature_mean=270.0)
+    healthy, issues = out.check_md_health()
+    assert healthy is False
+    assert any("drift" in i.lower() for i in issues)
+    assert any("300" in i for i in issues)
+    assert any("270" in i for i in issues)
+
+
+def test_check_md_health_flags_anomalous_sigma():
+    # σ_T way above Langevin expectation
+    out = _make_md_output(temperature=300.0, md_temperature_std=200.0)
+    healthy, issues = out.check_md_health()
+    assert healthy is False
+    assert any("σ" in i or "sigma" in i.lower() or "std" in i.lower() for i in issues)
