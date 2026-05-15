@@ -9,10 +9,14 @@ from pymatgen.io.ase import AseAtomsAdaptor
 
 
 def _axis_index_to_label(axis: int) -> str:
+    # bool is a subclass of int — reject it explicitly so True/False don't
+    # silently map to 1/0.
+    if isinstance(axis, bool) or not isinstance(axis, (int, np.integer)):
+        raise ValueError("grain_length_axis must be one of 0, 1, or 2")
     axis_labels = {0: "x", 1: "y", 2: "z"}
     try:
         return axis_labels[int(axis)]
-    except (KeyError, ValueError, TypeError) as exc:
+    except KeyError as exc:
         raise ValueError("grain_length_axis must be one of 0, 1, or 2") from exc
 
 
