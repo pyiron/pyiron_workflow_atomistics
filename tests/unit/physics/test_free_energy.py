@@ -898,3 +898,29 @@ def test_melting_temperature_runs(tmp_path):
     assert out.mode == "melting_temperature"
     assert out.reference_phase == "both"
     assert 800.0 < out.melting_temperature < 2000.0
+
+
+# ---------------------------------------------------------------------------
+# alchemy
+# ---------------------------------------------------------------------------
+
+
+def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/A.eam.alloy Al")
+    with pytest.raises(ValueError, match=r"pair_style_target"):
+        alchemy.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature=300.0,
+            pair_style_target=None,
+            pair_coeff_target=None,
+        )

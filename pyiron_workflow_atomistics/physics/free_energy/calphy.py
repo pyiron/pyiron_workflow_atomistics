@@ -283,3 +283,57 @@ def melting_temperature(
             equilibration_control=equilibration_control,
         ),
     )
+
+
+@pwf.as_function_node("free_energy_output")
+def alchemy(
+    *,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str = ".",
+    subdir: str = "alchemy",
+    temperature: float,
+    pressure: float = 0.0,
+    pair_style_target: str,
+    pair_coeff_target: str,
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+) -> FreeEnergyOutput:
+    """Alchemical free-energy difference between two potentials.
+
+    The starting potential is the supplied ``potential``; the target
+    potential is supplied as raw ``pair_style_target`` /
+    ``pair_coeff_target`` strings.
+    """
+    if not pair_style_target or not pair_coeff_target:
+        raise ValueError(
+            "alchemy requires both `pair_style_target` and "
+            "`pair_coeff_target` (raw LAMMPS strings for the target "
+            "potential)"
+        )
+    return _run_one(
+        mode="alchemy",
+        structure=structure,
+        lammps_engine=lammps_engine,
+        potential=potential,
+        working_directory=working_directory,
+        subdir=subdir,
+        reference_phase="solid",
+        temperature=temperature,
+        pressure=pressure,
+        builder_kwargs=dict(
+            temperature=temperature,
+            pressure=pressure,
+            pair_style_target=pair_style_target,
+            pair_coeff_target=pair_coeff_target,
+            n_equilibration_steps=n_equilibration_steps,
+            n_switching_steps=n_switching_steps,
+            n_iterations=n_iterations,
+            npt=npt,
+            equilibration_control=equilibration_control,
+        ),
+    )
