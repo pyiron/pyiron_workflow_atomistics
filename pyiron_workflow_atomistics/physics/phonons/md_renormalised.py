@@ -40,9 +40,7 @@ def _normalise_supercell_matrix(m: ArrayLike) -> np.ndarray:
         return int(arr) * np.eye(3, dtype=int)
     if arr.ndim == 1:
         if arr.shape != (3,):
-            raise ValueError(
-                f"supercell_matrix 1d shape must be (3,), got {arr.shape}"
-            )
+            raise ValueError(f"supercell_matrix 1d shape must be (3,), got {arr.shape}")
         return np.diag(arr.astype(int))
     if arr.ndim == 2:
         if arr.shape != (3, 3):
@@ -50,9 +48,7 @@ def _normalise_supercell_matrix(m: ArrayLike) -> np.ndarray:
                 f"supercell_matrix 2d shape must be (3,3), got {arr.shape}"
             )
         return arr.astype(int)
-    raise ValueError(
-        f"supercell_matrix must be int / (3,) / (3,3); got {arr.shape}"
-    )
+    raise ValueError(f"supercell_matrix must be int / (3,) / (3,3); got {arr.shape}")
 
 
 def _auto_band_path(cell: np.ndarray, npoints: int) -> np.ndarray:
@@ -126,9 +122,7 @@ def _resolve_md_defaults(
                 "to enable FC2 reuse, or pass fc2_supercell_matrix instead to "
                 "recompute FC2 in this macro."
             )
-        upstream_sc = _normalise_supercell_matrix(
-            phono3py_output.fc2_supercell_matrix
-        )
+        upstream_sc = _normalise_supercell_matrix(phono3py_output.fc2_supercell_matrix)
         if fc2_supercell_matrix is not None:
             user_sc = _normalise_supercell_matrix(fc2_supercell_matrix)
             if not np.array_equal(user_sc, upstream_sc):
@@ -216,9 +210,7 @@ def _compute_fc2_from_scratch(
     unitcell = _ase_to_phonopy(structure)
     phonon = Phonopy(unitcell=unitcell, supercell_matrix=resolved_fc2_supercell)
     phonon.generate_displacements()
-    forces = np.stack(
-        [np.asarray(o.final_forces) for o in fc2_engine_outputs], axis=0
-    )
+    forces = np.stack([np.asarray(o.final_forces) for o in fc2_engine_outputs], axis=0)
     if forces.shape[0] != len(phonon.supercells_with_displacements):
         raise RuntimeError(
             f"FC2 force/supercell count mismatch: {forces.shape[0]} forces vs "
@@ -269,7 +261,6 @@ def _run_nvt_trajectory(
             "ASEEngine instance."
         )
 
-    rng = np.random.default_rng(seed)  # noqa: F841 — kept for parity with future expanded seeding
     MaxwellBoltzmannDistribution(
         supercell_atoms,
         temperature_K=temperature,
@@ -316,7 +307,9 @@ def _run_nvt_trajectory(
         "positions": positions,
         "velocities": velocities,
         "time": times,
-        "supercell": _multiplier_to_cell_vectors(structure.cell, resolved_fc2_supercell),
+        "supercell": _multiplier_to_cell_vectors(
+            structure.cell, resolved_fc2_supercell
+        ),
         "n_md_steps": production_steps,
         "time_step_fs": float(time_step),
         "md_temperature_mean": float(instantaneous_T.mean()),
