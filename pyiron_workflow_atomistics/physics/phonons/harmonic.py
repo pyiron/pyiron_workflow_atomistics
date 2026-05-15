@@ -1,7 +1,9 @@
 """phonopy FC2 helpers: supercell generation + ASE/PhonopyAtoms conversion.
 
-Harmonic-observable nodes (band structure, DOS, free energy) land in
-Task 13 once the synthesis node exists to expose them.
+Built on top of phonopy via a thin wrapper that exposes its functionality
+as pyiron_workflow function-nodes and macros. The upstream package's name
+is the authoritative source for behaviour and bug reports; this file
+routes inputs/outputs through the pyiron_workflow Engine Protocol.
 """
 
 from __future__ import annotations

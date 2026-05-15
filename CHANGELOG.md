@@ -6,6 +6,34 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.0.8] — 2026-05-15
+
+### Added
+
+- **`pyiron_workflow_atomistics.physics.phonons.calculate_phonon_md_renormalisation`**
+  — new macro for MD-trajectory anharmonic phonon renormalisation via
+  dynaphopy. Runs a Langevin NVT segment through the existing `Engine`
+  Protocol, projects the trajectory's velocity ACF onto harmonic phonon
+  modes, and returns an `MdPhononOutput` dataclass with renormalised
+  frequencies, linewidths, and MD health diagnostics (⟨T⟩, σ_T,
+  `check_md_health()` method, automatic warning on first bad run).
+  Complementary to the v0.0.7 perturbative κ(T) workflow — captures
+  full anharmonicity at finite T without perturbation theory.
+- **`[phonons-md]` install extra** — `pip install
+  pyiron_workflow_atomistics[phonons-md]` pulls in `phonopy`, `phono3py`,
+  `symfc`, and `dynaphopy`. Superset of `[phonons]`; phono3py-only users
+  keep the smaller install.
+- **Module-header convention for phonon workflows** — `harmonic.py`,
+  `anharmonic.py`, and `md_renormalised.py` each start with a docstring
+  naming the upstream package they wrap (phonopy / phono3py / dynaphopy)
+  for traceability.
+
+### Out of scope (v2 follow-ups, see spec)
+
+- NVE / NPT ensembles for the MD segment (Langevin NVT only in v1).
+- Multi-temperature MD per call.
+- NAC for polar materials (same status as in 0.0.7).
+
 ## [0.0.7] — 2026-05-14
 
 ### Added

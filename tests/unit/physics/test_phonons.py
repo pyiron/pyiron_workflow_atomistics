@@ -134,6 +134,22 @@ def test_require_symfc_missing_actionable(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Tier 1 — require_dynaphopy lazy-import shim
+# ---------------------------------------------------------------------------
+
+
+def test_require_dynaphopy_missing_actionable(monkeypatch):
+    from pyiron_workflow_atomistics.physics.phonons import _compat
+
+    _patch_missing(monkeypatch, "dynaphopy")
+    with pytest.raises(ImportError) as exc:
+        _compat.require_dynaphopy()
+    msg = str(exc.value)
+    assert "pip install pyiron_workflow_atomistics[phonons-md]" in msg
+    assert "dynaphopy" in msg
+
+
+# ---------------------------------------------------------------------------
 # Tier 1 — polar-material kwargs early exit
 # ---------------------------------------------------------------------------
 
@@ -771,3 +787,905 @@ def test_public_reexports():
 
     assert PhononOutput is not None
     assert callable(calculate_phonon_thermal_conductivity)
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — MdPhononOutput dataclass + check_md_health
+# ---------------------------------------------------------------------------
+
+
+def _make_md_output(
+    *,
+    temperature: float = 300.0,
+    md_temperature_mean: float | None = None,
+    md_temperature_std: float | None = None,
+    n_atoms_supercell: int = 32,
+):
+    """Build a minimal MdPhononOutput for testing the dataclass shape + health checks."""
+    from pyiron_workflow_atomistics.physics.phonons.output import MdPhononOutput
+
+    if md_temperature_mean is None:
+        md_temperature_mean = temperature
+    if md_temperature_std is None:
+        # Langevin expectation: T * sqrt(2 / (3 * N))
+        md_temperature_std = temperature * np.sqrt(2.0 / (3.0 * n_atoms_supercell))
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    return MdPhononOutput(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=temperature,
+        q_points=np.zeros((1, 3)),
+        harmonic_frequencies=np.array([[5.0, 5.0, 8.0]]),
+        renormalised_frequencies=np.array([[4.9, 4.9, 7.8]]),
+        linewidths=np.array([[0.1, 0.1, 0.2]]),
+        converged=True,
+        n_md_steps=2000,
+        time_step_fs=1.0,
+        md_temperature_mean=md_temperature_mean,
+        md_temperature_std=md_temperature_std,
+    )
+
+
+def test_md_phonon_output_dataclass_shape():
+    from dataclasses import MISSING, fields, is_dataclass
+
+    from pyiron_workflow_atomistics.physics.phonons.output import MdPhononOutput
+
+    assert is_dataclass(MdPhononOutput)
+
+    required_names = {
+        "structure",
+        "fc2_supercell_matrix",
+        "temperature",
+        "q_points",
+        "harmonic_frequencies",
+        "renormalised_frequencies",
+        "linewidths",
+        "converged",
+        "n_md_steps",
+        "time_step_fs",
+        "md_temperature_mean",
+        "md_temperature_std",
+    }
+    optional_names = {
+        "power_spectra",
+        "frequency_grid",
+        "quasiparticle",
+        "dynamics",
+        "phonopy",
+    }
+    by_name = {f.name: f for f in fields(MdPhononOutput)}
+    for name in required_names:
+        f = by_name[name]
+        assert (
+            f.default is MISSING and f.default_factory is MISSING
+        ), f"{name} must be required (no default)"
+    for name in optional_names:
+        assert by_name[name].default is None, f"{name} must default to None"
+
+
+def test_md_phonon_output_to_dict_round_trip():
+    out = _make_md_output()
+    d = out.to_dict()
+    assert d["temperature"] == 300.0
+    assert d["renormalised_frequencies"].shape == (1, 3)
+    assert d["power_spectra"] is None
+
+
+def test_check_md_health_passes_on_clean_run():
+    out = _make_md_output()
+    healthy, issues = out.check_md_health()
+    assert healthy is True
+    assert issues == []
+
+
+def test_check_md_health_flags_temperature_drift():
+    # 10% drift below requested
+    out = _make_md_output(temperature=300.0, md_temperature_mean=270.0)
+    healthy, issues = out.check_md_health()
+    assert healthy is False
+    assert any("drift" in i.lower() for i in issues)
+    assert any("300" in i for i in issues)
+    assert any("270" in i for i in issues)
+
+
+def test_check_md_health_flags_anomalous_sigma():
+    # σ_T way above Langevin expectation
+    out = _make_md_output(temperature=300.0, md_temperature_std=200.0)
+    healthy, issues = out.check_md_health()
+    assert healthy is False
+    assert any("σ" in i or "sigma" in i.lower() or "std" in i.lower() for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — _resolve_md_defaults argument coupling + auto-bandpath
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_md_defaults_requires_at_least_one_fc2_source():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    with pytest.raises(ValueError) as exc:
+        _resolve_md_defaults.node_function(
+            structure=cu,
+            fc2_supercell_matrix=None,
+            phono3py_output=None,
+            q_points=None,
+            band_npoints=30,
+            seed=42,
+        )
+    msg = str(exc.value)
+    assert "fc2_supercell_matrix" in msg and "phono3py_output" in msg
+
+
+def test_resolve_md_defaults_rejects_mismatched_supercells():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    fake_phono3py_output = PhononOutput(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        fc3_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperatures=np.array([300.0]),
+        kappa=np.zeros((1, 3, 3)),
+        converged=True,
+        fc2=np.zeros((8, 8, 3, 3)),  # plausible FC2 shape for 2x2x2 Cu
+    )
+
+    with pytest.raises(ValueError) as exc:
+        _resolve_md_defaults.node_function(
+            structure=cu,
+            fc2_supercell_matrix=3 * np.eye(3, dtype=int),  # MISMATCH
+            phono3py_output=fake_phono3py_output,
+            q_points=None,
+            band_npoints=30,
+            seed=42,
+        )
+    msg = str(exc.value)
+    assert "disagree" in msg.lower() or "must match" in msg.lower()
+
+
+def test_resolve_md_defaults_rejects_phono3py_output_without_fc2():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    output_without_handles = PhononOutput(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        fc3_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperatures=np.array([300.0]),
+        kappa=np.zeros((1, 3, 3)),
+        converged=True,
+        # fc2 deliberately left None (i.e. keep_handles=False upstream)
+    )
+
+    with pytest.raises(ValueError) as exc:
+        _resolve_md_defaults.node_function(
+            structure=cu,
+            fc2_supercell_matrix=None,
+            phono3py_output=output_without_handles,
+            q_points=None,
+            band_npoints=30,
+            seed=42,
+        )
+    msg = str(exc.value)
+    assert "keep_handles=True" in msg
+    assert "fc2" in msg.lower()
+
+
+def test_resolve_md_defaults_auto_derives_band_path_when_qpoints_none():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    (
+        resolved_fc2_supercell,
+        resolved_q_points,
+        resolved_seed,
+        fc2_source_tag,
+        fc2_array,
+    ) = _resolve_md_defaults.node_function(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=None,
+        band_npoints=30,
+        seed=42,
+    )
+    assert resolved_q_points.shape == (30, 3)
+    assert fc2_source_tag == "recompute"
+    assert fc2_array is None
+    assert resolved_seed == 42
+
+
+def test_resolve_md_defaults_band_path_is_deterministic():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    kwargs = dict(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=None,
+        band_npoints=30,
+        seed=None,  # auto-fill — but the q-points path should still match across calls
+    )
+    out_a = _resolve_md_defaults.node_function(**kwargs)
+    out_b = _resolve_md_defaults.node_function(**kwargs)
+    np.testing.assert_allclose(out_a[1], out_b[1])  # resolved_q_points identical
+
+
+def test_resolve_md_defaults_passes_through_explicit_qpoints():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    user_q = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
+    out = _resolve_md_defaults.node_function(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=user_q,
+        band_npoints=30,  # ignored because q_points is explicit
+        seed=42,
+    )
+    np.testing.assert_allclose(out[1], user_q)
+
+
+def test_resolve_md_defaults_seed_auto_filled_when_none():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    out = _resolve_md_defaults.node_function(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=np.zeros((1, 3)),
+        band_npoints=30,
+        seed=None,
+    )
+    resolved_seed = out[2]
+    assert resolved_seed is not None
+    assert isinstance(resolved_seed, int)
+    assert 0 <= resolved_seed < 2**32
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — _multiplier_to_cell_vectors helper
+# ---------------------------------------------------------------------------
+
+
+def test_multiplier_to_cell_vectors_matches_ase_make_supercell():
+    """The named helper must match ASE's `make_supercell(...).cell` exactly,
+    so swapping the implicit ASE path for the explicit helper in
+    `_run_nvt_trajectory` is a no-op on `trajectory_pack['supercell']`.
+    """
+    from ase.build import make_supercell
+
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _multiplier_to_cell_vectors,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    multiplier = 2 * np.eye(3, dtype=int)
+
+    expected = np.asarray(make_supercell(cu, multiplier).cell)
+    got = _multiplier_to_cell_vectors(cu.cell, multiplier)
+    np.testing.assert_allclose(got, expected, atol=1e-12)
+
+
+def test_multiplier_to_cell_vectors_accepts_1d_and_scalar_forms():
+    """Helper composes with `_normalise_supercell_matrix` to accept the
+    1d diag form, the (3,3) form, and the scalar-int form alike.
+    """
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _multiplier_to_cell_vectors,
+    )
+
+    prim = np.array([[1.8, 1.8, 0.0], [0.0, 1.8, 1.8], [1.8, 0.0, 1.8]])
+    from_scalar = _multiplier_to_cell_vectors(prim, 2)
+    from_1d = _multiplier_to_cell_vectors(prim, [2, 2, 2])
+    from_2d = _multiplier_to_cell_vectors(prim, 2 * np.eye(3, dtype=int))
+    np.testing.assert_allclose(from_scalar, from_1d, atol=1e-12)
+    np.testing.assert_allclose(from_1d, from_2d, atol=1e-12)
+    # And it's the multiplier @ primitive convention (not primitive @ multiplier).
+    expected = (2 * np.eye(3)).astype(float) @ prim
+    np.testing.assert_allclose(from_scalar, expected, atol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _compute_fc2_from_scratch (gated on phonopy)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_compute_fc2_from_scratch_produces_correct_shape(tmp_path):
+    pytest.importorskip("phonopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _compute_fc2_from_scratch,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    fc2 = _compute_fc2_from_scratch.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=2 * np.eye(3, dtype=int),
+    )
+    # 2x2x2 of a Cu primitive (1 atom) → 8 supercell atoms
+    assert fc2.shape == (8, 8, 3, 3)
+    assert np.all(np.isfinite(fc2))
+    # The fc2_disp_* directories should exist on disk
+    assert (tmp_path / "fc2_disp_0000").exists()
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _run_nvt_trajectory smoke
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_run_nvt_trajectory_returns_expected_pack_shape(tmp_path):
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMD
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _run_nvt_trajectory,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputMD(),  # ignored; the node builds its own
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    pack = _run_nvt_trajectory.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=300,
+        time_step=1.0,
+        thermostat_time_constant=100.0,
+        seed=42,
+    )
+
+    n_supercell_atoms = 8  # 2x2x2 of Cu FCC primitive
+    assert pack["positions"].shape == (300, n_supercell_atoms, 3)
+    assert pack["velocities"].shape == (300, n_supercell_atoms, 3)
+    assert pack["time"].shape == (300,)
+    assert pack["supercell"].shape == (3, 3)
+    assert pack["n_md_steps"] == 300
+    assert pack["time_step_fs"] == 1.0
+    # ⟨T⟩ and σ_T were measured (any finite positive value)
+    assert pack["md_temperature_mean"] > 0
+    assert pack["md_temperature_std"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _project_with_dynaphopy synthesis smoke
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _compute_fc2_from_scratch,
+        _project_with_dynaphopy,
+        _run_nvt_trajectory,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    fc2_supercell = 2 * np.eye(3, dtype=int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    fc2_array = _compute_fc2_from_scratch.node_function(
+        structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell
+    )
+    pack = _run_nvt_trajectory.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=fc2_supercell,
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        thermostat_time_constant=100.0,
+        seed=42,
+    )
+
+    out = _project_with_dynaphopy.node_function(
+        structure=cu,
+        fc2_array=fc2_array,
+        resolved_fc2_supercell=fc2_supercell,
+        trajectory_pack=pack,
+        resolved_q_points=np.zeros((1, 3)),  # Γ only
+        temperature=300.0,
+        power_spectra=False,
+        keep_handles=False,
+    )
+
+    # 1 q-point × 3 bands (Cu primitive has 1 atom)
+    assert out.renormalised_frequencies.shape == (1, 3)
+    assert out.linewidths.shape == (1, 3)
+    assert out.harmonic_frequencies.shape == (1, 3)
+    assert out.power_spectra is None
+    assert out.quasiparticle is None
+    # All renormalised frequencies should be finite (EMT-Cu is well-behaved)
+    assert np.all(np.isfinite(out.renormalised_frequencies))
+    # Renormalisation should not drift wildly from the harmonic value. At
+    # Gamma for a monatomic FCC primitive the three acoustic modes are
+    # pinned to 0 by translation invariance; relative drift is undefined,
+    # so mask those out and require absolute closeness instead.
+    nonzero = np.abs(out.harmonic_frequencies) > 0.1  # THz
+    if nonzero.any():
+        rel_drift = np.abs(
+            (out.renormalised_frequencies[nonzero] - out.harmonic_frequencies[nonzero])
+            / out.harmonic_frequencies[nonzero]
+        )
+        assert (
+            rel_drift < 0.5
+        ).all(), f"Anomalous renormalisation: rel_drift = {rel_drift}"
+    # Acoustic modes at Gamma should be ~0 (within Lorentzian-fit noise).
+    acoustic_mask = ~nonzero
+    if acoustic_mask.any():
+        assert np.allclose(
+            out.renormalised_frequencies[acoustic_mask],
+            out.harmonic_frequencies[acoustic_mask],
+            atol=0.1,
+        ), (
+            "Acoustic-mode renormalisation deviates from harmonic ~0: "
+            f"{out.renormalised_frequencies[acoustic_mask]}"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _project_with_dynaphopy at a non-Γ q-point (velocity-unit regression)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_project_with_dynaphopy_non_gamma_units_regression(tmp_path):
+    """Locks in the fix for a velocity-units bug in `_project_with_dynaphopy`.
+
+    Background: ASE's ``Atoms.get_velocities()`` returns velocity in
+    ``Å / AU_t`` (1 AU_t ≈ 10.18 fs), not Å/ps. Earlier T8 code passed those
+    values straight to ``dynaphopy.Dynamics(velocity=...)`` as if they were
+    Å/ps consistent with the time array (in ps), which biased the
+    power-spectrum peaks by a constant factor (~0.55) across all bands.
+    The Γ-only smoke test does not catch this because Cu's acoustic modes
+    at Γ are pinned to zero — the bug is invisible there.
+
+    This test runs the same projection at q=(0.25, 0, 0) where the three
+    Cu primitive acoustic modes have non-zero harmonic frequencies, and
+    asserts the renormalised frequencies stay close to the harmonic ones.
+    A factor-0.55 bias would put `renormalised ~ 0.55 * harmonic`, failing
+    the `> 0.7 * harmonic` lower bound.
+    """
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _compute_fc2_from_scratch,
+        _project_with_dynaphopy,
+        _run_nvt_trajectory,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    fc2_supercell = 2 * np.eye(3, dtype=int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    fc2_array = _compute_fc2_from_scratch.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=fc2_supercell,
+    )
+    pack = _run_nvt_trajectory.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=fc2_supercell,
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        thermostat_time_constant=100.0,
+        seed=42,
+    )
+
+    q_non_gamma = np.array([[0.25, 0.0, 0.0]])
+    out = _project_with_dynaphopy.node_function(
+        structure=cu,
+        fc2_array=fc2_array,
+        resolved_fc2_supercell=fc2_supercell,
+        trajectory_pack=pack,
+        resolved_q_points=q_non_gamma,
+        temperature=300.0,
+        power_spectra=False,
+        keep_handles=False,
+    )
+
+    assert out.renormalised_frequencies.shape == (1, 3)
+    assert np.all(np.isfinite(out.renormalised_frequencies))
+    assert np.all(np.isfinite(out.harmonic_frequencies))
+    # All harmonic modes should be non-zero at this q-point.
+    assert (np.abs(out.harmonic_frequencies) > 0.5).all(), (
+        f"Setup invalid: expected non-zero harmonic at q=(0.25,0,0), got "
+        f"{out.harmonic_frequencies}"
+    )
+    # Anharmonic shifts on EMT Cu at 300 K should be small (single-digit %),
+    # but short MD adds fit noise. Anything below 0.7 × harmonic is a unit
+    # bug, not anharmonicity — that's the regression target.
+    ratio = (out.renormalised_frequencies / out.harmonic_frequencies)[0]
+    assert (ratio > 0.7).all(), (
+        f"Renormalised frequencies < 0.7 × harmonic — possible velocity-unit "
+        f"regression in _project_with_dynaphopy. harmonic={out.harmonic_frequencies[0]}, "
+        f"renormalised={out.renormalised_frequencies[0]}, ratio={ratio}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — full-macro smoke test
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_calculate_phonon_md_renormalisation_macro_emt(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        q_points=[[0.0, 0.0, 0.0]],  # Gamma-only for runtime
+        seed=42,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+
+    assert out.converged is True
+    assert out.renormalised_frequencies.shape == (1, 3)
+    assert out.q_points.shape == (1, 3)
+    # FC2 was recomputed -> fc2_disp_NNNN dirs on disk
+    assert (tmp_path / "fc2_disp_0000").exists()
+
+
+@pytest.mark.slow
+def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        calculate_phonon_thermal_conductivity,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    sc = 2 * np.eye(3, dtype=int)
+
+    # Step 1: run the phono3py macro with keep_handles=True
+    engine_phono3py = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "phono3py_run"),
+    )
+    wf_phono3py = calculate_phonon_thermal_conductivity(
+        structure=cu,
+        engine=engine_phono3py,
+        fc2_supercell_matrix=sc,
+        temperatures=[300.0],
+        q_mesh=(3, 3, 3),
+        keep_handles=True,
+    )
+    wf_phono3py.run()
+    phono3py_out = wf_phono3py.outputs.phonon_output.value
+
+    # Step 2: run dynaphopy macro reusing the FC2.
+    engine_md = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "md_run"),
+    )
+    wf_md = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine_md,
+        # fc2_supercell_matrix deliberately NOT passed → must derive from
+        # phono3py_output
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+        phono3py_output=phono3py_out,
+    )
+    wf_md.run()
+    out = wf_md.outputs.md_phonon_output.value
+
+    # Reuse path → no fc2_disp_NNNN directories in the dynaphopy run's workdir.
+    assert not (tmp_path / "md_run" / "fc2_disp_0000").exists()
+    # FC2 supercell propagates from phono3py output.
+    np.testing.assert_array_equal(
+        out.fc2_supercell_matrix, phono3py_out.fc2_supercell_matrix
+    )
+    assert out.renormalised_frequencies.shape == (1, 3)
+
+
+@pytest.mark.slow
+def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
+    """Monkey-patch the trajectory pack to fake a wildly drifted ⟨T⟩."""
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons import md_renormalised
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    # Wrap _run_nvt_trajectory.node_function so the returned pack reports a
+    # bogus ⟨T⟩ that triggers the drift check. functools.wraps preserves the
+    # original signature so pyiron_workflow's preview-build introspection
+    # doesn't see a generic (*args, **kwargs) wrapper, and the staticmethod()
+    # wrapper preserves the original (un-bound) descriptor behaviour so the
+    # node doesn't pass itself as the first positional arg.
+    import functools
+
+    original_node_function = md_renormalised._run_nvt_trajectory.node_function
+
+    @functools.wraps(original_node_function)
+    def drifted_node_function(*args, **kwargs):
+        pack = original_node_function(*args, **kwargs)
+        pack["md_temperature_mean"] = 200.0  # >>3% drift from requested 300
+        return pack
+
+    monkeypatch.setattr(
+        md_renormalised._run_nvt_trajectory,
+        "node_function",
+        staticmethod(drifted_node_function),
+    )
+
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+    )
+    with pytest.warns(UserWarning, match=r"⟨T⟩ drift.*exceeds tolerance"):
+        wf.run()
+
+
+@pytest.mark.slow
+def test_power_spectra_off_by_default(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+    assert out.power_spectra is None
+    assert out.frequency_grid is None
+
+
+@pytest.mark.slow
+def test_power_spectra_on_populates_arrays(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+        power_spectra=True,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+    assert out.power_spectra is not None
+    assert out.frequency_grid is not None
+    # (n_q, n_band, n_freq_bins) — but n_band index ordering may differ
+    # by dynaphopy version; just check first two axes.
+    assert out.power_spectra.shape[0] == 1
+    assert out.power_spectra.shape[1] == 3 or out.power_spectra.ndim == 2
+
+
+@pytest.mark.slow
+def test_keep_handles_returns_quasiparticle_dynamics_phonopy(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+        keep_handles=True,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+    assert out.quasiparticle is not None
+    assert out.dynamics is not None
+    assert out.phonopy is not None
+    # Sanity-check the phonopy handle by reading FC2 shape off it.
+    assert np.asarray(out.phonopy.force_constants).shape == (8, 8, 3, 3)
+
+
+@pytest.mark.slow
+def test_md_macro_seed_determinism(tmp_path):
+    """Same seed → byte-identical renormalised frequencies across two runs."""
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    common_kwargs = dict(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=1500,
+        time_step=1.0,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+    )
+
+    engine_a = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "run_a"),
+    )
+    wf_a = calculate_phonon_md_renormalisation(engine=engine_a, **common_kwargs)
+    wf_a.run()
+
+    engine_b = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "run_b"),
+    )
+    wf_b = calculate_phonon_md_renormalisation(engine=engine_b, **common_kwargs)
+    wf_b.run()
+
+    out_a = wf_a.outputs.md_phonon_output.value
+    out_b = wf_b.outputs.md_phonon_output.value
+    np.testing.assert_allclose(
+        out_a.renormalised_frequencies, out_b.renormalised_frequencies
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — public re-exports (md renormalisation)
+# ---------------------------------------------------------------------------
+
+
+def test_public_reexports_include_md_renormalisation():
+    from pyiron_workflow_atomistics.physics.phonons import (
+        MdPhononOutput,
+        PhononOutput,
+        calculate_phonon_md_renormalisation,
+        calculate_phonon_thermal_conductivity,
+    )
+
+    assert PhononOutput is not None
+    assert MdPhononOutput is not None
+    assert callable(calculate_phonon_thermal_conductivity)
+    assert callable(calculate_phonon_md_renormalisation)
