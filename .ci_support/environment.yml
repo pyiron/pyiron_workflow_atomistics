@@ -20,6 +20,7 @@ dependencies:
 
   # Test runners / notebook execution
   - pytest
+  - pytest-cov
   - nbformat
   - nbclient
 

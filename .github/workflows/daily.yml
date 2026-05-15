@@ -7,6 +7,27 @@ on:
     - cron: '0 23 * * *'
 
 jobs:
-  codeql:
-    uses: pyiron/actions/.github/workflows/tests-and-coverage.yml@actions-4.0.1
-    secrets: inherit
+  pytest-coverage:
+    # The upstream tests-and-coverage workflow runs `unittest discover`, which
+    # silently skips every pytest-style test in this repo. Run pytest with
+    # coverage directly and upload to coveralls.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pyiron/actions/cached-miniforge@actions-4.1.0
+        with:
+          python-version: '3.12'
+          env-files: .ci_support/environment.yml
+      - name: Run pytest with coverage
+        shell: bash -l {0}
+        run: |
+          pytest tests/unit tests/integration/test_gb_code_pipeline.py \
+            --cov=pyiron_workflow_atomistics \
+            --cov-report=xml \
+            --cov-report=term \
+            -m "not slow"
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          file: coverage.xml
