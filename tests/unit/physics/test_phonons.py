@@ -1537,3 +1537,49 @@ def test_keep_handles_returns_quasiparticle_dynamics_phonopy(tmp_path):
     assert out.phonopy is not None
     # Sanity-check the phonopy handle by reading FC2 shape off it.
     assert np.asarray(out.phonopy.force_constants).shape == (8, 8, 3, 3)
+
+
+@pytest.mark.slow
+def test_md_macro_seed_determinism(tmp_path):
+    """Same seed → byte-identical renormalised frequencies across two runs."""
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    common_kwargs = dict(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=1500,
+        time_step=1.0,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+    )
+
+    engine_a = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "run_a"),
+    )
+    wf_a = calculate_phonon_md_renormalisation(engine=engine_a, **common_kwargs)
+    wf_a.run()
+
+    engine_b = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "run_b"),
+    )
+    wf_b = calculate_phonon_md_renormalisation(engine=engine_b, **common_kwargs)
+    wf_b.run()
+
+    out_a = wf_a.outputs.md_phonon_output.value
+    out_b = wf_b.outputs.md_phonon_output.value
+    np.testing.assert_allclose(
+        out_a.renormalised_frequencies, out_b.renormalised_frequencies
+    )
