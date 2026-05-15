@@ -69,13 +69,16 @@ def _free_energy_from_spectrum(
         # Entropy per mode:  S = k_B [ x/(exp(x)−1) − ln(1 − exp(−x)) ]
         kB_eV_per_K = c.Boltzmann / c.eV
         with np.errstate(over="ignore", invalid="ignore"):
-            S_modes = kB_eV_per_K * (
-                np.where(is_acoustic_gamma, 0.0, x / np.expm1(x)) - log_term
+            expm1_x = np.expm1(x)
+            # Guard expm1 underflow for ultra-soft modes (same condition Cv uses).
+            bose_term = np.where(
+                is_acoustic_gamma | (expm1_x == 0), 0.0, x / expm1_x
             )
+            S_modes = kB_eV_per_K * (bose_term - log_term)
 
         # Cv per mode:  C_v = k_B (x^2 exp(x)) / (exp(x)−1)^2
         with np.errstate(over="ignore", invalid="ignore"):
-            denom = np.expm1(x) ** 2
+            denom = expm1_x**2
             num = (x**2) * np.exp(x)
             Cv_modes = kB_eV_per_K * np.where(
                 is_acoustic_gamma | (denom == 0), 0.0, num / denom
