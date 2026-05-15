@@ -1501,3 +1501,39 @@ def test_power_spectra_on_populates_arrays(tmp_path):
     # by dynaphopy version; just check first two axes.
     assert out.power_spectra.shape[0] == 1
     assert out.power_spectra.shape[1] == 3 or out.power_spectra.ndim == 2
+
+
+@pytest.mark.slow
+def test_keep_handles_returns_quasiparticle_dynamics_phonopy(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+        keep_handles=True,
+    )
+    wf.run()
+    out = wf.outputs.md_phonon_output.value
+    assert out.quasiparticle is not None
+    assert out.dynamics is not None
+    assert out.phonopy is not None
+    # Sanity-check the phonopy handle by reading FC2 shape off it.
+    assert np.asarray(out.phonopy.force_constants).shape == (8, 8, 3, 3)
