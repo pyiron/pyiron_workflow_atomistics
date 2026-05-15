@@ -1,7 +1,11 @@
 """phono3py FC3 + lattice thermal conductivity workflow.
 
 The single user-facing entry point is :func:`calculate_phonon_thermal_conductivity`.
-Everything else in this module is a private node or helper.
+
+Built on top of phono3py via a thin wrapper that exposes its functionality
+as pyiron_workflow function-nodes and macros. The upstream package's name
+is the authoritative source for behaviour and bug reports; this file
+routes inputs/outputs through the pyiron_workflow Engine Protocol.
 """
 
 from __future__ import annotations
