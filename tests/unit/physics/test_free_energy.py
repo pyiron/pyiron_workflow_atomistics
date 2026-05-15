@@ -1150,6 +1150,7 @@ def test_composition_scaling_smoke(tmp_path):
 
 def test_free_energy_output_accepts_harmonic_mode():
     import numpy as np
+
     from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
 
     out = FreeEnergyOutput(
@@ -1176,6 +1177,7 @@ def test_free_energy_output_accepts_harmonic_mode():
 
 def test_free_energy_output_accepts_qha_mode():
     import numpy as np
+
     from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
 
     out = FreeEnergyOutput(
@@ -1201,6 +1203,7 @@ def test_free_energy_output_accepts_qha_mode():
 
 def test_free_energy_output_accepts_anharmonic_dynaphopy_modes():
     import numpy as np
+
     from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
 
     out_single = FreeEnergyOutput(
