@@ -1273,6 +1273,81 @@ def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Tier 2 — _project_with_dynaphopy at a non-Γ q-point (velocity-unit regression)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_project_with_dynaphopy_non_gamma_units_regression(tmp_path):
+    """Locks in the fix for a velocity-units bug in `_project_with_dynaphopy`.
+
+    Background: ASE's ``Atoms.get_velocities()`` returns velocity in
+    ``Å / AU_t`` (1 AU_t ≈ 10.18 fs), not Å/ps. Earlier T8 code passed those
+    values straight to ``dynaphopy.Dynamics(velocity=...)`` as if they were
+    Å/ps consistent with the time array (in ps), which biased the
+    power-spectrum peaks by a constant factor (~0.55) across all bands.
+    The Γ-only smoke test does not catch this because Cu's acoustic modes
+    at Γ are pinned to zero — the bug is invisible there.
+
+    This test runs the same projection at q=(0.25, 0, 0) where the three
+    Cu primitive acoustic modes have non-zero harmonic frequencies, and
+    asserts the renormalised frequencies stay close to the harmonic ones.
+    A factor-0.55 bias would put `renormalised ~ 0.55 * harmonic`, failing
+    the `> 0.7 * harmonic` lower bound.
+    """
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _compute_fc2_from_scratch,
+        _project_with_dynaphopy,
+        _run_nvt_trajectory,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    fc2_supercell = 2 * np.eye(3, dtype=int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    fc2_array = _compute_fc2_from_scratch.node_function(
+        structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell,
+    )
+    pack = _run_nvt_trajectory.node_function(
+        structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell,
+        temperature=300.0, equilibration_steps=200, production_steps=2000,
+        time_step=1.0, thermostat_time_constant=100.0, seed=42,
+    )
+
+    q_non_gamma = np.array([[0.25, 0.0, 0.0]])
+    out = _project_with_dynaphopy.node_function(
+        structure=cu, fc2_array=fc2_array, resolved_fc2_supercell=fc2_supercell,
+        trajectory_pack=pack, resolved_q_points=q_non_gamma,
+        temperature=300.0, power_spectra=False, keep_handles=False,
+    )
+
+    assert out.renormalised_frequencies.shape == (1, 3)
+    assert np.all(np.isfinite(out.renormalised_frequencies))
+    assert np.all(np.isfinite(out.harmonic_frequencies))
+    # All harmonic modes should be non-zero at this q-point.
+    assert (np.abs(out.harmonic_frequencies) > 0.5).all(), (
+        f"Setup invalid: expected non-zero harmonic at q=(0.25,0,0), got "
+        f"{out.harmonic_frequencies}"
+    )
+    # Anharmonic shifts on EMT Cu at 300 K should be small (single-digit %),
+    # but short MD adds fit noise. Anything below 0.7 × harmonic is a unit
+    # bug, not anharmonicity — that's the regression target.
+    ratio = (out.renormalised_frequencies / out.harmonic_frequencies)[0]
+    assert (ratio > 0.7).all(), (
+        f"Renormalised frequencies < 0.7 × harmonic — possible velocity-unit "
+        f"regression in _project_with_dynaphopy. harmonic={out.harmonic_frequencies[0]}, "
+        f"renormalised={out.renormalised_frequencies[0]}, ratio={ratio}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Tier 2 — full-macro smoke test
 # ---------------------------------------------------------------------------
 
