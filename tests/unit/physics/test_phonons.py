@@ -134,6 +134,22 @@ def test_require_symfc_missing_actionable(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Tier 1 — require_dynaphopy lazy-import shim
+# ---------------------------------------------------------------------------
+
+
+def test_require_dynaphopy_missing_actionable(monkeypatch):
+    from pyiron_workflow_atomistics.physics.phonons import _compat
+
+    _patch_missing(monkeypatch, "dynaphopy")
+    with pytest.raises(ImportError) as exc:
+        _compat.require_dynaphopy()
+    msg = str(exc.value)
+    assert "pip install pyiron_workflow_atomistics[phonons-md]" in msg
+    assert "dynaphopy" in msg
+
+
+# ---------------------------------------------------------------------------
 # Tier 1 — polar-material kwargs early exit
 # ---------------------------------------------------------------------------
 

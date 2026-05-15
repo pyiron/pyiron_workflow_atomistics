@@ -39,3 +39,21 @@ def require_symfc() -> Any:
     Only used when fc_calculator='symfc' (random-displacement mode).
     """
     return _require("symfc")
+
+
+def require_dynaphopy() -> Any:
+    """Return the imported dynaphopy module or raise an actionable ImportError.
+
+    Used by md_renormalised.py for the MD-trajectory mode-projection workflow.
+    The install hint references the [phonons-md] extras group (superset of
+    [phonons] adding dynaphopy on top of phonopy + phono3py + symfc).
+    """
+    try:
+        import importlib
+
+        return importlib.import_module("dynaphopy")
+    except ImportError as e:
+        raise ImportError(
+            "dynaphopy is required for this workflow. "
+            "Install with: pip install pyiron_workflow_atomistics[phonons-md]"
+        ) from e
