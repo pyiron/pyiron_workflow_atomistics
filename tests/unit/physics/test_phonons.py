@@ -896,3 +896,171 @@ def test_check_md_health_flags_anomalous_sigma():
     healthy, issues = out.check_md_health()
     assert healthy is False
     assert any("σ" in i or "sigma" in i.lower() or "std" in i.lower() for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — _resolve_md_defaults argument coupling + auto-bandpath
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_md_defaults_requires_at_least_one_fc2_source():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    with pytest.raises(ValueError) as exc:
+        _resolve_md_defaults.node_function(
+            structure=cu,
+            fc2_supercell_matrix=None,
+            phono3py_output=None,
+            q_points=None,
+            band_npoints=30,
+            seed=42,
+        )
+    msg = str(exc.value)
+    assert "fc2_supercell_matrix" in msg and "phono3py_output" in msg
+
+
+def test_resolve_md_defaults_rejects_mismatched_supercells():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    fake_phono3py_output = PhononOutput(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        fc3_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperatures=np.array([300.0]),
+        kappa=np.zeros((1, 3, 3)),
+        converged=True,
+        fc2=np.zeros((8, 8, 3, 3)),  # plausible FC2 shape for 2x2x2 Cu
+    )
+
+    with pytest.raises(ValueError) as exc:
+        _resolve_md_defaults.node_function(
+            structure=cu,
+            fc2_supercell_matrix=3 * np.eye(3, dtype=int),  # MISMATCH
+            phono3py_output=fake_phono3py_output,
+            q_points=None,
+            band_npoints=30,
+            seed=42,
+        )
+    msg = str(exc.value)
+    assert "disagree" in msg.lower() or "must match" in msg.lower()
+
+
+def test_resolve_md_defaults_rejects_phono3py_output_without_fc2():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    output_without_handles = PhononOutput(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        fc3_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperatures=np.array([300.0]),
+        kappa=np.zeros((1, 3, 3)),
+        converged=True,
+        # fc2 deliberately left None (i.e. keep_handles=False upstream)
+    )
+
+    with pytest.raises(ValueError) as exc:
+        _resolve_md_defaults.node_function(
+            structure=cu,
+            fc2_supercell_matrix=None,
+            phono3py_output=output_without_handles,
+            q_points=None,
+            band_npoints=30,
+            seed=42,
+        )
+    msg = str(exc.value)
+    assert "keep_handles=True" in msg
+    assert "fc2" in msg.lower()
+
+
+def test_resolve_md_defaults_auto_derives_band_path_when_qpoints_none():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    (
+        resolved_fc2_supercell,
+        resolved_q_points,
+        resolved_seed,
+        fc2_source_tag,
+        fc2_array,
+    ) = _resolve_md_defaults.node_function(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=None,
+        band_npoints=30,
+        seed=42,
+    )
+    assert resolved_q_points.shape == (30, 3)
+    assert fc2_source_tag == "recompute"
+    assert fc2_array is None
+    assert resolved_seed == 42
+
+
+def test_resolve_md_defaults_band_path_is_deterministic():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    kwargs = dict(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=None,
+        band_npoints=30,
+        seed=None,  # auto-fill — but the q-points path should still match across calls
+    )
+    out_a = _resolve_md_defaults.node_function(**kwargs)
+    out_b = _resolve_md_defaults.node_function(**kwargs)
+    np.testing.assert_allclose(out_a[1], out_b[1])  # resolved_q_points identical
+
+
+def test_resolve_md_defaults_passes_through_explicit_qpoints():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    user_q = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
+    out = _resolve_md_defaults.node_function(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=user_q,
+        band_npoints=30,  # ignored because q_points is explicit
+        seed=42,
+    )
+    np.testing.assert_allclose(out[1], user_q)
+
+
+def test_resolve_md_defaults_seed_auto_filled_when_none():
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _resolve_md_defaults,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    out = _resolve_md_defaults.node_function(
+        structure=cu,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        phono3py_output=None,
+        q_points=np.zeros((1, 3)),
+        band_npoints=30,
+        seed=None,
+    )
+    resolved_seed = out[2]
+    assert resolved_seed is not None
+    assert isinstance(resolved_seed, int)
+    assert 0 <= resolved_seed < 2**32
