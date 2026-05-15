@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.0.9] — 2026-05-15
+
+### Added
+
+- **`pyiron_workflow_atomistics.physics.free_energy`** — new subpackage
+  for free-energy workflows via `calphy`. Six public function-nodes:
+  `free_energy`, `reversible_scaling_temperature`,
+  `reversible_scaling_pressure`, `melting_temperature`, `alchemy`,
+  `composition_scaling`. Each returns a typed `FreeEnergyOutput`
+  dataclass and consumes a minimal `LammpsEngine` (only its `command`
+  field is read) plus a dedicated `LammpsPotential` dataclass.
+- **`[free-energy]` install extra** — `pip install
+  pyiron_workflow_atomistics[free-energy]` pulls in `calphy>=1.5.6` and
+  `pyiron_workflow_lammps`. Base install unaffected; lazy imports keep
+  non-free-energy users from paying for the extra.
+
+### Out of scope (v2 follow-ups)
+
+- Free-energy extraction from `phonopy` (QHA) and `dynaphopy` surfaced
+  as additional nodes in this same subpackage.
+- SLURM/SGE scheduler passthrough (calphy supports it natively; v1
+  pins `scheduler='local'`).
+
 ## [0.0.8] — 2026-05-15
 
 ### Added
