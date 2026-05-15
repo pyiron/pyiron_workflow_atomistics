@@ -1313,3 +1313,67 @@ def test_calculate_phonon_md_renormalisation_macro_emt(tmp_path):
     assert out.q_points.shape == (1, 3)
     # FC2 was recomputed -> fc2_disp_NNNN dirs on disk
     assert (tmp_path / "fc2_disp_0000").exists()
+
+
+@pytest.mark.slow
+def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        calculate_phonon_thermal_conductivity,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    sc = 2 * np.eye(3, dtype=int)
+
+    # Step 1: run the phono3py macro with keep_handles=True
+    engine_phono3py = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "phono3py_run"),
+    )
+    wf_phono3py = calculate_phonon_thermal_conductivity(
+        structure=cu,
+        engine=engine_phono3py,
+        fc2_supercell_matrix=sc,
+        temperatures=[300.0],
+        q_mesh=(3, 3, 3),
+        keep_handles=True,
+    )
+    wf_phono3py.run()
+    phono3py_out = wf_phono3py.outputs.phonon_output.value
+
+    # Step 2: run dynaphopy macro reusing the FC2.
+    engine_md = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path / "md_run"),
+    )
+    wf_md = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine_md,
+        # fc2_supercell_matrix deliberately NOT passed → must derive from
+        # phono3py_output
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+        phono3py_output=phono3py_out,
+    )
+    wf_md.run()
+    out = wf_md.outputs.md_phonon_output.value
+
+    # Reuse path → no fc2_disp_NNNN directories in the dynaphopy run's workdir.
+    assert not (tmp_path / "md_run" / "fc2_disp_0000").exists()
+    # FC2 supercell propagates from phono3py output.
+    np.testing.assert_array_equal(
+        out.fc2_supercell_matrix, phono3py_out.fc2_supercell_matrix
+    )
+    assert out.renormalised_frequencies.shape == (1, 3)
