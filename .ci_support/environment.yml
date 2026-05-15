@@ -21,6 +21,7 @@ dependencies:
   # Test runners / notebook execution
   - pytest
   - pytest-cov
+  - pyscal3  # used by structure/defects.py void-analysis helpers (Tier 2 tests)
   - nbformat
   - nbclient
 
