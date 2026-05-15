@@ -1064,3 +1064,36 @@ def test_resolve_md_defaults_seed_auto_filled_when_none():
     assert resolved_seed is not None
     assert isinstance(resolved_seed, int)
     assert 0 <= resolved_seed < 2**32
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _compute_fc2_from_scratch (gated on phonopy)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_compute_fc2_from_scratch_produces_correct_shape(tmp_path):
+    pytest.importorskip("phonopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _compute_fc2_from_scratch,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    fc2 = _compute_fc2_from_scratch.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=2 * np.eye(3, dtype=int),
+    )
+    # 2x2x2 of a Cu primitive (1 atom) → 8 supercell atoms
+    assert fc2.shape == (8, 8, 3, 3)
+    assert np.all(np.isfinite(fc2))
+    # The fc2_disp_* directories should exist on disk
+    assert (tmp_path / "fc2_disp_0000").exists()

@@ -16,6 +16,8 @@ import pyiron_workflow as pwf
 from ase import Atoms
 from numpy.typing import ArrayLike
 
+from pyiron_workflow_atomistics.engine import Engine
+from pyiron_workflow_atomistics.physics.phonons._compat import require_phonopy
 from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
 
 
@@ -138,3 +140,61 @@ def _resolve_md_defaults(
         fc2_source_tag,
         fc2_array,
     )
+
+
+@pwf.as_function_node("fc2_array")
+def _compute_fc2_from_scratch(
+    structure: Atoms,
+    engine: Engine,
+    resolved_fc2_supercell,
+) -> np.ndarray:
+    """Run FC2 displacements, evaluate forces via the engine, fit FC2 via phonopy.
+
+    Reuses the v0.0.7 building blocks (`_generate_fc2_supercells`,
+    `_evaluate_supercells`) and feeds the resulting forces into a
+    phonopy.Phonopy view that owns the FC2 fit.
+    """
+    require_phonopy()
+    from phonopy import Phonopy
+
+    from pyiron_workflow_atomistics.physics.phonons.anharmonic import (
+        _evaluate_supercells,
+    )
+    from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+        _ase_to_phonopy,
+        _generate_fc2_supercells,
+    )
+
+    # Generate displaced supercells (FD, deterministic).
+    fc2_supercells = _generate_fc2_supercells.node_function(
+        structure=structure,
+        fc2_supercell_matrix=resolved_fc2_supercell,
+    )
+    # Evaluate forces on each supercell.
+    fc2_engine_outputs = _evaluate_supercells.node_function(
+        supercells=fc2_supercells,
+        engine=engine,
+        prefix="fc2_disp_",
+    )
+    if not all(o.converged for o in fc2_engine_outputs):
+        failed = [i for i, o in enumerate(fc2_engine_outputs) if not o.converged]
+        raise RuntimeError(
+            f"FC2 force calc failed for supercells {failed}; check engine logs."
+        )
+
+    # Build a phonopy view, attach forces, fit FC2.
+    unitcell = _ase_to_phonopy(structure)
+    phonon = Phonopy(unitcell=unitcell, supercell_matrix=resolved_fc2_supercell)
+    phonon.generate_displacements()
+    forces = np.stack(
+        [np.asarray(o.final_forces) for o in fc2_engine_outputs], axis=0
+    )
+    if forces.shape[0] != len(phonon.supercells_with_displacements):
+        raise RuntimeError(
+            f"FC2 force/supercell count mismatch: {forces.shape[0]} forces vs "
+            f"{len(phonon.supercells_with_displacements)} expected supercells."
+        )
+    phonon.forces = forces
+    phonon.produce_force_constants()
+    fc2_array = np.asarray(phonon.force_constants)
+    return fc2_array
