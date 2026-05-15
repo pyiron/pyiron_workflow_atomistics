@@ -66,3 +66,87 @@ def test_lammps_potential_picklable():
                           pair_coeff="* * /path/to/Cu.eam.alloy Cu")
     restored = pickle.loads(pickle.dumps(pot))
     assert restored == pot
+
+
+# ---------------------------------------------------------------------------
+# FreeEnergyOutput
+# ---------------------------------------------------------------------------
+
+
+def test_free_energy_output_required_fields():
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    out = FreeEnergyOutput(
+        mode="fe",
+        reference_phase="solid",
+        free_energy=-3.5,
+        free_energy_error=0.01,
+        temperature=300.0,
+        pressure=0.0,
+        n_atoms=108,
+        elements=["Cu"],
+        simfolder="/tmp/fe",
+        report={"results": {"free_energy": -3.5}},
+    )
+    assert out.mode == "fe"
+    assert out.free_energy == -3.5
+    assert out.temperature_array is None
+    assert out.melting_temperature is None
+
+
+def test_free_energy_output_optional_fields_default_to_none():
+    from dataclasses import fields, MISSING
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    optional_names = {
+        "temperature_array",
+        "free_energy_array",
+        "pressure_array",
+        "melting_temperature",
+        "melting_temperature_error",
+        "composition_path",
+        "einstein_free_energy",
+    }
+    for f in fields(FreeEnergyOutput):
+        if f.name in optional_names:
+            assert f.default is None, f"{f.name} should default to None"
+
+
+def test_free_energy_output_to_dict_round_trip():
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    out = FreeEnergyOutput(
+        mode="ts",
+        reference_phase="solid",
+        free_energy=-3.5,
+        free_energy_error=0.01,
+        temperature=300.0,
+        pressure=0.0,
+        n_atoms=108,
+        elements=["Cu"],
+        simfolder="/tmp/ts",
+        report={"results": {"free_energy": -3.5}},
+    )
+    d = out.to_dict()
+    assert d["mode"] == "ts"
+    assert d["temperature_array"] is None
+
+
+def test_free_energy_output_picklable():
+    import pickle
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    out = FreeEnergyOutput(
+        mode="fe",
+        reference_phase="solid",
+        free_energy=-3.5,
+        free_energy_error=0.01,
+        temperature=300.0,
+        pressure=0.0,
+        n_atoms=108,
+        elements=["Cu"],
+        simfolder="/tmp/fe",
+        report={},
+    )
+    restored = pickle.loads(pickle.dumps(out))
+    assert restored.free_energy == -3.5
