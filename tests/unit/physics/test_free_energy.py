@@ -440,3 +440,110 @@ def test_build_calphy_calculation_writes_data_file_matches_structure(
     np.testing.assert_allclose(round_trip.get_cell(),
                                fcc_al_atoms.get_cell(),
                                atol=1e-8)
+
+
+# ---------------------------------------------------------------------------
+# _pack_free_energy_output
+# ---------------------------------------------------------------------------
+
+
+def test_pack_free_energy_output_fe_minimal(fcc_al_atoms, tmp_path):
+    from types import SimpleNamespace
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _pack_free_energy_output,
+    )
+
+    fake_report = {
+        "results": {
+            "free_energy": -3.5,
+            "error": 0.01,
+            "einstein_crystal": -3.7,
+        },
+        "input": {
+            "temperature": 300.0,
+            "pressure": 0.0,
+        },
+    }
+    fake_job = SimpleNamespace(simfolder=str(tmp_path))
+    out = _pack_free_energy_output(
+        mode="fe",
+        job=fake_job,
+        report=fake_report,
+        simfolder=str(tmp_path),
+        structure=fcc_al_atoms,
+        reference_phase="solid",
+        temperature=300.0,
+        pressure=0.0,
+    )
+    assert out.mode == "fe"
+    assert out.free_energy == -3.5
+    assert out.free_energy_error == 0.01
+    assert out.einstein_free_energy == -3.7
+    assert out.temperature == 300.0
+    assert out.pressure == 0.0
+    assert out.n_atoms == len(fcc_al_atoms)
+    assert out.elements == ["Al"]
+    assert out.simfolder == str(tmp_path)
+    assert out.report is fake_report
+
+
+def test_pack_free_energy_output_melting_temperature(fcc_al_atoms, tmp_path):
+    from types import SimpleNamespace
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _pack_free_energy_output,
+    )
+
+    fake_job = SimpleNamespace(simfolder=str(tmp_path), tm=1357.0, dtm=15.0)
+    fake_report = {"results": {"free_energy": 0.0, "error": 0.0}}
+    out = _pack_free_energy_output(
+        mode="melting_temperature",
+        job=fake_job,
+        report=fake_report,
+        simfolder=str(tmp_path),
+        structure=fcc_al_atoms,
+        reference_phase="both",
+        temperature=1357.0,
+        pressure=0.0,
+    )
+    assert out.melting_temperature == 1357.0
+    assert out.melting_temperature_error == 15.0
+
+
+# ---------------------------------------------------------------------------
+# _run_calphy_job — mocked
+# ---------------------------------------------------------------------------
+
+
+def test_run_calphy_job_dispatches_and_reads_report(monkeypatch, tmp_path):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.physics.free_energy import _calphy_adapter
+
+    # Fake job with a simfolder containing a report.yaml
+    import yaml
+    sim = tmp_path / "sim"
+    sim.mkdir()
+    fake_report = {"results": {"free_energy": -3.5, "error": 0.01}}
+    (sim / "report.yaml").write_text(yaml.safe_dump(fake_report))
+
+    from types import SimpleNamespace
+    fake_job = SimpleNamespace(simfolder=str(sim),
+                               calc=SimpleNamespace(mode="fe"))
+
+    captured = {}
+
+    def fake_setup(calc):
+        captured["setup"] = True
+        return fake_job
+
+    def fake_run(job):
+        captured["run"] = True
+        return job
+
+    monkeypatch.setattr(_calphy_adapter, "_setup_calculation", fake_setup)
+    monkeypatch.setattr(_calphy_adapter, "_run_calculation", fake_run)
+
+    fake_calc = SimpleNamespace(mode="fe")
+    job, report = _calphy_adapter._run_calphy_job(fake_calc)
+    assert captured == {"setup": True, "run": True}
+    assert report == fake_report
+    assert job is fake_job

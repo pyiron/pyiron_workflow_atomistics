@@ -402,3 +402,111 @@ def __import_calphy():
     )
 
     return _require_calphy()
+
+
+def _setup_calculation(calc):
+    """Indirection seam so tests can monkeypatch without importing calphy."""
+    calphy = __import_calphy()
+    return calphy.kernel.setup_calculation(calc)
+
+
+def _run_calculation(job):
+    """Same indirection seam for ``calphy.kernel.run_calculation``."""
+    calphy = __import_calphy()
+    return calphy.kernel.run_calculation(job)
+
+
+def _run_calphy_job(calc):
+    """Dispatch a built ``Calculation`` through calphy.
+
+    Returns ``(job, report)`` where ``report`` is the parsed
+    ``report.yaml`` from ``job.simfolder``. Reading the file rather
+    than scraping live attributes survives calphy minor-version
+    changes that move fields around.
+    """
+    import yaml as _yaml
+    job = _setup_calculation(calc)
+    job = _run_calculation(job)
+    report_path = os.path.join(job.simfolder, "report.yaml")
+    try:
+        with open(report_path) as f:
+            report = _yaml.safe_load(f)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"calphy did not produce a report.yaml in {job.simfolder}; "
+            f"the run may have failed silently. Inspect that directory "
+            f"for partial artefacts."
+        ) from exc
+    return job, report
+
+
+def _pack_free_energy_output(
+    *,
+    mode: str,
+    job,
+    report: dict,
+    simfolder: str,
+    structure: Atoms,
+    reference_phase: str,
+    temperature: float,
+    pressure: float,
+):
+    """Build a :class:`FreeEnergyOutput` from a finished calphy job."""
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import (
+        FreeEnergyOutput,
+    )
+
+    results = (report or {}).get("results", {})
+
+    out = FreeEnergyOutput(
+        mode=mode,
+        reference_phase=reference_phase,
+        free_energy=float(results.get("free_energy", float("nan"))),
+        free_energy_error=float(results.get("error", float("nan"))),
+        temperature=float(temperature),
+        pressure=float(pressure),
+        n_atoms=len(structure),
+        elements=_atoms_element_order(structure),
+        simfolder=os.path.abspath(simfolder),
+        report=report or {},
+    )
+
+    if mode == "fe":
+        einstein = results.get("einstein_crystal")
+        if einstein is not None:
+            out.einstein_free_energy = float(einstein)
+    elif mode in ("ts", "tscale"):
+        try:
+            t_arr, f_arr = _load_rs_curve(simfolder)
+            out.temperature_array = t_arr
+            out.free_energy_array = f_arr
+        except FileNotFoundError:
+            # calphy already wrote `report.yaml` so the run succeeded;
+            # the curve file is simply absent. Leave the arrays None.
+            pass
+    elif mode == "pscale":
+        try:
+            p_arr, f_arr = _load_rs_curve(simfolder, axis="pressure")
+            out.pressure_array = p_arr
+            out.free_energy_array = f_arr
+        except FileNotFoundError:
+            pass
+    elif mode == "melting_temperature":
+        out.melting_temperature = (
+            float(job.tm) if getattr(job, "tm", None) is not None else None
+        )
+        out.melting_temperature_error = (
+            float(job.dtm) if getattr(job, "dtm", None) is not None else None
+        )
+    elif mode == "composition_scaling":
+        # report["input"]["composition_scaling"] holds the dict-list calphy used
+        try:
+            out.composition_path = list(
+                (report.get("input", {})
+                 .get("composition_scaling", {})
+                 .get("output_chemical_composition", []))
+            )
+        except Exception:
+            out.composition_path = None
+
+    return out
