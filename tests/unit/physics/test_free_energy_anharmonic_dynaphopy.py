@@ -89,3 +89,55 @@ def test_free_energy_from_spectrum_rejects_imaginary_modes():
             temperature=300.0,
             n_atoms_primitive=1,
         )
+
+
+@pytest.mark.slow
+def test_anharmonic_free_energy_dynaphopy_emt_al(tmp_path):
+    pytest.importorskip("dynaphopy", reason="dynaphopy not installed")
+    pytest.importorskip("phonopy", reason="phonopy not installed")
+
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.anharmonic_dynaphopy import (
+        anharmonic_free_energy_dynaphopy,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.harmonic import (
+        harmonic_free_energy,
+    )
+
+    structure = bulk("Al", "fcc", a=4.05, cubic=True)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    out_h = harmonic_free_energy(
+        structure=structure,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperatures=(300.0,),
+        working_directory=str(tmp_path),
+        subdir="harmonic_ref",
+    ).run()
+    out_h = out_h["free_energy_output"] if isinstance(out_h, dict) else out_h
+
+    out_a = anharmonic_free_energy_dynaphopy(
+        structure=structure,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        production_steps=2000,
+        q_mesh=(5, 5, 5),
+        working_directory=str(tmp_path),
+        subdir="anharmonic_T300",
+    ).run()
+    out_a = out_a["free_energy_output"] if isinstance(out_a, dict) else out_a
+
+    assert out_a.mode == "anharmonic_dynaphopy"
+    assert out_a.temperature == 300.0
+    # Anharmonic and harmonic Al/EMT at 300 K should be within 50 meV/atom
+    assert abs(out_a.free_energy - out_h.free_energy) < 0.05
+    assert out_a.harmonic_frequencies.shape == out_a.renormalised_frequencies.shape

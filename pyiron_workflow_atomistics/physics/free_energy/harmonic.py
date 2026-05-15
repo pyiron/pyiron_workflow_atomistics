@@ -110,14 +110,26 @@ def _pack_harmonic_output(
     simfolder: str,
     keep_handles: bool,
 ) -> FreeEnergyOutput:
-    """Compute thermal properties from the FC2 view and pack into FreeEnergyOutput."""
+    """Compute thermal properties from the FC2 view and pack into FreeEnergyOutput.
+
+    Note: phonopy's ``ThermalProperties`` reports ``free_energy`` in kJ/mol
+    and ``entropy``/``heat_capacity`` in J/K/mol per *primitive* unit cell.
+    The spec for ``FreeEnergyOutput`` documents eV/atom and (eV/K)/atom,
+    so we convert here. Downstream callers that expect phonopy's native
+    units (e.g. ``phonopy.qha.QHA`` in ``quasiharmonic._harmonic_grid_over_volumes``)
+    must multiply back by ``c.eV * c.Avogadro / 1000`` (= ``EvTokJmol``).
+    """
+    import scipy.constants as c
+
     T = np.asarray(temperatures, dtype=float)
     band_structure, dos, free_energy_dict = _compute_harmonic_observables(
         ph3=_Phono3pyShim(phonopy_view), temperatures=T
     )
-    F = np.asarray(free_energy_dict["F"])
-    S = np.asarray(free_energy_dict["S"])
-    Cv = np.asarray(free_energy_dict["Cv"])
+    # phonopy → eV / (eV/K) per primitive-cell atom.
+    ev_to_kj_mol = c.eV * c.Avogadro / 1000.0  # ≈ 96.485
+    F = np.asarray(free_energy_dict["F"]) / ev_to_kj_mol
+    S = np.asarray(free_energy_dict["S"]) / (ev_to_kj_mol * 1000.0)
+    Cv = np.asarray(free_energy_dict["Cv"]) / (ev_to_kj_mol * 1000.0)
 
     elements = list(dict.fromkeys(structure.get_chemical_symbols()))
     return FreeEnergyOutput(

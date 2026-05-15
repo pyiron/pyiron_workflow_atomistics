@@ -139,6 +139,14 @@ def _harmonic_grid_over_volumes(
     working_directory: str,
 ):
     """Run harmonic_free_energy at each strained cell, stack F/S/Cv along V axis."""
+    import scipy.constants as c
+
+    # phonopy.qha expects fe_phonon in kJ/mol and entropy/cv in J/K/mol per
+    # primitive unit cell. ``harmonic_free_energy`` reports those quantities
+    # in eV / (eV/K) / atom per the FreeEnergyOutput spec, so convert here
+    # at the boundary.
+    ev_to_kj_mol = c.eV * c.Avogadro / 1000.0  # ≈ 96.485
+
     T_arr = np.asarray(temperatures)
     n_T = int(T_arr.size)
     n_V = len(strained_structures)
@@ -160,9 +168,9 @@ def _harmonic_grid_over_volumes(
         )
         out = sub_wf.run()
         out = out["free_energy_output"] if isinstance(out, dict) else out
-        F_TV[:, j] = out.free_energy_array
-        S_TV[:, j] = out.entropy_array
-        Cv_TV[:, j] = out.heat_capacity_array
+        F_TV[:, j] = np.asarray(out.free_energy_array) * ev_to_kj_mol
+        S_TV[:, j] = np.asarray(out.entropy_array) * ev_to_kj_mol * 1000.0
+        Cv_TV[:, j] = np.asarray(out.heat_capacity_array) * ev_to_kj_mol * 1000.0
     return F_TV, S_TV, Cv_TV
 
 
