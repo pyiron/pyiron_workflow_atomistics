@@ -150,3 +150,50 @@ def test_free_energy_output_picklable():
     )
     restored = pickle.loads(pickle.dumps(out))
     assert restored.free_energy == -3.5
+
+
+# ---------------------------------------------------------------------------
+# _split_lammps_command
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("cmd, expected", [
+    ("lmp", ("lmp", None, 1)),
+    ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1)),
+    ("mpirun -np 4 lmp", ("lmp", "mpirun", 4)),
+    ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8)),
+    ("srun -n 16 lmp", ("lmp", "srun", 16)),
+    ("mpirun --bind-to none -np 2 lmp",
+     ("lmp", "mpirun --bind-to none", 2)),
+    ("/opt/lammps/bin/lmp_mpi -in in.lmp",
+     ("/opt/lammps/bin/lmp_mpi", None, 1)),
+])
+def test_split_lammps_command_valid(cmd, expected):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _split_lammps_command,
+    )
+
+    assert _split_lammps_command(cmd) == expected
+
+
+@pytest.mark.parametrize("cmd", [
+    "mpirun -np 4 lmp -unknown-flag x",
+    "lmp -partition 2x2",
+    "lmp -screen none",
+])
+def test_split_lammps_command_rejects_unknown_tokens(cmd):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _split_lammps_command,
+    )
+
+    with pytest.raises(ValueError, match="Unrecognized tokens"):
+        _split_lammps_command(cmd)
+
+
+def test_split_lammps_command_rejects_empty():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _split_lammps_command,
+    )
+
+    with pytest.raises(ValueError):
+        _split_lammps_command("")
