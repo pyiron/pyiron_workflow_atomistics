@@ -594,3 +594,103 @@ def test_load_rs_curve_missing_raises(tmp_path):
 
     with pytest.raises(FileNotFoundError):
         _load_rs_curve(str(tmp_path))
+
+
+# ---------------------------------------------------------------------------
+# free_energy public node — Tier 1 (no calphy / no LAMMPS)
+# ---------------------------------------------------------------------------
+
+
+def test_free_energy_node_raises_when_calphy_missing(monkeypatch, fcc_al_atoms):
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    monkeypatch.setitem(sys.modules, "calphy", None)
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    with pytest.raises(ModuleNotFoundError, match=r"pip install"):
+        free_energy.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature=300.0,
+            reference_phase="solid",
+        )
+
+
+def test_free_energy_node_rejects_non_default_engine_field(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    eng.raw_script = "run 1000"
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    with pytest.raises(ValueError, match=r"raw_script"):
+        free_energy.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature=300.0,
+            reference_phase="solid",
+        )
+
+
+def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    s = fcc_al_atoms.copy()
+    s.pbc = (True, True, False)
+    with pytest.raises(ValueError, match=r"PBC"):
+        free_energy.node_function(
+            structure=s,
+            lammps_engine=eng,
+            potential=pot,
+            temperature=300.0,
+            reference_phase="solid",
+        )
+
+
+def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path,
+                                                fcc_al_atoms):
+    pytest.importorskip("calphy")
+    import os
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy import _calphy_adapter
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+
+    def boom(_calc):
+        raise RuntimeError("calphy exploded mid-run")
+
+    monkeypatch.setattr(_calphy_adapter, "_run_calphy_job", boom)
+    monkeypatch.chdir(tmp_path)
+    cwd_before = os.getcwd()
+    with pytest.raises(RuntimeError, match="calphy exploded"):
+        free_energy.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            working_directory=str(tmp_path),
+            temperature=300.0,
+            reference_phase="solid",
+        )
+    assert os.getcwd() == cwd_before

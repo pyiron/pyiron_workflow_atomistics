@@ -1,0 +1,127 @@
+"""Public function-nodes — one per calphy mode.
+
+Each node:
+  1. Asserts the [free-energy] extra is installed via _require_*.
+  2. Validates the engine has only its `command` set, and the structure
+     is a 3D fully-periodic supercell.
+  3. Creates ``working_directory/subdir/`` and chdirs into it.
+  4. Builds a calphy.input.Calculation, runs it, packs a FreeEnergyOutput.
+  5. Restores the previous cwd in a try/finally.
+
+All calphy and pyiron_workflow_lammps imports happen inside node bodies
+so importing this subpackage works without the [free-energy] extra.
+"""
+
+from __future__ import annotations
+
+import os
+from typing import Literal
+
+import pyiron_workflow as pwf
+from ase import Atoms
+
+from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+    _build_calphy_calculation,
+    _pack_free_energy_output,
+    _run_calphy_job,
+    _validate_engine_only_command,
+    _validate_structure,
+)
+from pyiron_workflow_atomistics.physics.free_energy._compat import (
+    _require_calphy,
+    _require_lammps_engine,
+)
+from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+
+def _run_one(
+    *,
+    mode: str,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str,
+    subdir: str,
+    reference_phase: str,
+    temperature: float,
+    pressure: float,
+    builder_kwargs: dict,
+) -> FreeEnergyOutput:
+    """Shared body for every public node: validate → chdir → run → pack."""
+    _require_calphy()
+    _require_lammps_engine()
+    _validate_engine_only_command(lammps_engine)
+    _validate_structure(structure)
+
+    simfolder = os.path.abspath(os.path.join(working_directory, subdir))
+    os.makedirs(simfolder, exist_ok=True)
+    prev_cwd = os.getcwd()
+    try:
+        os.chdir(simfolder)
+        calc = _build_calphy_calculation(
+            mode=mode,
+            structure=structure,
+            potential=potential,
+            lammps_engine=lammps_engine,
+            working_directory=simfolder,
+            **builder_kwargs,
+        )
+        job, report = _run_calphy_job(calc)
+        return _pack_free_energy_output(
+            mode=mode,
+            job=job,
+            report=report,
+            simfolder=simfolder,
+            structure=structure,
+            reference_phase=reference_phase,
+            temperature=temperature,
+            pressure=pressure,
+        )
+    finally:
+        os.chdir(prev_cwd)
+
+
+@pwf.as_function_node("free_energy_output")
+def free_energy(
+    *,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str = ".",
+    subdir: str = "free_energy",
+    temperature: float,
+    pressure: float = 0.0,
+    reference_phase: Literal["solid", "liquid"],
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+) -> FreeEnergyOutput:
+    """Helmholtz/Gibbs free energy at one (T, P) via Frenkel-Ladd / UF reference.
+
+    Pressure is in **bar** (calphy native). Temperature in K. Free energy
+    returned in eV/atom.
+    """
+    return _run_one(
+        mode="fe",
+        structure=structure,
+        lammps_engine=lammps_engine,
+        potential=potential,
+        working_directory=working_directory,
+        subdir=subdir,
+        reference_phase=reference_phase,
+        temperature=temperature,
+        pressure=pressure,
+        builder_kwargs=dict(
+            temperature=temperature,
+            pressure=pressure,
+            reference_phase=reference_phase,
+            n_equilibration_steps=n_equilibration_steps,
+            n_switching_steps=n_switching_steps,
+            n_iterations=n_iterations,
+            npt=npt,
+            equilibration_control=equilibration_control,
+        ),
+    )
