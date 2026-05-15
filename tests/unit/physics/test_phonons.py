@@ -1377,3 +1377,58 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         out.fc2_supercell_matrix, phono3py_out.fc2_supercell_matrix
     )
     assert out.renormalised_frequencies.shape == (1, 3)
+
+
+@pytest.mark.slow
+def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
+    """Monkey-patch the trajectory pack to fake a wildly drifted ⟨T⟩."""
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons import md_renormalised
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        calculate_phonon_md_renormalisation,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    # Wrap _run_nvt_trajectory.node_function so the returned pack reports a
+    # bogus ⟨T⟩ that triggers the drift check. functools.wraps preserves the
+    # original signature so pyiron_workflow's preview-build introspection
+    # doesn't see a generic (*args, **kwargs) wrapper, and the staticmethod()
+    # wrapper preserves the original (un-bound) descriptor behaviour so the
+    # node doesn't pass itself as the first positional arg.
+    import functools
+
+    original_node_function = md_renormalised._run_nvt_trajectory.node_function
+
+    @functools.wraps(original_node_function)
+    def drifted_node_function(*args, **kwargs):
+        pack = original_node_function(*args, **kwargs)
+        pack["md_temperature_mean"] = 200.0  # >>3% drift from requested 300
+        return pack
+
+    monkeypatch.setattr(
+        md_renormalised._run_nvt_trajectory,
+        "node_function",
+        staticmethod(drifted_node_function),
+    )
+
+    wf = calculate_phonon_md_renormalisation(
+        structure=cu,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_points=[[0.0, 0.0, 0.0]],
+        seed=42,
+    )
+    with pytest.warns(UserWarning, match=r"⟨T⟩ drift.*exceeds tolerance"):
+        wf.run()
