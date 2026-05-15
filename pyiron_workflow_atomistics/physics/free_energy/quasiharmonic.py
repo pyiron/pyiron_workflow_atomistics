@@ -52,7 +52,7 @@ def _fit_qha(
 ) -> dict:
     """Fit phonopy.qha.QHA on the (V, T) grid and return derived thermodynamics."""
     require_phonopy()
-    from phonopy.qha import QHA
+    from phonopy.qha.core import QHA
 
     E = np.asarray(energies, dtype=float)
     V = np.asarray(volumes, dtype=float)
@@ -61,24 +61,48 @@ def _fit_qha(
     S_TV = np.asarray(entropy_per_T_V, dtype=float)
     Cv_TV = np.asarray(cv_per_T_V, dtype=float)
 
+    # phonopy.qha truncates its outputs to length (len(T) - 1) because it needs
+    # one extra temperature point as a finite-difference buffer for thermal
+    # expansion. To return arrays aligned 1:1 with the input temperature grid,
+    # append one extrapolated buffer point above T[-1] and slice the buffer off
+    # the outputs (when phonopy retains it).
+    if T.size >= 2:
+        dT = T[-1] - T[-2]
+        T_ext = np.concatenate([T, [T[-1] + dT]])
+        F_ext = np.vstack([F_TV, 2.0 * F_TV[-1] - F_TV[-2]])
+        S_ext = np.vstack([S_TV, 2.0 * S_TV[-1] - S_TV[-2]])
+        Cv_ext = np.vstack([Cv_TV, 2.0 * Cv_TV[-1] - Cv_TV[-2]])
+    else:
+        T_ext, F_ext, S_ext, Cv_ext = T, F_TV, S_TV, Cv_TV
+
     qha = QHA(
         volumes=V,
         electronic_energies=E,
-        temperatures=T,
-        free_energy=F_TV,
-        cv=Cv_TV,
-        entropy=S_TV,
+        temperatures=T_ext,
+        fe_phonon=F_ext,
+        cv=Cv_ext,
+        entropy=S_ext,
         eos=eos_type,
         pressure=pressure_GPa,
     )
     qha.run()
-    V_T = np.asarray(qha.get_volume_temperature())
+
+    n_T = T.size
+    V_T_raw = np.asarray(qha.volume_temperature)
+    V_T = V_T_raw[:n_T] if V_T_raw.size >= n_T else V_T_raw
     _check_qha_volume_range(V_T, T, strain_range=(V.min(), V.max()), volumes=V)
+
+    gibbs_raw = np.asarray(qha.get_gibbs_temperature())
+    bulk_raw = np.asarray(qha.get_bulk_modulus_temperature())
+    alpha_raw = np.asarray(qha.thermal_expansion)
+    gibbs = gibbs_raw[:n_T] if gibbs_raw.size >= n_T else gibbs_raw
+    bulk = bulk_raw[:n_T] if bulk_raw.size >= n_T else bulk_raw
+    alpha = alpha_raw[:n_T] if alpha_raw.size >= n_T else alpha_raw
 
     return {
         "equilibrium_volume_array": V_T,
-        "gibbs_free_energy_array": np.asarray(qha.get_gibbs_temperature()),
-        "bulk_modulus_array": np.asarray(qha.get_bulk_modulus_temperature()),
-        "thermal_expansion_array": np.asarray(qha.get_thermal_expansion()),
+        "gibbs_free_energy_array": gibbs,
+        "bulk_modulus_array": bulk,
+        "thermal_expansion_array": alpha,
         "qha_handle": qha,
     }
