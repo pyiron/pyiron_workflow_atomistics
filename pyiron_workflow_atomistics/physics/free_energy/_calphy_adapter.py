@@ -439,6 +439,11 @@ def _run_calphy_job(calc):
             f"the run may have failed silently. Inspect that directory "
             f"for partial artefacts."
         ) from exc
+    except _yaml.YAMLError as exc:
+        raise RuntimeError(
+            f"Failed to parse {report_path}: {exc}. Inspect the file "
+            f"for malformed YAML."
+        ) from exc
     return job, report
 
 
@@ -501,14 +506,16 @@ def _pack_free_energy_output(
             float(job.dtm) if getattr(job, "dtm", None) is not None else None
         )
     elif mode == "composition_scaling":
-        # report["input"]["composition_scaling"] holds the dict-list calphy used
-        try:
-            out.composition_path = list(
-                (report.get("input", {})
-                 .get("composition_scaling", {})
-                 .get("output_chemical_composition", []))
-            )
-        except Exception:
+        raw = (report or {}).get("input", {}).get("composition_scaling")
+        if isinstance(raw, dict):
+            comp = raw.get("output_chemical_composition")
+            if isinstance(comp, dict):
+                out.composition_path = [comp]
+            elif isinstance(comp, list) and all(isinstance(c, dict) for c in comp):
+                out.composition_path = list(comp)
+            else:
+                out.composition_path = None
+        else:
             out.composition_path = None
 
     return out

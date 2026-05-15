@@ -992,3 +992,105 @@ def test_subpackage_imports_without_calphy(monkeypatch):
     importlib.import_module(
         "pyiron_workflow_atomistics.physics.free_energy"
     )  # should not raise
+
+
+@requires_lammps
+@pytest.mark.slow
+def test_reversible_scaling_pressure_smoke(tmp_path):
+    pytest.importorskip("calphy")
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        reversible_scaling_pressure,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
+    )
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+
+    out = reversible_scaling_pressure.node_function(
+        structure=cu,
+        lammps_engine=eng,
+        potential=pot,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        pressure_range=(0.0, 10_000.0),
+        reference_phase="solid",
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    assert out.mode == "pscale"
+    import numpy as np
+    assert out.pressure_array is not None
+    assert np.isfinite(out.free_energy)
+
+
+@requires_lammps
+@pytest.mark.slow
+def test_alchemy_smoke(tmp_path):
+    pytest.importorskip("calphy")
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    cu_potential = f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff=cu_potential)
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+    out = alchemy.node_function(
+        structure=cu,
+        lammps_engine=eng,
+        potential=pot,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        pair_style_target="eam/alloy",
+        pair_coeff_target=cu_potential,   # transform from Cu EAM back to Cu EAM → ΔF≈0
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    assert out.mode == "alchemy"
+    import numpy as np
+    assert np.isfinite(out.free_energy)
+
+
+@requires_lammps
+@pytest.mark.slow
+def test_composition_scaling_smoke(tmp_path):
+    pytest.importorskip("calphy")
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        composition_scaling,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
+    )
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+    out = composition_scaling.node_function(
+        structure=cu,
+        lammps_engine=eng,
+        potential=pot,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        output_chemical_composition={"Cu": 108},  # identity transform → ΔF≈0
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    assert out.mode == "composition_scaling"
+    import numpy as np
+    assert np.isfinite(out.free_energy)
+    # composition_path should be populated (verify the coercion bug is fixed)
+    assert out.composition_path is not None
+    assert all(isinstance(c, dict) for c in out.composition_path)

@@ -309,11 +309,15 @@ def alchemy(
     potential is supplied as raw ``pair_style_target`` /
     ``pair_coeff_target`` strings.
     """
-    if not pair_style_target or not pair_coeff_target:
+    missing = []
+    if not pair_style_target:
+        missing.append("pair_style_target")
+    if not pair_coeff_target:
+        missing.append("pair_coeff_target")
+    if missing:
         raise ValueError(
-            "alchemy requires both `pair_style_target` and "
-            "`pair_coeff_target` (raw LAMMPS strings for the target "
-            "potential)"
+            f"alchemy requires {missing} (raw LAMMPS strings for the "
+            f"target potential)"
         )
     return _run_one(
         mode="alchemy",
