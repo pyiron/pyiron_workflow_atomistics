@@ -8,6 +8,7 @@ considered private API.
 from __future__ import annotations
 
 import shlex
+from ase import Atoms
 
 _LAUNCHERS = ("mpirun", "mpiexec", "srun")
 _LAUNCHER_CORE_FLAGS = ("-np", "-n")
@@ -194,3 +195,33 @@ def _equals_default(current, default) -> bool:
     if default is MISSING:
         return True
     return current == default
+
+
+def _validate_structure(structure: Atoms) -> None:
+    """Refuse structures calphy cannot consume meaningfully.
+
+    calphy assumes a fully periodic 3D supercell with positive volume
+    and at least one atom. Anything else either crashes calphy mid-run
+    or silently produces meaningless free energies (open boundaries
+    don't have a well-defined Frenkel-Ladd reference).
+    """
+    if len(structure) == 0:
+        raise ValueError("structure is empty (zero atoms)")
+    pbc = tuple(bool(p) for p in structure.pbc)
+    if pbc != (True, True, True):
+        raise ValueError(
+            f"calphy free-energy workflows require fully periodic 3D "
+            f"PBC; got pbc={pbc}"
+        )
+    try:
+        volume = structure.get_volume()
+    except ValueError:
+        raise ValueError(
+            f"structure has non-positive volume; "
+            f"calphy will refuse to integrate against it"
+        )
+    if volume <= 0.0:
+        raise ValueError(
+            f"structure has non-positive volume ({volume}); "
+            f"calphy will refuse to integrate against it"
+        )

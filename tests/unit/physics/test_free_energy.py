@@ -274,3 +274,48 @@ def test_validate_engine_only_command_working_directory_carveout():
     eng = _make_minimal_engine()
     eng.working_directory = "/somewhere/else"
     _validate_engine_only_command(eng)  # working_directory is in the carve-out set
+
+
+# ---------------------------------------------------------------------------
+# _validate_structure
+# ---------------------------------------------------------------------------
+
+
+def test_validate_structure_accepts_cubic_bulk(fcc_al_atoms):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_structure,
+    )
+
+    _validate_structure(fcc_al_atoms)  # should not raise
+
+
+def test_validate_structure_rejects_empty():
+    from ase import Atoms
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_structure,
+    )
+
+    with pytest.raises(ValueError, match=r"empty"):
+        _validate_structure(Atoms())
+
+
+def test_validate_structure_rejects_mixed_pbc(fcc_al_atoms):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_structure,
+    )
+
+    a = fcc_al_atoms.copy()
+    a.pbc = (True, True, False)
+    with pytest.raises(ValueError, match=r"PBC"):
+        _validate_structure(a)
+
+
+def test_validate_structure_rejects_zero_volume(fcc_al_atoms):
+    from ase import Atoms
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_structure,
+    )
+
+    a = Atoms("Cu", positions=[[0, 0, 0]], cell=[[0, 0, 0]] * 3, pbc=True)
+    with pytest.raises(ValueError, match=r"non-positive volume"):
+        _validate_structure(a)
