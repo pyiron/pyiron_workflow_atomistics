@@ -51,6 +51,12 @@ phonons = [
     "phono3py",
     "symfc",
 ]
+phonons-md = [
+    "phonopy",
+    "phono3py",
+    "symfc",
+    "dynaphopy",
+]
 
 [project.license]
 file = "LICENSE"

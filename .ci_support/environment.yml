@@ -23,10 +23,12 @@ dependencies:
   - nbformat
   - nbclient
 
-  # Optional [phonons] extra — needed for the phono3py example notebook
+  # Optional [phonons] / [phonons-md] extras — needed for the phono3py and
+  # dynaphopy example notebooks plus their integration tests.
   - phonopy
   - phono3py
   - symfc
+  - dynaphopy
 
   # PyPI-only deps (not on conda-forge)
   - pip:
