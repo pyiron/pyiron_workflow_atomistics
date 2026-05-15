@@ -113,6 +113,17 @@ def _split_lammps_command(cmd: str) -> tuple[str, str | None, int]:
 
 
 def _looks_like_lammps_binary(token: str) -> bool:
-    """Heuristic: a LAMMPS binary's last path component contains 'lmp' or 'lammps'."""
+    """Heuristic: a LAMMPS binary's last path component contains 'lmp' or 'lammps'.
+
+    Limitation: this is a substring match, so an MPI launcher flag whose
+    *value* happens to contain "lmp" (e.g. ``mpirun --nodefile lmp_file -np
+    4 lmp``) will trip the heuristic and the parser will misidentify the
+    flag value as the binary. The spec accepts this trade-off because (a)
+    flag values containing the substring "lmp" are extremely rare in
+    practice, and (b) tightening the rule (e.g. requiring exact "lmp",
+    "lammps", or "lmp_*") would break legitimate user setups with binaries
+    like ``mylammps`` or ``mpilmp``. Users hitting this case can quote the
+    binary path with a different name, or omit the offending launcher flag.
+    """
     name = token.rsplit("/", 1)[-1].lower()
     return "lmp" in name or "lammps" in name
