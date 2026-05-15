@@ -15,6 +15,7 @@ dependencies:
 - tqdm
 - pytest
 - pytest-cov
+- pyscal3
 - nbformat
 - nbclient
 - phonopy
