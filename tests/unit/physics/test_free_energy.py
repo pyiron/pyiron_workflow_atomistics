@@ -1264,3 +1264,25 @@ def test_to_dict_excludes_handle_fields():
     assert "qha_handle" not in d
     assert "dynaphopy_handle" not in d
     assert d["mode"] == "harmonic"
+
+
+def test_public_free_energy_exports():
+    import pyiron_workflow_atomistics.physics.free_energy as fe
+
+    expected = {
+        "FreeEnergyOutput",
+        "LammpsPotential",
+        "alchemy",
+        "composition_scaling",
+        "free_energy",
+        "melting_temperature",
+        "reversible_scaling_pressure",
+        "reversible_scaling_temperature",
+        "harmonic_free_energy",
+        "quasiharmonic_free_energy",
+        "anharmonic_free_energy_dynaphopy",
+        "anharmonic_free_energy_dynaphopy_tdi",
+    }
+    assert expected.issubset(set(fe.__all__))
+    for name in expected:
+        assert hasattr(fe, name), f"missing public export: {name}"
