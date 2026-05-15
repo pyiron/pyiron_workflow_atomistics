@@ -1097,3 +1097,47 @@ def test_compute_fc2_from_scratch_produces_correct_shape(tmp_path):
     assert np.all(np.isfinite(fc2))
     # The fc2_disp_* directories should exist on disk
     assert (tmp_path / "fc2_disp_0000").exists()
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _run_nvt_trajectory smoke
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_run_nvt_trajectory_returns_expected_pack_shape(tmp_path):
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMD
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _run_nvt_trajectory,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    engine = ASEEngine(
+        EngineInput=CalcInputMD(),  # ignored; the node builds its own
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+    pack = _run_nvt_trajectory.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=2 * np.eye(3, dtype=int),
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=300,
+        time_step=1.0,
+        thermostat_time_constant=100.0,
+        seed=42,
+    )
+
+    n_supercell_atoms = 8  # 2x2x2 of Cu FCC primitive
+    assert pack["positions"].shape == (300, n_supercell_atoms, 3)
+    assert pack["velocities"].shape == (300, n_supercell_atoms, 3)
+    assert pack["time"].shape == (300,)
+    assert pack["supercell"].shape == (3, 3)
+    assert pack["n_md_steps"] == 300
+    assert pack["time_step_fs"] == 1.0
+    # ⟨T⟩ and σ_T were measured (any finite positive value)
+    assert pack["md_temperature_mean"] > 0
+    assert pack["md_temperature_std"] > 0

@@ -198,3 +198,98 @@ def _compute_fc2_from_scratch(
     phonon.produce_force_constants()
     fc2_array = np.asarray(phonon.force_constants)
     return fc2_array
+
+
+@pwf.as_function_node("trajectory_pack")
+def _run_nvt_trajectory(
+    structure: Atoms,
+    engine: Engine,
+    resolved_fc2_supercell,
+    temperature: float,
+    equilibration_steps: int,
+    production_steps: int,
+    time_step: float,
+    thermostat_time_constant: float,
+    seed: int,
+) -> dict:
+    """Run Langevin NVT MD on a supercell built from `structure`.
+
+    Discards `equilibration_steps`, records the next `production_steps`
+    into a trajectory pack of plain ndarrays + scalars suitable for
+    dynaphopy's `Dynamics` constructor downstream.
+    """
+    from ase import units
+
+    # Build the supercell to actually run MD on. dynaphopy projects the
+    # supercell trajectory onto modes via the FC2 supercell, so we MUST
+    # run MD at the FC2 supercell size.
+    from ase.build import make_supercell
+    from ase.md.langevin import Langevin
+    from ase.md.velocitydistribution import MaxwellBoltzmannDistribution
+
+    supercell_atoms = make_supercell(structure, resolved_fc2_supercell)
+    # Attach the engine's calculator. We deliberately don't go through
+    # engine.calculate here because MD wants step-by-step ASE control.
+    if hasattr(engine, "calculator"):
+        supercell_atoms.calc = engine.calculator
+    else:
+        raise RuntimeError(
+            "Engine must expose a `calculator` attribute for MD trajectory "
+            "generation. Current MD path supports ASEEngine only; pass an "
+            "ASEEngine instance."
+        )
+
+    rng = np.random.default_rng(seed)  # noqa: F841 — kept for parity with future expanded seeding
+    MaxwellBoltzmannDistribution(
+        supercell_atoms,
+        temperature_K=temperature,
+        rng=np.random.RandomState(seed),
+    )
+
+    dt = time_step * units.fs
+    ttime = thermostat_time_constant * units.fs
+    dyn = Langevin(
+        supercell_atoms,
+        timestep=dt,
+        temperature_K=temperature,
+        friction=1.0 / ttime,
+        rng=np.random.RandomState(seed),
+    )
+
+    # Equilibration — discarded.
+    if equilibration_steps > 0:
+        dyn.run(equilibration_steps)
+
+    # Production — recorded.
+    positions = np.zeros((production_steps, len(supercell_atoms), 3))
+    velocities = np.zeros_like(positions)
+    times = np.zeros(production_steps)
+    instantaneous_T = np.zeros(production_steps)
+
+    step_counter = {"i": 0}
+
+    def record_step():
+        i = step_counter["i"]
+        # `if i < production_steps` (rather than an early-return) so pyiron_workflow's
+        # AST output-parser doesn't see two `return` statements in the enclosing node.
+        if i < production_steps:
+            positions[i] = supercell_atoms.get_positions()
+            velocities[i] = supercell_atoms.get_velocities()
+            times[i] = i * time_step  # fs
+            instantaneous_T[i] = supercell_atoms.get_temperature()
+            step_counter["i"] += 1
+
+    dyn.attach(record_step, interval=1)
+    dyn.run(production_steps)
+
+    pack = {
+        "positions": positions,
+        "velocities": velocities,
+        "time": times,
+        "supercell": np.asarray(supercell_atoms.cell),
+        "n_md_steps": production_steps,
+        "time_step_fs": float(time_step),
+        "md_temperature_mean": float(instantaneous_T.mean()),
+        "md_temperature_std": float(instantaneous_T.std()),
+    }
+    return pack
