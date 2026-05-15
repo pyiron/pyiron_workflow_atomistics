@@ -547,3 +547,50 @@ def test_run_calphy_job_dispatches_and_reads_report(monkeypatch, tmp_path):
     assert captured == {"setup": True, "run": True}
     assert report == fake_report
     assert job is fake_job
+
+
+# ---------------------------------------------------------------------------
+# _load_rs_curve
+# ---------------------------------------------------------------------------
+
+
+def test_load_rs_curve_temperature(tmp_path):
+    import numpy as np
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _load_rs_curve,
+    )
+
+    # calphy writes "temperature_sweep.dat" with cols [T, F]
+    data = np.array([[100.0, -3.50],
+                     [200.0, -3.55],
+                     [300.0, -3.60]])
+    np.savetxt(tmp_path / "temperature_sweep.dat", data)
+
+    t, f = _load_rs_curve(str(tmp_path))
+    np.testing.assert_allclose(t, [100.0, 200.0, 300.0])
+    np.testing.assert_allclose(f, [-3.50, -3.55, -3.60])
+
+
+def test_load_rs_curve_pressure(tmp_path):
+    import numpy as np
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _load_rs_curve,
+    )
+
+    data = np.array([[0.0, -3.50],
+                     [5000.0, -3.45],
+                     [10000.0, -3.40]])
+    np.savetxt(tmp_path / "pressure_sweep.dat", data)
+
+    p, f = _load_rs_curve(str(tmp_path), axis="pressure")
+    np.testing.assert_allclose(p, [0.0, 5000.0, 10000.0])
+    np.testing.assert_allclose(f, [-3.50, -3.45, -3.40])
+
+
+def test_load_rs_curve_missing_raises(tmp_path):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _load_rs_curve,
+    )
+
+    with pytest.raises(FileNotFoundError):
+        _load_rs_curve(str(tmp_path))

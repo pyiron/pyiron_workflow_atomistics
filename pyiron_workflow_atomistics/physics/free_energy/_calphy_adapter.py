@@ -7,10 +7,12 @@ considered private API.
 
 from __future__ import annotations
 
+import glob
 import os
 import shlex
 from typing import Any, Literal, TYPE_CHECKING
 
+import numpy as np
 from ase import Atoms
 from ase.data import atomic_masses, atomic_numbers
 from ase.io import write as ase_write
@@ -510,3 +512,38 @@ def _pack_free_energy_output(
             out.composition_path = None
 
     return out
+
+
+def _load_rs_curve(
+    simfolder: str,
+    axis: Literal["temperature", "pressure"] = "temperature",
+) -> tuple[np.ndarray, np.ndarray]:
+    """Read calphy's reversible-scaling sweep file.
+
+    Calphy writes ``temperature_sweep.dat`` for ``ts``/``tscale`` and
+    ``pressure_sweep.dat`` for ``pscale``. Both are two-column whitespace-
+    separated: independent variable, then free energy.
+
+    Returns ``(x_array, free_energy_array)`` as numpy arrays.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the expected sweep file is not present in ``simfolder`` —
+        either calphy didn't run, or its filename convention changed.
+    """
+    expected = f"{axis}_sweep.dat"
+    path = os.path.join(simfolder, expected)
+    if not os.path.exists(path):
+        # Tolerate calphy's older convention `*free_energy*.dat`
+        candidates = glob.glob(os.path.join(simfolder, "*sweep*.dat"))
+        if not candidates:
+            raise FileNotFoundError(
+                f"No reversible-scaling sweep file in {simfolder} "
+                f"(looked for {expected} and *sweep*.dat)"
+            )
+        path = candidates[0]
+    data = np.loadtxt(path)
+    if data.ndim == 1:  # single row
+        data = data[None, :]
+    return data[:, 0], data[:, 1]
