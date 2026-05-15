@@ -1583,3 +1583,22 @@ def test_md_macro_seed_determinism(tmp_path):
     np.testing.assert_allclose(
         out_a.renormalised_frequencies, out_b.renormalised_frequencies
     )
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — public re-exports (md renormalisation)
+# ---------------------------------------------------------------------------
+
+
+def test_public_reexports_include_md_renormalisation():
+    from pyiron_workflow_atomistics.physics.phonons import (
+        MdPhononOutput,
+        PhononOutput,
+        calculate_phonon_md_renormalisation,
+        calculate_phonon_thermal_conductivity,
+    )
+
+    assert PhononOutput is not None
+    assert MdPhononOutput is not None
+    assert callable(calculate_phonon_thermal_conductivity)
+    assert callable(calculate_phonon_md_renormalisation)
