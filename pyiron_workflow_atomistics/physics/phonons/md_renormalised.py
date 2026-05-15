@@ -11,14 +11,22 @@ routes inputs/outputs through the pyiron_workflow Engine Protocol.
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pyiron_workflow as pwf
 from ase import Atoms
 from numpy.typing import ArrayLike
 
 from pyiron_workflow_atomistics.engine import Engine
-from pyiron_workflow_atomistics.physics.phonons._compat import require_phonopy
-from pyiron_workflow_atomistics.physics.phonons.output import PhononOutput
+from pyiron_workflow_atomistics.physics.phonons._compat import (
+    require_dynaphopy,
+    require_phonopy,
+)
+from pyiron_workflow_atomistics.physics.phonons.output import (
+    MdPhononOutput,
+    PhononOutput,
+)
 
 
 def _normalise_supercell_matrix(m: ArrayLike) -> np.ndarray:
@@ -293,3 +301,208 @@ def _run_nvt_trajectory(
         "md_temperature_std": float(instantaneous_T.std()),
     }
     return pack
+
+
+def _build_phonopy_view(structure: Atoms, fc2_array: np.ndarray, supercell_matrix):
+    """Build a phonopy.Phonopy with the supplied FC2 attached.
+
+    Helper used by _project_with_dynaphopy. Kept separate so future v2
+    extensions (NAC, custom path) can extend it without touching the
+    projection logic.
+    """
+    require_phonopy()
+    from phonopy import Phonopy
+
+    from pyiron_workflow_atomistics.physics.phonons.harmonic import _ase_to_phonopy
+
+    unitcell = _ase_to_phonopy(structure)
+    phonon = Phonopy(unitcell=unitcell, supercell_matrix=supercell_matrix)
+    phonon.force_constants = np.asarray(fc2_array)
+    return phonon
+
+
+def _harmonic_frequencies_at(phonon, q_points: np.ndarray) -> np.ndarray:
+    """Evaluate the harmonic phonon frequencies at a list of q-points.
+
+    Returns (n_q, n_band) in THz.
+    """
+    n_band = 3 * len(phonon.primitive)
+    out = np.zeros((len(q_points), n_band))
+    for i, q in enumerate(q_points):
+        freqs = phonon.get_frequencies(q)
+        out[i] = np.asarray(freqs)
+    return out
+
+
+def _ase_to_dynaphopy_structure(structure: Atoms, fc2_array, fc2_supercell_matrix):
+    """Build a dynaphopy.atoms.Structure from an ASE Atoms with FC2 attached.
+
+    The dynaphopy Structure carries the primitive cell along with the FC2
+    and the (3x3 integer multiplier) supercell used during the FC2 fit.
+    dynaphopy's Phonopy plumbing (``get_phonon``) passes that supercell
+    array directly to ``phonopy.Phonopy(supercell_matrix=...)`` which
+    expects an integer multiplier — NOT the supercell cell vectors.
+    """
+    require_dynaphopy()
+    from dynaphopy.atoms import Structure as DynaphopyStructure
+    from dynaphopy.interface.phonopy_link import ForceConstants
+
+    cell = np.asarray(structure.cell)
+    sc = np.asarray(fc2_supercell_matrix)
+    # dynaphopy's Structure._supercell_matrix is a 1d int vector (diagonal-only).
+    if sc.ndim == 2:
+        sc_diag = np.diag(sc).astype(int)
+        sc_int_matrix = sc.astype(int)
+    else:
+        sc_diag = sc.astype(int)
+        sc_int_matrix = np.diag(sc_diag)
+
+    dyn_structure = DynaphopyStructure(
+        cell=cell,
+        scaled_positions=np.asarray(structure.get_scaled_positions()),
+        atomic_elements=list(structure.get_chemical_symbols()),
+        primitive_matrix=np.eye(3),
+    )
+    dyn_structure.set_supercell_matrix(sc_diag)
+    dyn_structure.set_force_constants(
+        ForceConstants(np.asarray(fc2_array), supercell=sc_int_matrix)
+    )
+    return dyn_structure
+
+
+@pwf.as_function_node("md_phonon_output")
+def _project_with_dynaphopy(
+    structure: Atoms,
+    fc2_array: np.ndarray,
+    resolved_fc2_supercell,
+    trajectory_pack: dict,
+    resolved_q_points: np.ndarray,
+    temperature: float,
+    power_spectra: bool,
+    keep_handles: bool,
+) -> MdPhononOutput:
+    """Build dynaphopy.Quasiparticle, fit each q-point, pack into MdPhononOutput."""
+    require_dynaphopy()
+    from dynaphopy import Quasiparticle
+    from dynaphopy.analysis.fitting import phonon_fitting_analysis
+    from dynaphopy.dynamics import Dynamics
+
+    phonon = _build_phonopy_view(structure, fc2_array, resolved_fc2_supercell)
+
+    # Harmonic reference frequencies (always populated for comparison).
+    harmonic_frequencies = _harmonic_frequencies_at(phonon, resolved_q_points)
+
+    # Build a dynaphopy primitive Structure carrying the FC2 + supercell info.
+    dyn_structure = _ase_to_dynaphopy_structure(
+        structure, fc2_array, resolved_fc2_supercell
+    )
+
+    # Build dynaphopy Dynamics from the trajectory pack. dynaphopy expects:
+    #   trajectory / velocity : complex ndarray (n_steps, n_atoms, 3) — Angstrom
+    #   time                  : ndarray (n_steps,) in picoseconds
+    #   supercell             : 3x3 cell vectors of the MD simulation cell
+    dynamics = Dynamics(
+        structure=dyn_structure,
+        trajectory=np.asarray(trajectory_pack["positions"], dtype=complex),
+        velocity=np.asarray(trajectory_pack["velocities"], dtype=complex),
+        time=np.asarray(trajectory_pack["time"]) * 1e-3,  # fs → ps
+        supercell=np.asarray(trajectory_pack["supercell"]),
+    )
+
+    qp = Quasiparticle(dynamics)
+    qp.set_temperature(temperature)
+    qp.parameters.silent = True
+
+    n_q = len(resolved_q_points)
+    n_band = harmonic_frequencies.shape[1]
+    renormalised = np.full((n_q, n_band), np.nan)
+    linewidths = np.full((n_q, n_band), np.nan)
+    failed: list[tuple[int, int]] = []
+
+    spectra_blocks: list[np.ndarray] = []
+    freq_grid: np.ndarray | None = None
+
+    for iq, q in enumerate(resolved_q_points):
+        q_arr = np.asarray(q, dtype=float)
+        qp.set_reduced_q_vector(q_arr)
+        try:
+            ps = qp.get_power_spectrum_phonon()
+            ps_frequencies = np.asarray(qp.parameters.frequency_range)
+            data = phonon_fitting_analysis(
+                np.asarray(ps),
+                ps_frequencies,
+                harmonic_frequencies=qp.get_frequencies(),
+                thermal_expansion_shift=None,
+                show_plots=False,
+                use_degeneracy=qp.parameters.use_symmetry,
+                show_occupancy=False,
+            )
+            positions = np.asarray(data["positions"], dtype=float)
+            widths = np.asarray(data["widths"], dtype=float)
+            # At Gamma (q == 0), the three acoustic bands are pinned to 0 by
+            # translation invariance. dynaphopy clamps them explicitly in
+            # ``get_commensurate_points_data``; mirror that idiom here so
+            # callers get the physically correct values rather than fit noise
+            # around zero.
+            if np.allclose(q_arr, 0.0):
+                positions[:3] = 0.0
+                widths[:3] = 0.0
+            renormalised[iq] = positions[:n_band]
+            linewidths[iq] = widths[:n_band]
+
+            if power_spectra:
+                if freq_grid is None:
+                    freq_grid = ps_frequencies
+                spectra_blocks.append(np.asarray(ps).T)  # (n_band, n_freq)
+        except Exception:  # noqa: BLE001 — dynaphopy may raise various fit errors
+            failed.append((iq, -1))
+            if power_spectra:
+                spectra_blocks.append(np.full((n_band, 1), np.nan))
+
+    converged = not failed
+    if failed:
+        n_total = n_q * n_band
+        warnings.warn(
+            f"Lorentzian fit failed for {len(failed)} of {n_total} (q, band) "
+            "pairs; corresponding entries are NaN. Set power_spectra=True and "
+            "inspect the raw spectra if you need to debug.",
+            stacklevel=2,
+        )
+
+    if power_spectra and spectra_blocks:
+        power_spectra_array = np.stack(spectra_blocks, axis=0)
+    else:
+        power_spectra_array = None
+
+    out = MdPhononOutput(
+        structure=structure,
+        fc2_supercell_matrix=_normalise_supercell_matrix(resolved_fc2_supercell),
+        temperature=float(temperature),
+        q_points=np.asarray(resolved_q_points),
+        harmonic_frequencies=harmonic_frequencies,
+        renormalised_frequencies=renormalised,
+        linewidths=linewidths,
+        converged=converged,
+        n_md_steps=int(trajectory_pack["n_md_steps"]),
+        time_step_fs=float(trajectory_pack["time_step_fs"]),
+        md_temperature_mean=float(trajectory_pack["md_temperature_mean"]),
+        md_temperature_std=float(trajectory_pack["md_temperature_std"]),
+        power_spectra=power_spectra_array,
+        frequency_grid=freq_grid if power_spectra else None,
+        quasiparticle=qp if keep_handles else None,
+        dynamics=dynamics if keep_handles else None,
+        phonopy=phonon if keep_handles else None,
+    )
+
+    # Auto-warn for bad MD on first run.
+    healthy, issues = out.check_md_health()
+    if not healthy:
+        warnings.warn(
+            "MD diagnostics indicate potential issues:\n  - "
+            + "\n  - ".join(issues)
+            + "\nThe renormalised frequencies / linewidths may be unreliable. "
+            "See MdPhononOutput.check_md_health() for the heuristics.",
+            stacklevel=2,
+        )
+
+    return out

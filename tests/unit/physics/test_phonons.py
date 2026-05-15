@@ -1141,3 +1141,89 @@ def test_run_nvt_trajectory_returns_expected_pack_shape(tmp_path):
     # ⟨T⟩ and σ_T were measured (any finite positive value)
     assert pack["md_temperature_mean"] > 0
     assert pack["md_temperature_std"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — _project_with_dynaphopy synthesis smoke
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.slow
+def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
+    pytest.importorskip("dynaphopy")
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _compute_fc2_from_scratch,
+        _project_with_dynaphopy,
+        _run_nvt_trajectory,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    fc2_supercell = 2 * np.eye(3, dtype=int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    fc2_array = _compute_fc2_from_scratch.node_function(
+        structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell
+    )
+    pack = _run_nvt_trajectory.node_function(
+        structure=cu,
+        engine=engine,
+        resolved_fc2_supercell=fc2_supercell,
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        time_step=1.0,
+        thermostat_time_constant=100.0,
+        seed=42,
+    )
+
+    out = _project_with_dynaphopy.node_function(
+        structure=cu,
+        fc2_array=fc2_array,
+        resolved_fc2_supercell=fc2_supercell,
+        trajectory_pack=pack,
+        resolved_q_points=np.zeros((1, 3)),  # Γ only
+        temperature=300.0,
+        power_spectra=False,
+        keep_handles=False,
+    )
+
+    # 1 q-point × 3 bands (Cu primitive has 1 atom)
+    assert out.renormalised_frequencies.shape == (1, 3)
+    assert out.linewidths.shape == (1, 3)
+    assert out.harmonic_frequencies.shape == (1, 3)
+    assert out.power_spectra is None
+    assert out.quasiparticle is None
+    # All renormalised frequencies should be finite (EMT-Cu is well-behaved)
+    assert np.all(np.isfinite(out.renormalised_frequencies))
+    # Renormalisation should not drift wildly from the harmonic value. At
+    # Gamma for a monatomic FCC primitive the three acoustic modes are
+    # pinned to 0 by translation invariance; relative drift is undefined,
+    # so mask those out and require absolute closeness instead.
+    nonzero = np.abs(out.harmonic_frequencies) > 0.1  # THz
+    if nonzero.any():
+        rel_drift = np.abs(
+            (out.renormalised_frequencies[nonzero]
+             - out.harmonic_frequencies[nonzero])
+            / out.harmonic_frequencies[nonzero]
+        )
+        assert (rel_drift < 0.5).all(), (
+            f"Anomalous renormalisation: rel_drift = {rel_drift}"
+        )
+    # Acoustic modes at Gamma should be ~0 (within Lorentzian-fit noise).
+    acoustic_mask = ~nonzero
+    if acoustic_mask.any():
+        assert np.allclose(
+            out.renormalised_frequencies[acoustic_mask],
+            out.harmonic_frequencies[acoustic_mask],
+            atol=0.1,
+        ), (
+            "Acoustic-mode renormalisation deviates from harmonic ~0: "
+            f"{out.renormalised_frequencies[acoustic_mask]}"
+        )
