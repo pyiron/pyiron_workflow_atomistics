@@ -323,7 +323,8 @@ Worked examples covering every public workflow live in [`notebooks/`](../noteboo
 Phonon workflows have their own dedicated notebooks:
 
 - [`phonon_thermal_conductivity.ipynb`](../notebooks/phonon_thermal_conductivity.ipynb) — κ(T) on EMT Cu via `calculate_phonon_thermal_conductivity`, demonstrating the FC2 + FC3 displacement fits and the BTE solver.
-- [`dynaphopy_grace_example.ipynb`](../notebooks/dynaphopy_grace_example.ipynb) — `calculate_phonon_md_renormalisation` on Si 2×2×2 with the GRACE-1L-OAM foundation model, showing both an ASE Langevin path and a native LAMMPS `pair_style grace` path projected through dynaphopy. Outputs and inline plots committed.
+- [`dynaphopy_emt_example.ipynb`](../notebooks/dynaphopy_emt_example.ipynb) — minimal `calculate_phonon_md_renormalisation` smoke test on EMT-Cu, runs cheaply in CI's standard notebook env.
+- [`dynaphopy_grace_example.ipynb`](../notebooks/dynaphopy_grace_example.ipynb) — same macro but with the GRACE-1L-OAM foundation model on Si 2×2×2, showing both ASE Langevin and native LAMMPS `pair_style grace` MD drivers projected through dynaphopy. Requires `tensorpotential` + a `pair_style grace`-capable LAMMPS build, so it is excluded from CI's `build-notebooks` job (see `.ci_support/exclude`).
 
 ## Documentation
 
