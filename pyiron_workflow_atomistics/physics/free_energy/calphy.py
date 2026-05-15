@@ -125,3 +125,56 @@ def free_energy(
             equilibration_control=equilibration_control,
         ),
     )
+
+
+@pwf.as_function_node("free_energy_output")
+def reversible_scaling_temperature(
+    *,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str = ".",
+    subdir: str = "reversible_scaling_temperature",
+    temperature_range: tuple[float, float],
+    pressure: float = 0.0,
+    reference_phase: Literal["solid", "liquid"],
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+) -> FreeEnergyOutput:
+    """Free energy along an isobar by reversible scaling in temperature.
+
+    ``temperature_range`` is (lo, hi) in K. Pressure is in bar. The
+    ``FreeEnergyOutput.temperature_array`` and ``free_energy_array``
+    fields are populated with the integrated curve.
+    """
+    if (temperature_range is None
+            or not hasattr(temperature_range, "__len__")
+            or len(temperature_range) != 2):
+        raise ValueError(
+            "reversible_scaling_temperature requires "
+            "`temperature_range=(lo, hi)` (length-2 tuple)"
+        )
+    return _run_one(
+        mode="ts",
+        structure=structure,
+        lammps_engine=lammps_engine,
+        potential=potential,
+        working_directory=working_directory,
+        subdir=subdir,
+        reference_phase=reference_phase,
+        temperature=float(temperature_range[0]),
+        pressure=pressure,
+        builder_kwargs=dict(
+            temperature_range=temperature_range,
+            pressure=pressure,
+            reference_phase=reference_phase,
+            n_equilibration_steps=n_equilibration_steps,
+            n_switching_steps=n_switching_steps,
+            n_iterations=n_iterations,
+            npt=npt,
+            equilibration_control=equilibration_control,
+        ),
+    )

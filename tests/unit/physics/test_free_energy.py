@@ -749,3 +749,68 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
     assert out.free_energy_error >= 0
     assert os.path.isabs(out.simfolder)
     assert (tmp_path / "fe" / "report.yaml").exists()
+
+
+# ---------------------------------------------------------------------------
+# reversible_scaling_temperature
+# ---------------------------------------------------------------------------
+
+
+def test_reversible_scaling_temperature_validates_tuple_shape(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        reversible_scaling_temperature,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    with pytest.raises(ValueError, match=r"temperature_range"):
+        reversible_scaling_temperature.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature_range=300.0,  # scalar — must be 2-tuple
+            reference_phase="solid",
+        )
+
+
+@requires_lammps
+def test_reversible_scaling_temperature_returns_curve(tmp_path):
+    pytest.importorskip("calphy")
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        reversible_scaling_temperature,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
+    )
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+
+    out = reversible_scaling_temperature.node_function(
+        structure=cu,
+        lammps_engine=eng,
+        potential=pot,
+        working_directory=str(tmp_path),
+        subdir="ts",
+        temperature_range=(100.0, 300.0),
+        pressure=0.0,
+        reference_phase="solid",
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    assert out.mode == "ts"
+    assert out.temperature_array is not None
+    assert out.free_energy_array is not None
+    assert out.temperature_array.shape == out.free_energy_array.shape
+    import numpy as np
+    assert np.all(np.diff(out.temperature_array) >= 0)
