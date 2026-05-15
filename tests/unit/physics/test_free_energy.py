@@ -951,3 +951,44 @@ def test_composition_scaling_requires_output_composition(fcc_al_atoms):
             temperature=300.0,
             output_chemical_composition=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Public re-exports
+# ---------------------------------------------------------------------------
+
+
+def test_subpackage_public_api_re_exports():
+    import pyiron_workflow_atomistics.physics.free_energy as fe
+
+    public = {
+        "FreeEnergyOutput",
+        "LammpsPotential",
+        "free_energy",
+        "reversible_scaling_temperature",
+        "reversible_scaling_pressure",
+        "melting_temperature",
+        "alchemy",
+        "composition_scaling",
+    }
+    missing = public - set(dir(fe))
+    assert not missing, f"missing public exports: {missing}"
+
+
+def test_subpackage_imports_without_calphy(monkeypatch):
+    """Importing the subpackage must NOT trigger a calphy import."""
+    import importlib
+    import sys
+
+    monkeypatch.setitem(sys.modules, "calphy", None)
+    # Drop any cached module so import is fresh
+    sys.modules.pop("pyiron_workflow_atomistics.physics.free_energy", None)
+    sys.modules.pop(
+        "pyiron_workflow_atomistics.physics.free_energy._calphy_adapter", None,
+    )
+    sys.modules.pop(
+        "pyiron_workflow_atomistics.physics.free_energy.calphy", None,
+    )
+    importlib.import_module(
+        "pyiron_workflow_atomistics.physics.free_energy"
+    )  # should not raise
