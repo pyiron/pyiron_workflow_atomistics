@@ -17,9 +17,9 @@ from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
 
 @pwf.as_function_node("free_energy_per_atom", "entropy_per_atom", "cv_per_atom")
 def _free_energy_from_spectrum(
-    frequencies: np.ndarray,         # (n_q, n_band) THz
-    q_weights: np.ndarray,           # (n_q,), sums to 1
-    temperature: float,              # K
+    frequencies: np.ndarray,  # (n_q, n_band) THz
+    q_weights: np.ndarray,  # (n_q,), sums to 1
+    temperature: float,  # K
     n_atoms_primitive: int,
 ) -> tuple[float, float, float]:
     """Harmonic free energy / entropy / Cv on a discrete (q, band) frequency grid.
@@ -80,9 +80,7 @@ def _free_energy_from_spectrum(
         with np.errstate(over="ignore", invalid="ignore"):
             expm1_x = np.expm1(x)
             # Guard expm1 underflow for ultra-soft modes (same condition Cv uses).
-            bose_term = np.where(
-                is_acoustic_gamma | (expm1_x == 0), 0.0, x / expm1_x
-            )
+            bose_term = np.where(is_acoustic_gamma | (expm1_x == 0), 0.0, x / expm1_x)
             S_modes = kB_eV_per_K * (bose_term - log_term)
 
         # Cv per mode:  C_v = k_B (x^2 exp(x)) / (exp(x)−1)^2
@@ -280,14 +278,10 @@ def _pack_anharmonic_dynaphopy_output(
         entropy=float(entropy_per_atom),
         heat_capacity=float(cv_per_atom),
         harmonic_frequencies=np.asarray(md_phonon_output.harmonic_frequencies),
-        renormalised_frequencies=np.asarray(
-            md_phonon_output.renormalised_frequencies
-        ),
+        renormalised_frequencies=np.asarray(md_phonon_output.renormalised_frequencies),
         linewidths=np.asarray(md_phonon_output.linewidths),
         q_mesh=q_mesh_tuple,
-        dynaphopy_handle=(
-            md_phonon_output.quasiparticle if keep_handles else None
-        ),
+        dynaphopy_handle=(md_phonon_output.quasiparticle if keep_handles else None),
         phonopy_handle=md_phonon_output.phonopy if keep_handles else None,
     )
 

@@ -138,7 +138,9 @@ def _pack_harmonic_output(
     ev_to_kj_mol = c.eV * c.Avogadro / 1000.0  # ≈ 96.485
     F = np.asarray(free_energy_dict["F"]) / (ev_to_kj_mol * n_atoms_primitive)
     S = np.asarray(free_energy_dict["S"]) / (ev_to_kj_mol * 1000.0 * n_atoms_primitive)
-    Cv = np.asarray(free_energy_dict["Cv"]) / (ev_to_kj_mol * 1000.0 * n_atoms_primitive)
+    Cv = np.asarray(free_energy_dict["Cv"]) / (
+        ev_to_kj_mol * 1000.0 * n_atoms_primitive
+    )
 
     elements = list(dict.fromkeys(structure.get_chemical_symbols()))
     return FreeEnergyOutput(

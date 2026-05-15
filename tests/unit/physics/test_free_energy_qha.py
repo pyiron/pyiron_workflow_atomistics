@@ -13,11 +13,9 @@ def _synthetic_qha_inputs(n_T=5, n_V=7):
     Bp = 4.0
     volumes = V0 * np.linspace(0.95, 1.05, n_V)
     # Murnaghan-like E(V) parametrisation in eV/atom
-    energies = (
-        -3.5
-        + 9 * V0 * B0 / 1602.176 / Bp / (Bp - 1)
-        * (volumes / V0) ** (1 - Bp) * ((volumes / V0) ** Bp - 1)
-    )
+    energies = -3.5 + 9 * V0 * B0 / 1602.176 / Bp / (Bp - 1) * (volumes / V0) ** (
+        1 - Bp
+    ) * ((volumes / V0) ** Bp - 1)
     # Per-volume Einstein-like F(T): F(T,V) = -3 k_B T ln(...) — keep simple.
     temperatures = np.linspace(0, 400, n_T)
     F_TV = np.zeros((n_T, n_V))

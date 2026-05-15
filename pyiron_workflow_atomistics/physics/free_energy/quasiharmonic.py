@@ -126,9 +126,7 @@ def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine
     return np.asarray(energies), np.asarray(volumes)
 
 
-@pwf.as_function_node(
-    "free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V"
-)
+@pwf.as_function_node("free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V")
 def _harmonic_grid_over_volumes(
     strained_structures: list[Atoms],
     engine: Engine,

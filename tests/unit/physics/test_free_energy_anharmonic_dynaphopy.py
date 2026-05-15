@@ -70,8 +70,8 @@ def test_free_energy_from_spectrum_matches_einstein_closed_form():
     expected_F = 3 * _einstein_free_energy_per_mode(omega_THz, 300.0)
     expected_S = 3 * _einstein_entropy_per_mode(omega_THz, 300.0)
     expected_Cv = 3 * _einstein_cv_per_mode(omega_THz, 300.0)
-    assert F == pytest.approx(expected_F, rel=1e-8)
-    assert S == pytest.approx(expected_S, rel=1e-8)
+    assert pytest.approx(expected_F, rel=1e-8) == F
+    assert pytest.approx(expected_S, rel=1e-8) == S
     assert Cv == pytest.approx(expected_Cv, rel=1e-8)
 
 
@@ -218,4 +218,7 @@ def test_anharmonic_free_energy_dynaphopy_tdi_emt_al(tmp_path):
     assert out.mode == "anharmonic_dynaphopy_tdi"
     assert out.temperature_array.shape == (2,)
     assert out.free_energy_array.shape == (2,)
-    assert out.renormalised_frequencies_per_T.shape == (2, *out.renormalised_frequencies_per_T.shape[1:])
+    assert out.renormalised_frequencies_per_T.shape == (
+        2,
+        *out.renormalised_frequencies_per_T.shape[1:],
+    )
