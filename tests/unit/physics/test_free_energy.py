@@ -1146,3 +1146,146 @@ def test_composition_scaling_smoke(tmp_path):
     # composition_path should be populated (verify the coercion bug is fixed)
     assert out.composition_path is not None
     assert all(isinstance(c, dict) for c in out.composition_path)
+
+
+def test_free_energy_output_accepts_harmonic_mode():
+    import numpy as np
+
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    out = FreeEnergyOutput(
+        mode="harmonic",
+        reference_phase="solid",
+        free_energy=-3.0,
+        free_energy_error=0.0,
+        temperature=0.0,
+        pressure=0.0,
+        n_atoms=4,
+        elements=["Al"],
+        simfolder="/tmp",
+        report={},
+        temperature_array=np.array([0.0, 300.0]),
+        free_energy_array=np.array([-3.0, -3.05]),
+        entropy_array=np.array([0.0, 1e-4]),
+        heat_capacity_array=np.array([0.0, 2e-4]),
+        entropy=0.0,
+        heat_capacity=0.0,
+    )
+    assert out.mode == "harmonic"
+    assert out.entropy_array.shape == (2,)
+
+
+def test_free_energy_output_accepts_qha_mode():
+    import numpy as np
+
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    out = FreeEnergyOutput(
+        mode="qha",
+        reference_phase="solid",
+        free_energy=-3.0,
+        free_energy_error=0.0,
+        temperature=0.0,
+        pressure=0.0,
+        n_atoms=4,
+        elements=["Al"],
+        simfolder="/tmp",
+        report={},
+        volumes=np.array([15.0, 16.0, 17.0]),
+        free_energy_volume_array=np.zeros((2, 3)),
+        equilibrium_volume_array=np.array([16.0, 16.1]),
+        gibbs_free_energy_array=np.array([-3.0, -3.1]),
+        bulk_modulus_array=np.array([70.0, 68.0]),
+        thermal_expansion_array=np.array([0.0, 2e-5]),
+    )
+    assert out.bulk_modulus_array[0] == 70.0
+
+
+def test_free_energy_output_accepts_anharmonic_dynaphopy_modes():
+    import numpy as np
+
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    out_single = FreeEnergyOutput(
+        mode="anharmonic_dynaphopy",
+        reference_phase="solid",
+        free_energy=-2.9,
+        free_energy_error=0.0,
+        temperature=300.0,
+        pressure=0.0,
+        n_atoms=4,
+        elements=["Al"],
+        simfolder="/tmp",
+        report={},
+        harmonic_frequencies=np.zeros((1, 12)),
+        renormalised_frequencies=np.zeros((1, 12)),
+        linewidths=np.zeros((1, 12)),
+        q_mesh=(7, 7, 7),
+    )
+    assert out_single.q_mesh == (7, 7, 7)
+
+    out_tdi = FreeEnergyOutput(
+        mode="anharmonic_dynaphopy_tdi",
+        reference_phase="solid",
+        free_energy=-2.9,
+        free_energy_error=0.0,
+        temperature=200.0,
+        pressure=0.0,
+        n_atoms=4,
+        elements=["Al"],
+        simfolder="/tmp",
+        report={},
+        temperature_array=np.array([200.0, 400.0]),
+        free_energy_array=np.array([-2.9, -3.0]),
+        renormalised_frequencies_per_T=np.zeros((2, 1, 12)),
+        linewidths_per_T=np.zeros((2, 1, 12)),
+    )
+    assert out_tdi.renormalised_frequencies_per_T.shape == (2, 1, 12)
+
+
+def test_to_dict_excludes_handle_fields():
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    sentinel = object()
+    out = FreeEnergyOutput(
+        mode="harmonic",
+        reference_phase="solid",
+        free_energy=-3.0,
+        free_energy_error=0.0,
+        temperature=0.0,
+        pressure=0.0,
+        n_atoms=4,
+        elements=["Al"],
+        simfolder="/tmp",
+        report={},
+        phonopy_handle=sentinel,
+        qha_handle=sentinel,
+        dynaphopy_handle=sentinel,
+    )
+    d = out.to_dict()
+    assert "phonopy_handle" not in d
+    assert "qha_handle" not in d
+    assert "dynaphopy_handle" not in d
+    assert d["mode"] == "harmonic"
+
+
+def test_public_free_energy_exports():
+    import pyiron_workflow_atomistics.physics.free_energy as fe
+
+    expected = {
+        "FreeEnergyOutput",
+        "LammpsPotential",
+        "alchemy",
+        "composition_scaling",
+        "free_energy",
+        "melting_temperature",
+        "reversible_scaling_pressure",
+        "reversible_scaling_temperature",
+        "harmonic_free_energy",
+        "quasiharmonic_free_energy",
+        "anharmonic_free_energy_dynaphopy",
+        "anharmonic_free_energy_dynaphopy_tdi",
+    }
+    assert expected.issubset(set(fe.__all__))
+    for name in expected:
+        assert hasattr(fe, name), f"missing public export: {name}"
