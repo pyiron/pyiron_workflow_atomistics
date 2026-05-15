@@ -197,3 +197,80 @@ def test_split_lammps_command_rejects_empty():
 
     with pytest.raises(ValueError):
         _split_lammps_command("")
+
+
+# ---------------------------------------------------------------------------
+# _validate_engine_only_command
+# ---------------------------------------------------------------------------
+
+
+lammps_engine = pytest.importorskip("pyiron_workflow_lammps.engine")
+
+
+def _make_minimal_engine():
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    return LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+
+
+def test_validate_engine_only_command_passes_for_minimal_engine():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_engine_only_command,
+    )
+
+    eng = _make_minimal_engine()
+    _validate_engine_only_command(eng)  # should not raise
+
+
+def test_validate_engine_only_command_rejects_raw_script():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_engine_only_command,
+    )
+
+    eng = _make_minimal_engine()
+    eng.raw_script = "run 1000"
+    with pytest.raises(ValueError, match=r"raw_script"):
+        _validate_engine_only_command(eng)
+
+
+def test_validate_engine_only_command_rejects_path_to_model():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_engine_only_command,
+    )
+
+    eng = _make_minimal_engine()
+    eng.path_to_model = "/real/model"
+    with pytest.raises(ValueError, match=r"path_to_model"):
+        _validate_engine_only_command(eng)
+
+
+def test_validate_engine_only_command_rejects_pair_style():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_engine_only_command,
+    )
+
+    eng = _make_minimal_engine()
+    eng.input_script_pair_style = "eam/alloy"
+    with pytest.raises(ValueError, match=r"input_script_pair_style"):
+        _validate_engine_only_command(eng)
+
+
+def test_validate_engine_only_command_command_can_be_changed():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_engine_only_command,
+    )
+
+    eng = _make_minimal_engine()
+    eng.command = "mpirun -np 8 lmp"
+    _validate_engine_only_command(eng)  # should not raise
+
+
+def test_validate_engine_only_command_working_directory_carveout():
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _validate_engine_only_command,
+    )
+
+    eng = _make_minimal_engine()
+    eng.working_directory = "/somewhere/else"
+    _validate_engine_only_command(eng)  # working_directory is in the carve-out set

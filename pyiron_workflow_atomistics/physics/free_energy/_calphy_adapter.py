@@ -127,3 +127,70 @@ def _looks_like_lammps_binary(token: str) -> bool:
     """
     name = token.rsplit("/", 1)[-1].lower()
     return "lmp" in name or "lammps" in name
+
+
+from dataclasses import MISSING, fields
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+
+_ENGINE_CARVE_OUTS = frozenset({
+    "EngineInput",        # required to construct; ignored by calphy
+    "mode",               # init=False, derived from EngineInput
+    "working_directory",  # adapter sets its own simfolder
+    "command",            # the one field we actually use
+    "calc_fn",            # internal engine state, mutated by __post_init__
+    "calc_fn_kwargs",     # internal engine state, mutated by __post_init__ (None -> {})
+    "parse_fn",           # internal engine state, mutated by __post_init__
+    "parse_fn_kwargs",    # internal engine state, mutated by __post_init__ (None -> {})
+})
+
+
+def _validate_engine_only_command(engine: "LammpsEngine") -> None:
+    """Refuse LammpsEngine fields that the calphy adapter cannot honor.
+
+    Only ``engine.command`` is consumed. Every other field that has been
+    changed from its dataclass default is rejected, because calphy
+    generates its own LAMMPS input from the supplied LammpsPotential
+    and silently ignores everything else on the engine.
+    """
+    overridden: list[str] = []
+    for f in fields(engine):
+        if f.name in _ENGINE_CARVE_OUTS:
+            continue
+        default = _resolve_default(f)
+        current = getattr(engine, f.name)
+        if not _equals_default(current, default):
+            overridden.append(f.name)
+
+    if overridden:
+        raise ValueError(
+            f"calphy adapter only reads LammpsEngine.command. The "
+            f"following non-default fields were set: {sorted(overridden)}. "
+            f"calphy generates its own LAMMPS input; setting these "
+            f"silently has no effect on the free-energy result. Pass "
+            f"the potential via `potential=LammpsPotential(...)` and "
+            f"construct a minimal engine:\n"
+            f"  LammpsEngine(\n"
+            f"      EngineInput=CalcInputStatic(),\n"
+            f"      command='mpirun -np 4 lmp',\n"
+            f"  )"
+        )
+
+
+def _resolve_default(f):
+    """Return a dataclass field's default value, evaluating default_factory."""
+    if f.default is not MISSING:
+        return f.default
+    if f.default_factory is not MISSING:  # type: ignore[misc]
+        return f.default_factory()  # type: ignore[misc]
+    return MISSING
+
+
+def _equals_default(current, default) -> bool:
+    """Tolerant equality: MISSING means no default -> cannot judge -> accept."""
+    if default is MISSING:
+        return True
+    return current == default
