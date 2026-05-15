@@ -215,10 +215,10 @@ def test_split_lammps_command_rejects_empty():
 # ---------------------------------------------------------------------------
 
 
-lammps_engine = pytest.importorskip("pyiron_workflow_lammps.engine")
-
-
 def _make_minimal_engine():
+    """Build a minimal LammpsEngine for tests; skips the calling test if the
+    [free-energy] extra is missing rather than failing the module collection."""
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -617,6 +617,7 @@ def test_load_rs_curve_missing_raises(tmp_path):
 
 
 def test_free_energy_node_raises_when_calphy_missing(monkeypatch, fcc_al_atoms):
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -638,6 +639,7 @@ def test_free_energy_node_raises_when_calphy_missing(monkeypatch, fcc_al_atoms):
 
 def test_free_energy_node_rejects_non_default_engine_field(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -659,6 +661,7 @@ def test_free_energy_node_rejects_non_default_engine_field(fcc_al_atoms):
 
 def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -683,6 +686,7 @@ def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_at
     pytest.importorskip("calphy")
     import os
 
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -730,6 +734,7 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
     import os
 
     from ase.build import bulk
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -772,6 +777,7 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
 
 def test_reversible_scaling_temperature_validates_tuple_shape(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -796,6 +802,7 @@ def test_reversible_scaling_temperature_validates_tuple_shape(fcc_al_atoms):
 def test_reversible_scaling_temperature_returns_curve(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -839,6 +846,7 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
 
 def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -867,6 +875,7 @@ def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
 
 def test_melting_temperature_validates_positive_guess(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -891,6 +900,7 @@ def test_melting_temperature_validates_positive_guess(fcc_al_atoms):
 def test_melting_temperature_runs(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -928,6 +938,7 @@ def test_melting_temperature_runs(tmp_path):
 
 def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -954,6 +965,7 @@ def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
 
 def test_composition_scaling_requires_output_composition(fcc_al_atoms):
     pytest.importorskip("calphy")
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -1024,6 +1036,7 @@ def test_subpackage_imports_without_calphy(monkeypatch):
 def test_reversible_scaling_pressure_smoke(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -1062,6 +1075,7 @@ def test_reversible_scaling_pressure_smoke(tmp_path):
 def test_alchemy_smoke(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
@@ -1094,6 +1108,7 @@ def test_alchemy_smoke(tmp_path):
 def test_composition_scaling_smoke(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
