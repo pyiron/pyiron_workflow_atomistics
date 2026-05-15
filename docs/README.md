@@ -22,7 +22,9 @@ pyiron_workflow_atomistics/
 │   ├── bulk.py
 │   ├── surface.py
 │   ├── point_defect.py
-│   └── grain_boundary.py
+│   ├── grain_boundary.py
+│   └── phonons/        # κ(T) via phono3py + MD renormalisation via dynaphopy
+│                       # (optional [phonons] / [phonons-md] install extras)
 ├── analysis/    # Featurisers, GB-plane finder, derived quantities
 └── _internal/   # Private plumbing (not part of the public API)
 ```
@@ -35,6 +37,16 @@ Users import from the four public subpackages (`engine`, `structure`, `physics.*
 pip install pyiron_workflow_atomistics
 # or
 conda install -c conda-forge pyiron_workflow_atomistics
+```
+
+Optional extras for the phonons stack:
+
+```bash
+# κ(T) via phono3py: pulls phonopy + phono3py + symfc
+pip install "pyiron_workflow_atomistics[phonons]"
+
+# Adds MD-trajectory anharmonic renormalisation via dynaphopy (superset of [phonons])
+pip install "pyiron_workflow_atomistics[phonons-md]"
 ```
 
 ## Quick start
@@ -151,6 +163,62 @@ from pyiron_workflow_atomistics.physics.grain_boundary import (
 
 `pure_gb_study` composes length optimisation, segregation, and cleavage in one macro; the individual functions are available for finer control. See `notebooks/pure_grain_boundary_study.ipynb` and `notebooks/gb_cleavage.ipynb`.
 
+### Phonons — κ(T) and MD-renormalised dispersion
+
+Two macros backed by phonopy / phono3py / dynaphopy. Both fan force evaluations through the standard `Engine` Protocol so any ASE-style calculator (EMT, MACE, GRACE, M3GNet, CHGNet, DFT-via-ASE, …) works without modification. Gated on the `[phonons]` and `[phonons-md]` install extras.
+
+**Lattice thermal conductivity κ(T)** — v0.0.7, `[phonons]` extra. Fits FC2 + FC3 via finite displacements (FD) or random displacements + symfc, runs the linearised Boltzmann transport equation on a q-mesh:
+
+```python
+import numpy as np
+from ase.build import bulk
+from pyiron_workflow_atomistics.physics.phonons import (
+    calculate_phonon_thermal_conductivity,
+)
+
+wf = calculate_phonon_thermal_conductivity(
+    structure=bulk("Cu", "fcc", a=3.6),
+    engine=engine,
+    fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+    fc3_supercell_matrix=2 * np.eye(3, dtype=int),
+    temperatures=[300.0, 500.0, 700.0],
+    q_mesh=(11, 11, 11),
+    keep_handles=True,   # keep FC2/FC3/phono3py handles for downstream reuse
+)
+wf.run()
+out = wf.outputs.phonon_output.value     # PhononOutput dataclass
+print(out.kappa.shape, out.converged)    # (n_T, 6) in W/m·K (Voigt)
+```
+
+**Anharmonic phonon renormalisation via MD** — v0.0.8, `[phonons-md]` extra. Runs an ASE Langevin NVT segment using the engine's calculator, projects the trajectory onto the harmonic eigenmodes via dynaphopy, and fits Lorentzians to extract finite-temperature renormalised frequencies and linewidths:
+
+```python
+from pyiron_workflow_atomistics.physics.phonons import (
+    calculate_phonon_md_renormalisation,
+)
+
+wf = calculate_phonon_md_renormalisation(
+    structure=bulk("Si", "diamond", a=5.43),
+    engine=engine,
+    fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+    temperature=300.0,
+    equilibration_steps=1000,
+    production_steps=4000,
+    time_step=1.0,                          # fs
+    q_points=[[0.5, 0.0, 0.0]],             # primitive-cell X-point
+    seed=42,
+    power_spectra=True,                     # populate per-band MD power spectra
+    keep_handles=True,                      # keep phonopy / dynaphopy handles
+)
+wf.run()
+out = wf.outputs.md_phonon_output.value    # MdPhononOutput dataclass
+print(out.harmonic_frequencies[0])         # phonopy at q-point, THz
+print(out.renormalised_frequencies[0])     # dynaphopy MD-projected, THz
+print(out.check_md_health())               # auto-warn on ⟨T⟩ drift / σ_T anomaly
+```
+
+The MD-renormalisation macro can also **reuse FC2** from a prior κ(T) run by passing `phono3py_output=out_kappa` instead of `fc2_supercell_matrix=...`, skipping the displacement-force fit entirely. Worked end-to-end example in [`notebooks/dynaphopy_grace_example.ipynb`](../notebooks/dynaphopy_grace_example.ipynb) — runs the GRACE-1L-OAM foundation model on Si 2×2×2 through both ASE Langevin and native LAMMPS (`pair_style grace`) MD drivers and compares the results.
+
 ## Structure manipulation
 
 ```python
@@ -251,6 +319,11 @@ class EngineOutput:
 ## Notebooks
 
 Worked examples covering every public workflow live in [`notebooks/`](../notebooks/). Each notebook supplies its own calculator (EMT for the Cu / Ni / Pd / Ag / Pt / Au / Al demos; EAM with the bundled `Al-Fe.eam.fs` for the Fe ones) so it executes self-contained.
+
+Phonon workflows have their own dedicated notebooks:
+
+- [`phonon_thermal_conductivity.ipynb`](../notebooks/phonon_thermal_conductivity.ipynb) — κ(T) on EMT Cu via `calculate_phonon_thermal_conductivity`, demonstrating the FC2 + FC3 displacement fits and the BTE solver.
+- [`dynaphopy_grace_example.ipynb`](../notebooks/dynaphopy_grace_example.ipynb) — `calculate_phonon_md_renormalisation` on Si 2×2×2 with the GRACE-1L-OAM foundation model, showing both an ASE Langevin path and a native LAMMPS `pair_style grace` path projected through dynaphopy. Outputs and inline plots committed.
 
 ## Documentation
 
