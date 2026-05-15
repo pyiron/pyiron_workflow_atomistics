@@ -85,32 +85,30 @@ class MdPhononOutput:
 
     structure: Atoms
     fc2_supercell_matrix: np.ndarray  # (3, 3) int
-    temperature: float                # K (target of the NVT run)
-    q_points: np.ndarray              # (n_q, 3) reduced — actually used
+    temperature: float  # K (target of the NVT run)
+    q_points: np.ndarray  # (n_q, 3) reduced — actually used
     harmonic_frequencies: np.ndarray  # (n_q, n_band) THz — pre-renormalisation
     renormalised_frequencies: np.ndarray  # (n_q, n_band) THz — fitted
-    linewidths: np.ndarray            # (n_q, n_band) THz FWHM
-    converged: bool                   # all Lorentzian fits converged
+    linewidths: np.ndarray  # (n_q, n_band) THz FWHM
+    converged: bool  # all Lorentzian fits converged
 
-    n_md_steps: int                   # production-only count
+    n_md_steps: int  # production-only count
     time_step_fs: float
     md_temperature_mean: float
     md_temperature_std: float
 
-    power_spectra: np.ndarray | None = None       # (n_q, n_band, n_freq_bins)
-    frequency_grid: np.ndarray | None = None      # (n_freq_bins,) THz
+    power_spectra: np.ndarray | None = None  # (n_q, n_band, n_freq_bins)
+    frequency_grid: np.ndarray | None = None  # (n_freq_bins,) THz
 
-    quasiparticle: Any | None = None              # dynaphopy.Quasiparticle
-    dynamics: Any | None = None                   # dynaphopy.Dynamics
-    phonopy: Any | None = None                    # phonopy.Phonopy view used
+    quasiparticle: Any | None = None  # dynaphopy.Quasiparticle
+    dynamics: Any | None = None  # dynaphopy.Dynamics
+    phonopy: Any | None = None  # phonopy.Phonopy view used
 
     def to_dict(self) -> dict[str, Any]:
         """Return a plain dict of every field (heavy objects by reference)."""
         return asdict(self)
 
-    def check_md_health(
-        self, drift_tolerance: float = 0.03
-    ) -> tuple[bool, list[str]]:
+    def check_md_health(self, drift_tolerance: float = 0.03) -> tuple[bool, list[str]]:
         """Sanity-check the MD segment that drove the projection.
 
         Parameters
@@ -127,9 +125,7 @@ class MdPhononOutput:
         """
         issues: list[str] = []
 
-        drift = (
-            abs(self.md_temperature_mean - self.temperature) / self.temperature
-        )
+        drift = abs(self.md_temperature_mean - self.temperature) / self.temperature
         if drift > drift_tolerance:
             issues.append(
                 f"⟨T⟩ drift {drift:.1%} exceeds tolerance {drift_tolerance:.0%}: "
