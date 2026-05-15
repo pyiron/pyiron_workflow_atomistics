@@ -7,7 +7,6 @@ gives G(T,P), V*(T,P), B(T,P), α(T,P). Reuses `harmonic_free_energy` per volume
 from __future__ import annotations
 
 import os
-from typing import Any
 
 import numpy as np
 import pyiron_workflow as pwf
@@ -171,7 +170,6 @@ def _harmonic_grid_over_volumes(
 def _pack_qha_output(
     structure: Atoms,
     qha_results: dict,
-    energies: np.ndarray,
     volumes: np.ndarray,
     free_energy_per_T_V: np.ndarray,
     entropy_per_T_V: np.ndarray,
@@ -184,6 +182,9 @@ def _pack_qha_output(
     """Pack phonopy.qha results plus the V/T grids into a FreeEnergyOutput."""
     T = np.asarray(temperatures, dtype=float)
     elements = list(dict.fromkeys(structure.get_chemical_symbols()))
+    # entropy_array/heat_capacity_array are a representative slice at the
+    # central reference volume; the full (n_T, n_V) grid lives in
+    # free_energy_volume_array (the unconstrained F(T,V) phonon grid).
     mid = entropy_per_T_V.shape[1] // 2
     return FreeEnergyOutput(
         mode="qha",
@@ -234,8 +235,14 @@ def quasiharmonic_free_energy(
     """Gibbs free energy G(T,P), V*(T,P), B(T,P), α(T,P) via phonopy.qha.QHA.
 
     Pressure is in **GPa** (phonopy.qha native). At ``pressure=0.0`` the
-    output is Helmholtz. See spec
-    ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md``.
+    ``gibbs_free_energy_array`` field is the Helmholtz free energy F(T).
+
+    The returned ``FreeEnergyOutput`` populates ``free_energy_array`` directly
+    from ``gibbs_free_energy_array`` for compatibility with the calphy ``ts``
+    mode shape — at finite pressure this is Gibbs, at zero pressure it is
+    Helmholtz.
+
+    See spec ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md``.
     """
     wf.paths = _resolve_simfolder(
         engine=engine,
@@ -274,7 +281,6 @@ def quasiharmonic_free_energy(
     wf.synthesis = _pack_qha_output(
         structure=structure,
         qha_results=wf.qha.outputs.qha_results,
-        energies=wf.static_E.outputs.energies_per_volume,
         volumes=wf.static_E.outputs.volumes,
         free_energy_per_T_V=wf.harmonic_grid.outputs.free_energy_per_T_V,
         entropy_per_T_V=wf.harmonic_grid.outputs.entropy_per_T_V,
