@@ -1067,6 +1067,49 @@ def test_resolve_md_defaults_seed_auto_filled_when_none():
 
 
 # ---------------------------------------------------------------------------
+# Tier 1 — _multiplier_to_cell_vectors helper
+# ---------------------------------------------------------------------------
+
+
+def test_multiplier_to_cell_vectors_matches_ase_make_supercell():
+    """The named helper must match ASE's `make_supercell(...).cell` exactly,
+    so swapping the implicit ASE path for the explicit helper in
+    `_run_nvt_trajectory` is a no-op on `trajectory_pack['supercell']`.
+    """
+    from ase.build import make_supercell
+
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _multiplier_to_cell_vectors,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6)
+    multiplier = 2 * np.eye(3, dtype=int)
+
+    expected = np.asarray(make_supercell(cu, multiplier).cell)
+    got = _multiplier_to_cell_vectors(cu.cell, multiplier)
+    np.testing.assert_allclose(got, expected, atol=1e-12)
+
+
+def test_multiplier_to_cell_vectors_accepts_1d_and_scalar_forms():
+    """Helper composes with `_normalise_supercell_matrix` to accept the
+    1d diag form, the (3,3) form, and the scalar-int form alike.
+    """
+    from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
+        _multiplier_to_cell_vectors,
+    )
+
+    prim = np.array([[1.8, 1.8, 0.0], [0.0, 1.8, 1.8], [1.8, 0.0, 1.8]])
+    from_scalar = _multiplier_to_cell_vectors(prim, 2)
+    from_1d = _multiplier_to_cell_vectors(prim, [2, 2, 2])
+    from_2d = _multiplier_to_cell_vectors(prim, 2 * np.eye(3, dtype=int))
+    np.testing.assert_allclose(from_scalar, from_1d, atol=1e-12)
+    np.testing.assert_allclose(from_1d, from_2d, atol=1e-12)
+    # And it's the multiplier @ primitive convention (not primitive @ multiplier).
+    expected = (2 * np.eye(3)).astype(float) @ prim
+    np.testing.assert_allclose(from_scalar, expected, atol=1e-12)
+
+
+# ---------------------------------------------------------------------------
 # Tier 2 — _compute_fc2_from_scratch (gated on phonopy)
 # ---------------------------------------------------------------------------
 

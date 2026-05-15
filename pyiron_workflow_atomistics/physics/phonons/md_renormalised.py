@@ -63,6 +63,28 @@ def _auto_band_path(cell: np.ndarray, npoints: int) -> np.ndarray:
     return np.asarray(bp.kpts)
 
 
+def _multiplier_to_cell_vectors(
+    primitive_cell: ArrayLike, multiplier: ArrayLike
+) -> np.ndarray:
+    """Convert an integer supercell multiplier into the 3x3 cell-vectors matrix.
+
+    Two APIs in this workflow want different ``supercell`` semantics:
+
+    - ``phonopy.Phonopy(supercell_matrix=...)`` and
+      ``dynaphopy.interface.phonopy_link.ForceConstants(supercell=...)`` expect
+      the **integer multiplier** (e.g. ``2*np.eye(3)``).
+    - ``dynaphopy.dynamics.Dynamics(supercell=...)`` expects the **cell-vectors
+      matrix** of the simulation cell.
+
+    This converter makes the two-form duality explicit so the contract on
+    ``trajectory_pack['supercell']`` is named rather than implicit-via-ASE.
+    Uses the ASE convention ``supercell_cell = multiplier @ primitive_cell``
+    (rows are lattice vectors).
+    """
+    P = _normalise_supercell_matrix(multiplier).astype(float)
+    return P @ np.asarray(primitive_cell, dtype=float)
+
+
 @pwf.as_function_node(
     "resolved_fc2_supercell",
     "resolved_q_points",
@@ -294,7 +316,7 @@ def _run_nvt_trajectory(
         "positions": positions,
         "velocities": velocities,
         "time": times,
-        "supercell": np.asarray(supercell_atoms.cell),
+        "supercell": _multiplier_to_cell_vectors(structure.cell, resolved_fc2_supercell),
         "n_md_steps": production_steps,
         "time_step_fs": float(time_step),
         "md_temperature_mean": float(instantaneous_T.mean()),
@@ -397,6 +419,21 @@ def _project_with_dynaphopy(
         structure, fc2_array, resolved_fc2_supercell
     )
 
+    # Sanity check: trajectory_pack must have been generated against the same
+    # supercell we're projecting with, otherwise the mode projection is wrong.
+    expected_cell_vectors = _multiplier_to_cell_vectors(
+        structure.cell, resolved_fc2_supercell
+    )
+    actual_cell_vectors = np.asarray(trajectory_pack["supercell"])
+    if not np.allclose(actual_cell_vectors, expected_cell_vectors, atol=1e-6):
+        raise ValueError(
+            f"trajectory_pack['supercell'] ({actual_cell_vectors.tolist()}) "
+            "does not match the cell vectors derived from structure.cell @ "
+            f"resolved_fc2_supercell ({expected_cell_vectors.tolist()}). The "
+            "MD trajectory was generated against a different supercell than "
+            "the one being used for FC2 projection."
+        )
+
     # Build dynaphopy Dynamics from the trajectory pack. dynaphopy expects:
     #   trajectory / velocity : complex ndarray (n_steps, n_atoms, 3) — Angstrom
     #   time                  : ndarray (n_steps,) in picoseconds
@@ -406,7 +443,7 @@ def _project_with_dynaphopy(
         trajectory=np.asarray(trajectory_pack["positions"], dtype=complex),
         velocity=np.asarray(trajectory_pack["velocities"], dtype=complex),
         time=np.asarray(trajectory_pack["time"]) * 1e-3,  # fs → ps
-        supercell=np.asarray(trajectory_pack["supercell"]),
+        supercell=actual_cell_vectors,
     )
 
     qp = Quasiparticle(dynamics)
