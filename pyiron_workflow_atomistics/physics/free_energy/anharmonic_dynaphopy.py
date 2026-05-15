@@ -390,3 +390,168 @@ def anharmonic_free_energy_dynaphopy(
         keep_handles=keep_handles,
     )
     return wf.synthesis.outputs.free_energy_output
+
+
+@pwf.as_function_node("per_T_outputs")
+def _sweep_dynaphopy_over_T(
+    structure: Atoms,
+    engine: Engine,
+    fc2_supercell_matrix,
+    temperatures,
+    equilibration_steps: int,
+    production_steps: int,
+    time_step: float,
+    thermostat_time_constant: float,
+    seed,
+    q_mesh,
+    working_directory: str,
+) -> list:
+    """Run ``anharmonic_free_energy_dynaphopy`` at each T; return list of outputs.
+
+    The loop over ``temperatures`` lives in a function-node (rather than the
+    macro body) so it executes with concrete values at run time instead of
+    against pyiron_workflow ``UserInput`` proxies at graph-build time.
+    """
+    outputs: list = []
+    for i, T in enumerate(temperatures):
+        sub_seed = None if seed is None else int(seed) + i
+        sub_wf = anharmonic_free_energy_dynaphopy(
+            structure=structure,
+            engine=engine,
+            fc2_supercell_matrix=fc2_supercell_matrix,
+            temperature=float(T),
+            equilibration_steps=equilibration_steps,
+            production_steps=production_steps,
+            time_step=time_step,
+            thermostat_time_constant=thermostat_time_constant,
+            seed=sub_seed,
+            q_mesh=q_mesh,
+            working_directory=working_directory,
+            subdir=f"T_{i:03d}_{float(T):.1f}K",
+            keep_handles=False,
+        )
+        result = sub_wf.run()
+        # Unwrap DotDict if pyiron_workflow returned the macro output that way.
+        if isinstance(result, dict):
+            result = result["free_energy_output"]
+        outputs.append(result)
+    return outputs
+
+
+@pwf.as_function_node("free_energy_output")
+def _stack_tdi_outputs(
+    per_T_outputs: list,
+    structure,
+    temperatures,
+) -> FreeEnergyOutput:
+    """Aggregate independent-T dynaphopy free energies into one FreeEnergyOutput.
+
+    Computes S(T) = -∂F/∂T and Cv(T) = -T ∂²F/∂T² via ``np.gradient`` central
+    differences over the supplied ``temperatures``. With <2 temperatures S is
+    NaN; with <3, Cv is NaN and ``report["derivative_warning"]`` is True.
+    """
+    T = np.asarray(temperatures, dtype=float)
+    F = np.asarray([o.free_energy for o in per_T_outputs], dtype=float)
+    n_T = T.size
+
+    dF_dT = None
+    if n_T >= 2:
+        dF_dT = np.gradient(F, T)
+        S = -dF_dT
+    else:
+        S = np.full(n_T, np.nan)
+    if n_T >= 3 and dF_dT is not None:
+        d2F_dT2 = np.gradient(dF_dT, T)
+        Cv = -T * d2F_dT2
+    else:
+        Cv = np.full(n_T, np.nan)
+
+    elements = (
+        list(dict.fromkeys(structure.get_chemical_symbols()))
+        if hasattr(structure, "get_chemical_symbols")
+        else ["?"]
+    )
+    renorm = np.stack(
+        [np.asarray(o.renormalised_frequencies) for o in per_T_outputs], axis=0
+    )
+    lw = np.stack([np.asarray(o.linewidths) for o in per_T_outputs], axis=0)
+
+    derivative_warning = n_T < 3
+    return FreeEnergyOutput(
+        mode="anharmonic_dynaphopy_tdi",
+        reference_phase="solid",
+        free_energy=float(F[0]),
+        free_energy_error=0.0,
+        temperature=float(T[0]),
+        pressure=0.0,
+        n_atoms=len(structure),
+        elements=elements,
+        simfolder=per_T_outputs[0].simfolder if per_T_outputs else "",
+        report={
+            "method": "anharmonic_dynaphopy_tdi",
+            "derivative_warning": bool(derivative_warning),
+            "per_T_md_health": [o.report.get("md_health") for o in per_T_outputs],
+        },
+        temperature_array=T,
+        free_energy_array=F,
+        entropy_array=S,
+        heat_capacity_array=Cv,
+        renormalised_frequencies_per_T=renorm,
+        linewidths_per_T=lw,
+    )
+
+
+@pwf.api.as_macro_node("free_energy_output")
+def anharmonic_free_energy_dynaphopy_tdi(
+    wf,
+    structure: Atoms,
+    engine: Engine,
+    fc2_supercell_matrix,
+    temperatures=(100.0, 200.0, 300.0, 400.0, 500.0),
+    equilibration_steps: int = 2000,
+    production_steps: int = 10000,
+    time_step: float = 1.0,
+    thermostat_time_constant: float = 100.0,
+    seed: int | None = None,
+    q_mesh=(11, 11, 11),
+    working_directory: str = ".",
+    subdir: str = "anharmonic_free_energy_dynaphopy_tdi",
+    keep_handles: bool = False,
+):
+    """Anharmonic F_anharm(T) on a T grid — renormalised-harmonic at each T.
+
+    Runs ``anharmonic_free_energy_dynaphopy`` independently at each requested
+    temperature (each T gets its own MD trajectory + dynaphopy projection +
+    harmonic-formula sum on the renormalised spectrum), then stacks the
+    per-T results into a single ``FreeEnergyOutput`` and derives S(T) and
+    Cv(T) by finite-differencing F(T) with ``np.gradient``.
+
+    Despite the ``_tdi`` suffix, this is *not* a full ⟨∂H/∂λ⟩ thermodynamic
+    integration over a coupling parameter — see spec
+    ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md`` for
+    the renormalised-harmonic-over-T justification.
+    """
+    wf.paths = _resolve_simfolder(
+        engine=engine,
+        working_directory=working_directory,
+        subdir=subdir,
+    )
+    wf.sweep = _sweep_dynaphopy_over_T(
+        structure=structure,
+        engine=engine,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        temperatures=temperatures,
+        equilibration_steps=equilibration_steps,
+        production_steps=production_steps,
+        time_step=time_step,
+        thermostat_time_constant=thermostat_time_constant,
+        seed=seed,
+        q_mesh=q_mesh,
+        working_directory=wf.paths.outputs.simfolder,
+    )
+    wf.stack = _stack_tdi_outputs(
+        per_T_outputs=wf.sweep.outputs.per_T_outputs,
+        structure=structure,
+        temperatures=temperatures,
+    )
+    return wf.stack.outputs.free_energy_output

@@ -141,3 +141,81 @@ def test_anharmonic_free_energy_dynaphopy_emt_al(tmp_path):
     # Anharmonic and harmonic Al/EMT at 300 K should be within 50 meV/atom
     assert abs(out_a.free_energy - out_h.free_energy) < 0.05
     assert out_a.harmonic_frequencies.shape == out_a.renormalised_frequencies.shape
+
+
+def test_stack_tdi_outputs_central_differences():
+    from pyiron_workflow_atomistics.physics.free_energy.anharmonic_dynaphopy import (
+        _stack_tdi_outputs,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
+
+    # Synthetic F(T) = a + b T + c T^2  → S = -∂F/∂T = -(b + 2cT)
+    a, b, c = -3.0, -1e-4, -1e-7
+    Ts = np.array([100.0, 200.0, 300.0, 400.0, 500.0])
+    Fs = a + b * Ts + c * Ts**2
+    per_T = [
+        FreeEnergyOutput(
+            mode="anharmonic_dynaphopy",
+            reference_phase="solid",
+            free_energy=float(F),
+            free_energy_error=0.0,
+            temperature=float(T),
+            pressure=0.0,
+            n_atoms=4,
+            elements=["Al"],
+            simfolder="/tmp",
+            report={},
+            harmonic_frequencies=np.zeros((1, 12)),
+            renormalised_frequencies=np.zeros((1, 12)),
+            linewidths=np.zeros((1, 12)),
+            q_mesh=(7, 7, 7),
+        )
+        for T, F in zip(Ts, Fs)
+    ]
+    structure = type("FakeAtoms", (), {"__len__": lambda self: 4})()
+    out = _stack_tdi_outputs.node_function(
+        per_T_outputs=per_T,
+        structure=structure,
+        temperatures=Ts,
+    )
+    # interior central-difference S at T=300:  -(b + 2 c * 300)
+    expected_S_300 = -(b + 2 * c * 300.0)
+    assert out.entropy_array[2] == pytest.approx(expected_S_300, rel=5e-2)
+    assert out.renormalised_frequencies_per_T.shape == (5, 1, 12)
+
+
+@pytest.mark.slow
+def test_anharmonic_free_energy_dynaphopy_tdi_emt_al(tmp_path):
+    pytest.importorskip("dynaphopy", reason="dynaphopy not installed")
+
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.anharmonic_dynaphopy import (
+        anharmonic_free_energy_dynaphopy_tdi,
+    )
+
+    structure = bulk("Al", "fcc", a=4.05, cubic=True)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    out = anharmonic_free_energy_dynaphopy_tdi(
+        structure=structure,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        temperatures=(200.0, 400.0),
+        production_steps=2000,
+        q_mesh=(5, 5, 5),
+        working_directory=str(tmp_path),
+        subdir="anharmonic_tdi",
+    ).run()
+    out = out["free_energy_output"] if isinstance(out, dict) else out
+
+    assert out.mode == "anharmonic_dynaphopy_tdi"
+    assert out.temperature_array.shape == (2,)
+    assert out.free_energy_array.shape == (2,)
+    assert out.renormalised_frequencies_per_T.shape == (2, *out.renormalised_frequencies_per_T.shape[1:])
