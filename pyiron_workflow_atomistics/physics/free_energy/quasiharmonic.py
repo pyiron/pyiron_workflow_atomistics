@@ -16,6 +16,7 @@ from ase import Atoms
 from pyiron_workflow_atomistics.engine import Engine, calculate
 from pyiron_workflow_atomistics.physics.bulk import generate_structures
 from pyiron_workflow_atomistics.physics.free_energy.harmonic import (
+    _resolve_simfolder,
     harmonic_free_energy,
 )
 from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
@@ -106,3 +107,181 @@ def _fit_qha(
         "thermal_expansion_array": alpha,
         "qha_handle": qha,
     }
+
+
+@pwf.as_function_node("energies_per_volume", "volumes")
+def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine):
+    """One-shot static energy per strained cell. Returns (energies, volumes/atom)."""
+    energies: list[float] = []
+    volumes: list[float] = []
+    for i, s in enumerate(strained_structures):
+        sub_engine = engine.with_working_directory(f"vol_E_{i:03d}")
+        out = calculate.node_function(structure=s, engine=sub_engine)
+        if not out.converged:
+            raise RuntimeError(
+                f"Static-energy calc failed for strained cell {i} "
+                f"(volume {s.get_volume():.3f} Å³)."
+            )
+        energies.append(float(out.final_energy))
+        volumes.append(float(s.get_volume()) / len(s))
+    return np.asarray(energies), np.asarray(volumes)
+
+
+@pwf.as_function_node(
+    "free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V"
+)
+def _harmonic_grid_over_volumes(
+    strained_structures: list[Atoms],
+    engine: Engine,
+    fc2_supercell_matrix,
+    temperatures,
+    displacement_distance: float,
+    is_plusminus,
+    working_directory: str,
+):
+    """Run harmonic_free_energy at each strained cell, stack F/S/Cv along V axis."""
+    T_arr = np.asarray(temperatures)
+    n_T = int(T_arr.size)
+    n_V = len(strained_structures)
+    F_TV = np.zeros((n_T, n_V))
+    S_TV = np.zeros((n_T, n_V))
+    Cv_TV = np.zeros((n_T, n_V))
+    for j, s in enumerate(strained_structures):
+        vol_dir = os.path.join(working_directory, f"vol_{j:03d}")
+        sub_engine = engine.with_working_directory(vol_dir)
+        sub_wf = harmonic_free_energy(
+            structure=s,
+            engine=sub_engine,
+            fc2_supercell_matrix=fc2_supercell_matrix,
+            temperatures=temperatures,
+            displacement_distance=displacement_distance,
+            is_plusminus=is_plusminus,
+            working_directory=vol_dir,
+            subdir="harmonic",
+        )
+        out = sub_wf.run()
+        out = out["free_energy_output"] if isinstance(out, dict) else out
+        F_TV[:, j] = out.free_energy_array
+        S_TV[:, j] = out.entropy_array
+        Cv_TV[:, j] = out.heat_capacity_array
+    return F_TV, S_TV, Cv_TV
+
+
+@pwf.as_function_node("free_energy_output")
+def _pack_qha_output(
+    structure: Atoms,
+    qha_results: dict,
+    energies: np.ndarray,
+    volumes: np.ndarray,
+    free_energy_per_T_V: np.ndarray,
+    entropy_per_T_V: np.ndarray,
+    cv_per_T_V: np.ndarray,
+    temperatures,
+    pressure_GPa: float,
+    simfolder: str,
+    keep_handles: bool,
+) -> FreeEnergyOutput:
+    """Pack phonopy.qha results plus the V/T grids into a FreeEnergyOutput."""
+    T = np.asarray(temperatures, dtype=float)
+    elements = list(dict.fromkeys(structure.get_chemical_symbols()))
+    mid = entropy_per_T_V.shape[1] // 2
+    return FreeEnergyOutput(
+        mode="qha",
+        reference_phase="solid",
+        free_energy=float(qha_results["gibbs_free_energy_array"][0]),
+        free_energy_error=0.0,
+        temperature=float(T[0]),
+        pressure=float(pressure_GPa),
+        n_atoms=len(structure),
+        elements=elements,
+        simfolder=simfolder,
+        report={
+            "method": "qha",
+            "n_volumes": int(np.asarray(volumes).size),
+            "pressure_GPa": float(pressure_GPa),
+        },
+        temperature_array=T,
+        free_energy_array=qha_results["gibbs_free_energy_array"],
+        entropy_array=entropy_per_T_V[:, mid],
+        heat_capacity_array=cv_per_T_V[:, mid],
+        volumes=volumes,
+        free_energy_volume_array=free_energy_per_T_V,
+        equilibrium_volume_array=qha_results["equilibrium_volume_array"],
+        gibbs_free_energy_array=qha_results["gibbs_free_energy_array"],
+        bulk_modulus_array=qha_results["bulk_modulus_array"],
+        thermal_expansion_array=qha_results["thermal_expansion_array"],
+        qha_handle=qha_results["qha_handle"] if keep_handles else None,
+    )
+
+
+@pwf.api.as_macro_node("free_energy_output")
+def quasiharmonic_free_energy(
+    wf,
+    structure: Atoms,
+    engine: Engine,
+    fc2_supercell_matrix,
+    temperatures=(0.0, 100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0),
+    pressure: float = 0.0,
+    strain_range: tuple[float, float] = (-0.03, 0.03),
+    num_volumes: int = 7,
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
+    eos_type: str = "vinet",
+    working_directory: str = ".",
+    subdir: str = "quasiharmonic_free_energy",
+    keep_handles: bool = False,
+):
+    """Gibbs free energy G(T,P), V*(T,P), B(T,P), α(T,P) via phonopy.qha.QHA.
+
+    Pressure is in **GPa** (phonopy.qha native). At ``pressure=0.0`` the
+    output is Helmholtz. See spec
+    ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md``.
+    """
+    wf.paths = _resolve_simfolder(
+        engine=engine,
+        working_directory=working_directory,
+        subdir=subdir,
+    )
+    wf.strained_structures = generate_structures(
+        base_structure=structure,
+        axes=["iso"],
+        strain_range=strain_range,
+        num_points=num_volumes,
+    )
+    wf.static_E = _static_energies_per_volume(
+        strained_structures=wf.strained_structures.outputs.structure_list,
+        engine=wf.paths.outputs.sub_engine,
+    )
+    wf.harmonic_grid = _harmonic_grid_over_volumes(
+        strained_structures=wf.strained_structures.outputs.structure_list,
+        engine=engine,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        temperatures=temperatures,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        working_directory=wf.paths.outputs.simfolder,
+    )
+    wf.qha = _fit_qha(
+        energies=wf.static_E.outputs.energies_per_volume,
+        volumes=wf.static_E.outputs.volumes,
+        free_energy_per_T_V=wf.harmonic_grid.outputs.free_energy_per_T_V,
+        entropy_per_T_V=wf.harmonic_grid.outputs.entropy_per_T_V,
+        cv_per_T_V=wf.harmonic_grid.outputs.cv_per_T_V,
+        temperatures=temperatures,
+        pressure_GPa=pressure,
+        eos_type=eos_type,
+    )
+    wf.synthesis = _pack_qha_output(
+        structure=structure,
+        qha_results=wf.qha.outputs.qha_results,
+        energies=wf.static_E.outputs.energies_per_volume,
+        volumes=wf.static_E.outputs.volumes,
+        free_energy_per_T_V=wf.harmonic_grid.outputs.free_energy_per_T_V,
+        entropy_per_T_V=wf.harmonic_grid.outputs.entropy_per_T_V,
+        cv_per_T_V=wf.harmonic_grid.outputs.cv_per_T_V,
+        temperatures=temperatures,
+        pressure_GPa=pressure,
+        simfolder=wf.paths.outputs.simfolder,
+        keep_handles=keep_handles,
+    )
+    return wf.synthesis.outputs.free_energy_output

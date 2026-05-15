@@ -109,6 +109,7 @@ def test_quasiharmonic_free_energy_emt_al(tmp_path):
         subdir="qha",
     )
     out = wf.run()
+    out = out["free_energy_output"] if isinstance(out, dict) else out
 
     assert out.mode == "qha"
     # Thermal expansion is positive on warming for Al/EMT
