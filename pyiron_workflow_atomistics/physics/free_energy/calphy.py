@@ -337,3 +337,55 @@ def alchemy(
             equilibration_control=equilibration_control,
         ),
     )
+
+
+@pwf.as_function_node("free_energy_output")
+def composition_scaling(
+    *,
+    structure: Atoms,
+    lammps_engine,
+    potential: LammpsPotential,
+    working_directory: str = ".",
+    subdir: str = "composition_scaling",
+    temperature: float,
+    pressure: float = 0.0,
+    output_chemical_composition: dict[str, int],
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+) -> FreeEnergyOutput:
+    """Free-energy integration over composition between two stoichiometries.
+
+    The starting composition is read off ``structure``; the target
+    composition is given as ``output_chemical_composition`` (a dict of
+    element-symbol → atom-count).
+    """
+    if not output_chemical_composition:
+        raise ValueError(
+            "composition_scaling requires "
+            "`output_chemical_composition={'A': n_a, 'B': n_b, ...}` "
+            "(target atom counts per element)"
+        )
+    return _run_one(
+        mode="composition_scaling",
+        structure=structure,
+        lammps_engine=lammps_engine,
+        potential=potential,
+        working_directory=working_directory,
+        subdir=subdir,
+        reference_phase="solid",
+        temperature=temperature,
+        pressure=pressure,
+        builder_kwargs=dict(
+            temperature=temperature,
+            pressure=pressure,
+            output_chemical_composition=output_chemical_composition,
+            n_equilibration_steps=n_equilibration_steps,
+            n_switching_steps=n_switching_steps,
+            n_iterations=n_iterations,
+            npt=npt,
+            equilibration_control=equilibration_control,
+        ),
+    )

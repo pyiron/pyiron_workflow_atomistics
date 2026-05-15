@@ -924,3 +924,30 @@ def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
             pair_style_target=None,
             pair_coeff_target=None,
         )
+
+
+# ---------------------------------------------------------------------------
+# composition_scaling
+# ---------------------------------------------------------------------------
+
+
+def test_composition_scaling_requires_output_composition(fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        composition_scaling,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/AB.eam.alloy A B")
+    with pytest.raises(ValueError, match=r"output_chemical_composition"):
+        composition_scaling.node_function(
+            structure=fcc_al_atoms,
+            lammps_engine=eng,
+            potential=pot,
+            temperature=300.0,
+            output_chemical_composition=None,
+        )
