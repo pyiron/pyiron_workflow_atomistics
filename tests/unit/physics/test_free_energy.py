@@ -694,3 +694,58 @@ def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path,
             reference_phase="solid",
         )
     assert os.getcwd() == cwd_before
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 integration — needs calphy + lmp binary
+# ---------------------------------------------------------------------------
+
+import shutil
+from pathlib import Path
+
+LAMMPS_BIN = shutil.which("lmp") or shutil.which("lmp_mpi")
+RESOURCES = Path(__file__).resolve().parent.parent.parent / "resources" / "free_energy"
+
+requires_lammps = pytest.mark.skipif(
+    LAMMPS_BIN is None or not (RESOURCES / "Cu01.eam.alloy").exists(),
+    reason="needs lmp binary on PATH and tests/resources/free_energy/Cu01.eam.alloy",
+)
+
+
+@requires_lammps
+def test_free_energy_fcc_cu_smoke(tmp_path):
+    pytest.importorskip("calphy")
+    import os
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
+    )
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+
+    out = free_energy.node_function(
+        structure=cu,
+        lammps_engine=eng,
+        potential=pot,
+        working_directory=str(tmp_path),
+        subdir="fe",
+        temperature=100.0,
+        pressure=0.0,
+        reference_phase="solid",
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    assert out.mode == "fe"
+    assert out.reference_phase == "solid"
+    assert out.n_atoms == 108
+    assert out.elements == ["Cu"]
+    assert -4.5 < out.free_energy < -3.0  # Cu EAM, eV/atom @ 100 K
+    assert out.free_energy_error >= 0
+    assert os.path.isabs(out.simfolder)
+    assert (tmp_path / "fe" / "report.yaml").exists()
