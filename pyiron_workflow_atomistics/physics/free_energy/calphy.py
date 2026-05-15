@@ -150,9 +150,11 @@ def reversible_scaling_temperature(
     ``FreeEnergyOutput.temperature_array`` and ``free_energy_array``
     fields are populated with the integrated curve.
     """
-    if (temperature_range is None
-            or not hasattr(temperature_range, "__len__")
-            or len(temperature_range) != 2):
+    if (
+        temperature_range is None
+        or not hasattr(temperature_range, "__len__")
+        or len(temperature_range) != 2
+    ):
         raise ValueError(
             "reversible_scaling_temperature requires "
             "`temperature_range=(lo, hi)` (length-2 tuple)"
@@ -201,9 +203,11 @@ def reversible_scaling_pressure(
 
     ``pressure_range`` is (lo, hi) in bar (calphy native).
     """
-    if (pressure_range is None
-            or not hasattr(pressure_range, "__len__")
-            or len(pressure_range) != 2):
+    if (
+        pressure_range is None
+        or not hasattr(pressure_range, "__len__")
+        or len(pressure_range) != 2
+    ):
         raise ValueError(
             "reversible_scaling_pressure requires "
             "`pressure_range=(lo, hi)` (length-2 tuple)"

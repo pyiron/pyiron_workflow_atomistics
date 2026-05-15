@@ -28,8 +28,15 @@ class FreeEnergyOutput:
     which is Pa; do not mix).
     """
 
-    mode: Literal["fe", "ts", "tscale", "pscale",
-                  "melting_temperature", "alchemy", "composition_scaling"]
+    mode: Literal[
+        "fe",
+        "ts",
+        "tscale",
+        "pscale",
+        "melting_temperature",
+        "alchemy",
+        "composition_scaling",
+    ]
     reference_phase: Literal["solid", "liquid", "both"]
     free_energy: float
     free_energy_error: float

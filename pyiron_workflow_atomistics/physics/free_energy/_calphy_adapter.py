@@ -10,12 +10,16 @@ from __future__ import annotations
 import glob
 import os
 import shlex
-from typing import Any, Literal, TYPE_CHECKING
+from dataclasses import MISSING, fields
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from ase import Atoms
 from ase.data import atomic_masses, atomic_numbers
 from ase.io import write as ase_write
+
+if TYPE_CHECKING:
+    from pyiron_workflow_lammps.engine import LammpsEngine
 
 _LAUNCHERS = ("mpirun", "mpiexec", "srun")
 _LAUNCHER_CORE_FLAGS = ("-np", "-n")
@@ -137,25 +141,21 @@ def _looks_like_lammps_binary(token: str) -> bool:
     return "lmp" in name or "lammps" in name
 
 
-from dataclasses import MISSING, fields
-
-if TYPE_CHECKING:
-    from pyiron_workflow_lammps.engine import LammpsEngine
-
-
-_ENGINE_CARVE_OUTS = frozenset({
-    "EngineInput",        # required to construct; ignored by calphy
-    "mode",               # init=False, derived from EngineInput
-    "working_directory",  # adapter sets its own simfolder
-    "command",            # the one field we actually use
-    "calc_fn",            # internal engine state, mutated by __post_init__
-    "calc_fn_kwargs",     # internal engine state, mutated by __post_init__ (None -> {})
-    "parse_fn",           # internal engine state, mutated by __post_init__
-    "parse_fn_kwargs",    # internal engine state, mutated by __post_init__ (None -> {})
-})
+_ENGINE_CARVE_OUTS = frozenset(
+    {
+        "EngineInput",  # required to construct; ignored by calphy
+        "mode",  # init=False, derived from EngineInput
+        "working_directory",  # adapter sets its own simfolder
+        "command",  # the one field we actually use
+        "calc_fn",  # internal engine state, mutated by __post_init__
+        "calc_fn_kwargs",  # internal engine state, mutated by __post_init__ (None -> {})
+        "parse_fn",  # internal engine state, mutated by __post_init__
+        "parse_fn_kwargs",  # internal engine state, mutated by __post_init__ (None -> {})
+    }
+)
 
 
-def _validate_engine_only_command(engine: "LammpsEngine") -> None:
+def _validate_engine_only_command(engine: LammpsEngine) -> None:
     """Refuse LammpsEngine fields that the calphy adapter cannot honor.
 
     Only ``engine.command`` is consumed. Every other field that has been
@@ -221,11 +221,11 @@ def _validate_structure(structure: Atoms) -> None:
         )
     try:
         volume = structure.get_volume()
-    except ValueError:
+    except ValueError as exc:
         raise ValueError(
-            f"structure has non-positive volume; "
-            f"calphy will refuse to integrate against it"
-        )
+            "structure has non-positive volume; "
+            "calphy will refuse to integrate against it"
+        ) from exc
     if volume <= 0.0:
         raise ValueError(
             f"structure has non-positive volume ({volume}); "
@@ -243,25 +243,38 @@ def _atoms_element_order(structure: Atoms) -> list[str]:
     return list(dict.fromkeys(structure.get_chemical_symbols()))
 
 
-def _atoms_to_lammps_data(structure: Atoms, path: str,
-                          element_order: list[str]) -> None:
+def _atoms_to_lammps_data(
+    structure: Atoms, path: str, element_order: list[str]
+) -> None:
     """Write a LAMMPS data file with type ordering matching element_order.
 
     ase >=3.23 honors ``specorder`` for lammps-data writes; older versions
     silently use alphabetical order. We require ase==3.28.0 (see
     pyproject.toml) so specorder is guaranteed available.
     """
-    ase_write(path, structure, format="lammps-data",
-              specorder=element_order, atom_style="atomic")
+    ase_write(
+        path,
+        structure,
+        format="lammps-data",
+        specorder=element_order,
+        atom_style="atomic",
+    )
 
 
 def _build_calphy_calculation(
     *,
-    mode: Literal["fe", "ts", "tscale", "pscale",
-                  "melting_temperature", "alchemy", "composition_scaling"],
+    mode: Literal[
+        "fe",
+        "ts",
+        "tscale",
+        "pscale",
+        "melting_temperature",
+        "alchemy",
+        "composition_scaling",
+    ],
     structure: Atoms,
-    potential,                 # LammpsPotential
-    lammps_engine,             # LammpsEngine
+    potential,  # LammpsPotential
+    lammps_engine,  # LammpsEngine
     working_directory: str,
     # mode-generic kwargs (each public node forwards the subset it needs)
     temperature: float | None = None,
@@ -312,7 +325,8 @@ def _build_calphy_calculation(
         "n_iterations": n_iterations,
         "npt": npt,
         "equilibration_control": (
-            "nose_hoover" if equilibration_control == "nose-hoover"
+            "nose_hoover"
+            if equilibration_control == "nose-hoover"
             else equilibration_control
         ),
         "script_mode": True,
@@ -341,21 +355,21 @@ def _build_calphy_calculation(
             )
         if reference_phase is None:
             raise ValueError("`reference_phase` is required")
-        kwargs["temperature"] = [float(temperature_range[0]),
-                                 float(temperature_range[1])]
+        kwargs["temperature"] = [
+            float(temperature_range[0]),
+            float(temperature_range[1]),
+        ]
         kwargs["pressure"] = float(pressure)
         kwargs["reference_phase"] = reference_phase
     elif mode == "pscale":
         if pressure_range is None or len(pressure_range) != 2:
             raise ValueError(
-                "reversible_scaling_pressure requires "
-                "`pressure_range=(lo, hi)`"
+                "reversible_scaling_pressure requires " "`pressure_range=(lo, hi)`"
             )
         if temperature is None or reference_phase is None:
             raise ValueError("`temperature` and `reference_phase` are required")
         kwargs["temperature"] = float(temperature)
-        kwargs["pressure"] = [float(pressure_range[0]),
-                              float(pressure_range[1])]
+        kwargs["pressure"] = [float(pressure_range[0]), float(pressure_range[1])]
         kwargs["reference_phase"] = reference_phase
     elif mode == "melting_temperature":
         if temperature_guess is not None:
@@ -368,8 +382,11 @@ def _build_calphy_calculation(
             "attempts": int(melting_max_attempts),
         }
     elif mode == "alchemy":
-        if (temperature is None or pair_style_target is None
-                or pair_coeff_target is None):
+        if (
+            temperature is None
+            or pair_style_target is None
+            or pair_coeff_target is None
+        ):
             raise ValueError(
                 "alchemy requires `temperature`, `pair_style_target`, "
                 "and `pair_coeff_target`"
@@ -427,6 +444,7 @@ def _run_calphy_job(calc):
     changes that move fields around.
     """
     import yaml as _yaml
+
     job = _setup_calculation(calc)
     job = _run_calculation(job)
     report_path = os.path.join(job.simfolder, "report.yaml")

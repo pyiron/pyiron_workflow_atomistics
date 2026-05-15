@@ -7,9 +7,7 @@ points the user at the install line, not a bare ``ImportError``.
 
 from __future__ import annotations
 
-_INSTALL_HINT = (
-    "pip install 'pyiron_workflow_atomistics[free-energy]'"
-)
+_INSTALL_HINT = "pip install 'pyiron_workflow_atomistics[free-energy]'"
 
 
 def _require_calphy():
@@ -39,6 +37,7 @@ def _require_lammps_engine():
             f"but is not installed.\nInstall with: {_INSTALL_HINT}"
         ) from exc
     import sys
+
     if sys.modules.get("pyiron_workflow_lammps") is None:
         raise ModuleNotFoundError(
             f"pyiron_workflow_lammps is required for free-energy workflows "

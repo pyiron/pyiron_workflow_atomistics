@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -40,8 +42,9 @@ def test_require_calphy_returns_module_when_present():
 def test_lammps_potential_required_fields():
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /path/to/Cu.eam.alloy Cu")
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff="* * /path/to/Cu.eam.alloy Cu"
+    )
     assert pot.pair_style == "eam/alloy"
     assert pot.pair_coeff == "* * /path/to/Cu.eam.alloy Cu"
     assert pot.potential_file is None
@@ -60,10 +63,12 @@ def test_lammps_potential_optional_file():
 
 def test_lammps_potential_picklable():
     import pickle
+
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /path/to/Cu.eam.alloy Cu")
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff="* * /path/to/Cu.eam.alloy Cu"
+    )
     restored = pickle.loads(pickle.dumps(pot))
     assert restored == pot
 
@@ -95,7 +100,8 @@ def test_free_energy_output_required_fields():
 
 
 def test_free_energy_output_optional_fields_default_to_none():
-    from dataclasses import fields, MISSING
+    from dataclasses import MISSING, fields
+
     from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
 
     optional_names = {
@@ -134,6 +140,7 @@ def test_free_energy_output_to_dict_round_trip():
 
 def test_free_energy_output_picklable():
     import pickle
+
     from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
 
     out = FreeEnergyOutput(
@@ -157,17 +164,18 @@ def test_free_energy_output_picklable():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("cmd, expected", [
-    ("lmp", ("lmp", None, 1)),
-    ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1)),
-    ("mpirun -np 4 lmp", ("lmp", "mpirun", 4)),
-    ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8)),
-    ("srun -n 16 lmp", ("lmp", "srun", 16)),
-    ("mpirun --bind-to none -np 2 lmp",
-     ("lmp", "mpirun --bind-to none", 2)),
-    ("/opt/lammps/bin/lmp_mpi -in in.lmp",
-     ("/opt/lammps/bin/lmp_mpi", None, 1)),
-])
+@pytest.mark.parametrize(
+    "cmd, expected",
+    [
+        ("lmp", ("lmp", None, 1)),
+        ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1)),
+        ("mpirun -np 4 lmp", ("lmp", "mpirun", 4)),
+        ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8)),
+        ("srun -n 16 lmp", ("lmp", "srun", 16)),
+        ("mpirun --bind-to none -np 2 lmp", ("lmp", "mpirun --bind-to none", 2)),
+        ("/opt/lammps/bin/lmp_mpi -in in.lmp", ("/opt/lammps/bin/lmp_mpi", None, 1)),
+    ],
+)
 def test_split_lammps_command_valid(cmd, expected):
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _split_lammps_command,
@@ -176,11 +184,14 @@ def test_split_lammps_command_valid(cmd, expected):
     assert _split_lammps_command(cmd) == expected
 
 
-@pytest.mark.parametrize("cmd", [
-    "mpirun -np 4 lmp -unknown-flag x",
-    "lmp -partition 2x2",
-    "lmp -screen none",
-])
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "mpirun -np 4 lmp -unknown-flag x",
+        "lmp -partition 2x2",
+        "lmp -screen none",
+    ],
+)
 def test_split_lammps_command_rejects_unknown_tokens(cmd):
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _split_lammps_command,
@@ -208,8 +219,9 @@ lammps_engine = pytest.importorskip("pyiron_workflow_lammps.engine")
 
 
 def _make_minimal_engine():
-    from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_lammps.engine import LammpsEngine
+
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
 
     return LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
 
@@ -291,6 +303,7 @@ def test_validate_structure_accepts_cubic_bulk(fcc_al_atoms):
 
 def test_validate_structure_rejects_empty():
     from ase import Atoms
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _validate_structure,
     )
@@ -312,6 +325,7 @@ def test_validate_structure_rejects_mixed_pbc(fcc_al_atoms):
 
 def test_validate_structure_rejects_zero_volume(fcc_al_atoms):
     from ase import Atoms
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _validate_structure,
     )
@@ -377,8 +391,7 @@ def test_build_calphy_calculation_fe_passes_mpi_command(tmp_path, fcc_al_atoms):
 
     eng = _make_minimal_engine()
     eng.command = "mpirun -np 8 lmp"
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     calc = _build_calphy_calculation(
         mode="fe",
         structure=fcc_al_atoms,
@@ -405,14 +418,14 @@ def test_build_calphy_calculation_writes_data_file_matches_structure(
 ):
     pytest.importorskip("calphy")
     from ase.io import read as ase_read
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _build_calphy_calculation,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
     eng = _make_minimal_engine()
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     _build_calphy_calculation(
         mode="fe",
         structure=fcc_al_atoms,
@@ -434,12 +447,13 @@ def test_build_calphy_calculation_writes_data_file_matches_structure(
         style="atomic",
     )
     import numpy as np
-    np.testing.assert_allclose(round_trip.get_positions(),
-                               fcc_al_atoms.get_positions(),
-                               atol=1e-8)
-    np.testing.assert_allclose(round_trip.get_cell(),
-                               fcc_al_atoms.get_cell(),
-                               atol=1e-8)
+
+    np.testing.assert_allclose(
+        round_trip.get_positions(), fcc_al_atoms.get_positions(), atol=1e-8
+    )
+    np.testing.assert_allclose(
+        round_trip.get_cell(), fcc_al_atoms.get_cell(), atol=1e-8
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +463,7 @@ def test_build_calphy_calculation_writes_data_file_matches_structure(
 
 def test_pack_free_energy_output_fe_minimal(fcc_al_atoms, tmp_path):
     from types import SimpleNamespace
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _pack_free_energy_output,
     )
@@ -489,6 +504,7 @@ def test_pack_free_energy_output_fe_minimal(fcc_al_atoms, tmp_path):
 
 def test_pack_free_energy_output_melting_temperature(fcc_al_atoms, tmp_path):
     from types import SimpleNamespace
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _pack_free_energy_output,
     )
@@ -516,18 +532,19 @@ def test_pack_free_energy_output_melting_temperature(fcc_al_atoms, tmp_path):
 
 def test_run_calphy_job_dispatches_and_reads_report(monkeypatch, tmp_path):
     pytest.importorskip("calphy")
-    from pyiron_workflow_atomistics.physics.free_energy import _calphy_adapter
-
     # Fake job with a simfolder containing a report.yaml
     import yaml
+
+    from pyiron_workflow_atomistics.physics.free_energy import _calphy_adapter
+
     sim = tmp_path / "sim"
     sim.mkdir()
     fake_report = {"results": {"free_energy": -3.5, "error": 0.01}}
     (sim / "report.yaml").write_text(yaml.safe_dump(fake_report))
 
     from types import SimpleNamespace
-    fake_job = SimpleNamespace(simfolder=str(sim),
-                               calc=SimpleNamespace(mode="fe"))
+
+    fake_job = SimpleNamespace(simfolder=str(sim), calc=SimpleNamespace(mode="fe"))
 
     captured = {}
 
@@ -556,14 +573,13 @@ def test_run_calphy_job_dispatches_and_reads_report(monkeypatch, tmp_path):
 
 def test_load_rs_curve_temperature(tmp_path):
     import numpy as np
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _load_rs_curve,
     )
 
     # calphy writes "temperature_sweep.dat" with cols [T, F]
-    data = np.array([[100.0, -3.50],
-                     [200.0, -3.55],
-                     [300.0, -3.60]])
+    data = np.array([[100.0, -3.50], [200.0, -3.55], [300.0, -3.60]])
     np.savetxt(tmp_path / "temperature_sweep.dat", data)
 
     t, f = _load_rs_curve(str(tmp_path))
@@ -573,13 +589,12 @@ def test_load_rs_curve_temperature(tmp_path):
 
 def test_load_rs_curve_pressure(tmp_path):
     import numpy as np
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _load_rs_curve,
     )
 
-    data = np.array([[0.0, -3.50],
-                     [5000.0, -3.45],
-                     [10000.0, -3.40]])
+    data = np.array([[0.0, -3.50], [5000.0, -3.45], [10000.0, -3.40]])
     np.savetxt(tmp_path / "pressure_sweep.dat", data)
 
     p, f = _load_rs_curve(str(tmp_path), axis="pressure")
@@ -602,15 +617,15 @@ def test_load_rs_curve_missing_raises(tmp_path):
 
 
 def test_free_energy_node_raises_when_calphy_missing(monkeypatch, fcc_al_atoms):
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     monkeypatch.setitem(sys.modules, "calphy", None)
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ModuleNotFoundError, match=r"pip install"):
         free_energy.node_function(
             structure=fcc_al_atoms,
@@ -623,15 +638,15 @@ def test_free_energy_node_raises_when_calphy_missing(monkeypatch, fcc_al_atoms):
 
 def test_free_energy_node_rejects_non_default_engine_field(fcc_al_atoms):
     pytest.importorskip("calphy")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
     eng.raw_script = "run 1000"
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"raw_script"):
         free_energy.node_function(
             structure=fcc_al_atoms,
@@ -644,14 +659,14 @@ def test_free_energy_node_rejects_non_default_engine_field(fcc_al_atoms):
 
 def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
     pytest.importorskip("calphy")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     s = fcc_al_atoms.copy()
     s.pbc = (True, True, False)
     with pytest.raises(ValueError, match=r"PBC"):
@@ -664,19 +679,19 @@ def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
         )
 
 
-def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path,
-                                                fcc_al_atoms):
+def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_atoms):
     pytest.importorskip("calphy")
     import os
+
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy import _calphy_adapter
     from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
 
     def boom(_calc):
         raise RuntimeError("calphy exploded mid-run")
@@ -700,9 +715,6 @@ def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path,
 # Tier 2 integration — needs calphy + lmp binary
 # ---------------------------------------------------------------------------
 
-import shutil
-from pathlib import Path
-
 LAMMPS_BIN = shutil.which("lmp") or shutil.which("lmp_mpi")
 RESOURCES = Path(__file__).resolve().parent.parent.parent / "resources" / "free_energy"
 
@@ -716,11 +728,13 @@ requires_lammps = pytest.mark.skipif(
 def test_free_energy_fcc_cu_smoke(tmp_path):
     pytest.importorskip("calphy")
     import os
+
     from ase.build import bulk
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
     pot = LammpsPotential(
@@ -758,16 +772,16 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
 
 def test_reversible_scaling_temperature_validates_tuple_shape(fcc_al_atoms):
     pytest.importorskip("calphy")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import (
         reversible_scaling_temperature,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"temperature_range"):
         reversible_scaling_temperature.node_function(
             structure=fcc_al_atoms,
@@ -782,12 +796,13 @@ def test_reversible_scaling_temperature_validates_tuple_shape(fcc_al_atoms):
 def test_reversible_scaling_temperature_returns_curve(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import (
         reversible_scaling_temperature,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
     pot = LammpsPotential(
@@ -813,6 +828,7 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
     assert out.free_energy_array is not None
     assert out.temperature_array.shape == out.free_energy_array.shape
     import numpy as np
+
     assert np.all(np.diff(out.temperature_array) >= 0)
 
 
@@ -823,16 +839,16 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
 
 def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
     pytest.importorskip("calphy")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import (
         reversible_scaling_pressure,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"pressure_range"):
         reversible_scaling_pressure.node_function(
             structure=fcc_al_atoms,
@@ -851,14 +867,16 @@ def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
 
 def test_melting_temperature_validates_positive_guess(fcc_al_atoms):
     pytest.importorskip("calphy")
-    from pyiron_workflow_atomistics.engine import CalcInputStatic
-    from pyiron_workflow_atomistics.physics.free_energy.calphy import melting_temperature
-    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
     from pyiron_workflow_lammps.engine import LammpsEngine
 
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        melting_temperature,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"positive"):
         melting_temperature.node_function(
             structure=fcc_al_atoms,
@@ -873,10 +891,13 @@ def test_melting_temperature_validates_positive_guess(fcc_al_atoms):
 def test_melting_temperature_runs(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
-    from pyiron_workflow_atomistics.engine import CalcInputStatic
-    from pyiron_workflow_atomistics.physics.free_energy.calphy import melting_temperature
-    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
     from pyiron_workflow_lammps.engine import LammpsEngine
+
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        melting_temperature,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
     pot = LammpsPotential(
@@ -907,14 +928,14 @@ def test_melting_temperature_runs(tmp_path):
 
 def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
     pytest.importorskip("calphy")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/A.eam.alloy Al")
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/A.eam.alloy Al")
     with pytest.raises(ValueError, match=r"pair_style_target"):
         alchemy.node_function(
             structure=fcc_al_atoms,
@@ -933,16 +954,18 @@ def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
 
 def test_composition_scaling_requires_output_composition(fcc_al_atoms):
     pytest.importorskip("calphy")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import (
         composition_scaling,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
-    pot = LammpsPotential(pair_style="eam/alloy",
-                          pair_coeff="* * /tmp/AB.eam.alloy A B")
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff="* * /tmp/AB.eam.alloy A B"
+    )
     with pytest.raises(ValueError, match=r"output_chemical_composition"):
         composition_scaling.node_function(
             structure=fcc_al_atoms,
@@ -984,10 +1007,12 @@ def test_subpackage_imports_without_calphy(monkeypatch):
     # Drop any cached module so import is fresh
     sys.modules.pop("pyiron_workflow_atomistics.physics.free_energy", None)
     sys.modules.pop(
-        "pyiron_workflow_atomistics.physics.free_energy._calphy_adapter", None,
+        "pyiron_workflow_atomistics.physics.free_energy._calphy_adapter",
+        None,
     )
     sys.modules.pop(
-        "pyiron_workflow_atomistics.physics.free_energy.calphy", None,
+        "pyiron_workflow_atomistics.physics.free_energy.calphy",
+        None,
     )
     importlib.import_module(
         "pyiron_workflow_atomistics.physics.free_energy"
@@ -999,12 +1024,13 @@ def test_subpackage_imports_without_calphy(monkeypatch):
 def test_reversible_scaling_pressure_smoke(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import (
         reversible_scaling_pressure,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
     pot = LammpsPotential(
@@ -1026,6 +1052,7 @@ def test_reversible_scaling_pressure_smoke(tmp_path):
     )
     assert out.mode == "pscale"
     import numpy as np
+
     assert out.pressure_array is not None
     assert np.isfinite(out.free_energy)
 
@@ -1035,10 +1062,11 @@ def test_reversible_scaling_pressure_smoke(tmp_path):
 def test_alchemy_smoke(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
     cu_potential = f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
@@ -1051,12 +1079,13 @@ def test_alchemy_smoke(tmp_path):
         working_directory=str(tmp_path),
         temperature=300.0,
         pair_style_target="eam/alloy",
-        pair_coeff_target=cu_potential,   # transform from Cu EAM back to Cu EAM → ΔF≈0
+        pair_coeff_target=cu_potential,  # transform from Cu EAM back to Cu EAM → ΔF≈0
         n_equilibration_steps=2000,
         n_switching_steps=2000,
     )
     assert out.mode == "alchemy"
     import numpy as np
+
     assert np.isfinite(out.free_energy)
 
 
@@ -1065,12 +1094,13 @@ def test_alchemy_smoke(tmp_path):
 def test_composition_scaling_smoke(tmp_path):
     pytest.importorskip("calphy")
     from ase.build import bulk
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
     from pyiron_workflow_atomistics.engine import CalcInputStatic
     from pyiron_workflow_atomistics.physics.free_energy.calphy import (
         composition_scaling,
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
-    from pyiron_workflow_lammps.engine import LammpsEngine
 
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
     pot = LammpsPotential(
@@ -1090,6 +1120,7 @@ def test_composition_scaling_smoke(tmp_path):
     )
     assert out.mode == "composition_scaling"
     import numpy as np
+
     assert np.isfinite(out.free_energy)
     # composition_path should be populated (verify the coercion bug is fixed)
     assert out.composition_path is not None
