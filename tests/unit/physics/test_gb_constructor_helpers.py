@@ -13,7 +13,6 @@ import pytest
 from ase.build import bulk
 from pymatgen.core import Lattice, Structure
 
-
 # ---------------------------------------------------------------------------
 # _axis_index_to_label
 # ---------------------------------------------------------------------------

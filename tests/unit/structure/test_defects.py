@@ -13,7 +13,6 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-
 # ---------------------------------------------------------------------------
 # Tier 1 — create_vacancy
 # ---------------------------------------------------------------------------
@@ -80,22 +79,38 @@ def test_filter_condition_inside_band_and_rvv():
 
     sys = _mock_sys([10.0, 10.0, 10.0])
     # pos lies inside [d_min, d_max] along axis=2, rvv inside (rvv_min, rvv_max).
-    assert filter_condition(
-        sys, pos=[0, 0, 4.0], rvv=0.5,
-        distance_min=2.0, distance_max=6.0,
-        axis=2, rvv_min=0.0, rvv_max=1.0,
-    ) is True
+    assert (
+        filter_condition(
+            sys,
+            pos=[0, 0, 4.0],
+            rvv=0.5,
+            distance_min=2.0,
+            distance_max=6.0,
+            axis=2,
+            rvv_min=0.0,
+            rvv_max=1.0,
+        )
+        is True
+    )
 
 
 def test_filter_condition_rvv_outside_returns_false():
     from pyiron_workflow_atomistics.structure.defects import filter_condition
 
     sys = _mock_sys([10.0, 10.0, 10.0])
-    assert filter_condition(
-        sys, pos=[0, 0, 4.0], rvv=5.0,
-        distance_min=2.0, distance_max=6.0,
-        axis=2, rvv_min=0.0, rvv_max=1.0,
-    ) is False
+    assert (
+        filter_condition(
+            sys,
+            pos=[0, 0, 4.0],
+            rvv=5.0,
+            distance_min=2.0,
+            distance_max=6.0,
+            axis=2,
+            rvv_min=0.0,
+            rvv_max=1.0,
+        )
+        is False
+    )
 
 
 def test_filter_condition_wrap_near_zero():
@@ -105,11 +120,19 @@ def test_filter_condition_wrap_near_zero():
 
     sys = _mock_sys([10.0, 10.0, 10.0])
     # band centred at (2+6)/2 = 4 with width 2; wrap window = [0, 2].
-    assert filter_condition(
-        sys, pos=[0, 0, 1.0], rvv=0.5,
-        distance_min=2.0, distance_max=6.0,
-        axis=2, rvv_min=0.0, rvv_max=1.0,
-    ) is True
+    assert (
+        filter_condition(
+            sys,
+            pos=[0, 0, 1.0],
+            rvv=0.5,
+            distance_min=2.0,
+            distance_max=6.0,
+            axis=2,
+            rvv_min=0.0,
+            rvv_max=1.0,
+        )
+        is True
+    )
 
 
 def test_filter_condition_wrap_near_boxdim():
@@ -118,11 +141,19 @@ def test_filter_condition_wrap_near_boxdim():
 
     sys = _mock_sys([10.0, 10.0, 10.0])
     # band centred at 4 with width 2 → top wrap window = [8, 10).
-    assert filter_condition(
-        sys, pos=[0, 0, 9.0], rvv=0.5,
-        distance_min=2.0, distance_max=6.0,
-        axis=2, rvv_min=0.0, rvv_max=1.0,
-    ) is True
+    assert (
+        filter_condition(
+            sys,
+            pos=[0, 0, 9.0],
+            rvv=0.5,
+            distance_min=2.0,
+            distance_max=6.0,
+            axis=2,
+            rvv_min=0.0,
+            rvv_max=1.0,
+        )
+        is True
+    )
 
 
 def test_filter_condition_outside_all_bands_returns_false():
@@ -130,11 +161,19 @@ def test_filter_condition_outside_all_bands_returns_false():
 
     sys = _mock_sys([10.0, 10.0, 10.0])
     # mid = 4, width = 2 → bands are [0,2], [2,6], [8,10). pos=7 lies outside.
-    assert filter_condition(
-        sys, pos=[0, 0, 7.0], rvv=0.5,
-        distance_min=2.0, distance_max=6.0,
-        axis=2, rvv_min=0.0, rvv_max=1.0,
-    ) is False
+    assert (
+        filter_condition(
+            sys,
+            pos=[0, 0, 7.0],
+            rvv=0.5,
+            distance_min=2.0,
+            distance_max=6.0,
+            axis=2,
+            rvv_min=0.0,
+            rvv_max=1.0,
+        )
+        is False
+    )
 
 
 # ---------------------------------------------------------------------------

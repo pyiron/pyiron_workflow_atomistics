@@ -15,7 +15,6 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-
 # ---------------------------------------------------------------------------
 # harmonic._normalise_supercell_matrix
 # ---------------------------------------------------------------------------
@@ -233,7 +232,9 @@ def _make_engine_output(converged: bool, wd: str = "/tmp/foo"):
 
     cu = bulk("Cu", "fcc", a=3.6)
     cu.info["working_directory"] = wd
-    return SimpleNamespace(converged=converged, final_structure=cu, final_forces=np.zeros((len(cu), 3)))
+    return SimpleNamespace(
+        converged=converged, final_structure=cu, final_forces=np.zeros((len(cu), 3))
+    )
 
 
 def test_check_all_converged_silent_when_all_pass():
@@ -272,9 +273,7 @@ def test_stack_forces_returns_3d_array():
     from pyiron_workflow_atomistics.physics.phonons.anharmonic import _stack_forces
 
     n_atoms = 4
-    outs = [
-        SimpleNamespace(final_forces=np.ones((n_atoms, 3)) * i) for i in range(3)
-    ]
+    outs = [SimpleNamespace(final_forces=np.ones((n_atoms, 3)) * i) for i in range(3)]
     out = _stack_forces(outs)
     assert out.shape == (3, n_atoms, 3)
     assert np.all(out[0] == 0)

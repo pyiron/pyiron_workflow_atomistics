@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Tier 1 — pure helpers
 # ---------------------------------------------------------------------------
@@ -202,9 +201,17 @@ def test_get_gbcode_df_for_axis_returns_expected_schema():
         max_atoms=200,
         max_workers=1,
     )
-    assert {"Axis", "Sigma", "m", "n", "GB1", "GB2", "Theta (deg)", "Type", "n_atoms"} <= set(
-        df.columns
-    )
+    assert {
+        "Axis",
+        "Sigma",
+        "m",
+        "n",
+        "GB1",
+        "GB2",
+        "Theta (deg)",
+        "Type",
+        "n_atoms",
+    } <= set(df.columns)
     assert (df["n_atoms"] <= 200).all()
     assert len(df) > 0
 
