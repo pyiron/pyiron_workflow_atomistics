@@ -319,3 +319,124 @@ def test_validate_structure_rejects_zero_volume(fcc_al_atoms):
     a = Atoms("Cu", positions=[[0, 0, 0]], cell=[[0, 0, 0]] * 3, pbc=True)
     with pytest.raises(ValueError, match=r"non-positive volume"):
         _validate_structure(a)
+
+
+# ---------------------------------------------------------------------------
+# _build_calphy_calculation — fe mode
+# ---------------------------------------------------------------------------
+
+
+def test_build_calphy_calculation_fe_basic(tmp_path, fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    eng = _make_minimal_engine()
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff="* * /tmp/Al.eam.alloy Al",
+    )
+    calc = _build_calphy_calculation(
+        mode="fe",
+        structure=fcc_al_atoms,
+        potential=pot,
+        lammps_engine=eng,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        pressure=0.0,
+        reference_phase="solid",
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+        n_iterations=1,
+        npt=True,
+        equilibration_control="nose-hoover",
+    )
+    assert calc.mode == "fe"
+    assert calc.element == ["Al"]
+    assert calc.pair_style == ["eam/alloy"]
+    assert calc.pair_coeff == ["* * /tmp/Al.eam.alloy Al"]
+    assert calc.script_mode is True
+    assert calc.lammps_executable == "lmp"
+    assert calc.mpi_executable is None
+    assert calc.reference_phase == "solid"
+    assert calc.npt is True
+    # data file must exist in working_directory
+    assert (tmp_path / "lammps.data").exists()
+    assert str(tmp_path / "lammps.data") in calc.lattice
+    assert calc.file_format == "lammps-data"
+
+
+def test_build_calphy_calculation_fe_passes_mpi_command(tmp_path, fcc_al_atoms):
+    pytest.importorskip("calphy")
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    eng = _make_minimal_engine()
+    eng.command = "mpirun -np 8 lmp"
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    calc = _build_calphy_calculation(
+        mode="fe",
+        structure=fcc_al_atoms,
+        potential=pot,
+        lammps_engine=eng,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        pressure=0.0,
+        reference_phase="solid",
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+        n_iterations=1,
+        npt=True,
+        equilibration_control="nose-hoover",
+    )
+    assert calc.lammps_executable == "lmp"
+    assert calc.mpi_executable == "mpirun"
+    # cores is captured on queue.cores
+    assert calc.queue.cores == 8
+
+
+def test_build_calphy_calculation_writes_data_file_matches_structure(
+    tmp_path, fcc_al_atoms
+):
+    pytest.importorskip("calphy")
+    from ase.io import read as ase_read
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    eng = _make_minimal_engine()
+    pot = LammpsPotential(pair_style="eam/alloy",
+                          pair_coeff="* * /tmp/Al.eam.alloy Al")
+    _build_calphy_calculation(
+        mode="fe",
+        structure=fcc_al_atoms,
+        potential=pot,
+        lammps_engine=eng,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        pressure=0.0,
+        reference_phase="solid",
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+        n_iterations=1,
+        npt=True,
+        equilibration_control="nose-hoover",
+    )
+    round_trip = ase_read(
+        str(tmp_path / "lammps.data"),
+        format="lammps-data",
+        style="atomic",
+    )
+    import numpy as np
+    np.testing.assert_allclose(round_trip.get_positions(),
+                               fcc_al_atoms.get_positions(),
+                               atol=1e-8)
+    np.testing.assert_allclose(round_trip.get_cell(),
+                               fcc_al_atoms.get_cell(),
+                               atol=1e-8)

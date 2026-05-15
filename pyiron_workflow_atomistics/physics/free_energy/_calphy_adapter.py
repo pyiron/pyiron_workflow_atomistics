@@ -7,8 +7,13 @@ considered private API.
 
 from __future__ import annotations
 
+import os
 import shlex
+from typing import Any, Literal, TYPE_CHECKING
+
 from ase import Atoms
+from ase.data import atomic_masses, atomic_numbers
+from ase.io import write as ase_write
 
 _LAUNCHERS = ("mpirun", "mpiexec", "srun")
 _LAUNCHER_CORE_FLAGS = ("-np", "-n")
@@ -131,7 +136,6 @@ def _looks_like_lammps_binary(token: str) -> bool:
 
 
 from dataclasses import MISSING, fields
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pyiron_workflow_lammps.engine import LammpsEngine
@@ -225,3 +229,176 @@ def _validate_structure(structure: Atoms) -> None:
             f"structure has non-positive volume ({volume}); "
             f"calphy will refuse to integrate against it"
         )
+
+
+# ---------------------------------------------------------------------------
+# _build_calphy_calculation — per-mode kwarg fan-out + data-file writer
+# ---------------------------------------------------------------------------
+
+
+def _atoms_element_order(structure: Atoms) -> list[str]:
+    """Same first-occurrence ordering rule LammpsEngine uses."""
+    return list(dict.fromkeys(structure.get_chemical_symbols()))
+
+
+def _atoms_to_lammps_data(structure: Atoms, path: str,
+                          element_order: list[str]) -> None:
+    """Write a LAMMPS data file with type ordering matching element_order.
+
+    ase >=3.23 honors ``specorder`` for lammps-data writes; older versions
+    silently use alphabetical order. We require ase==3.28.0 (see
+    pyproject.toml) so specorder is guaranteed available.
+    """
+    ase_write(path, structure, format="lammps-data",
+              specorder=element_order, atom_style="atomic")
+
+
+def _build_calphy_calculation(
+    *,
+    mode: Literal["fe", "ts", "tscale", "pscale",
+                  "melting_temperature", "alchemy", "composition_scaling"],
+    structure: Atoms,
+    potential,                 # LammpsPotential
+    lammps_engine,             # LammpsEngine
+    working_directory: str,
+    # mode-generic kwargs (each public node forwards the subset it needs)
+    temperature: float | None = None,
+    temperature_range: tuple[float, float] | None = None,
+    pressure: float = 0.0,
+    pressure_range: tuple[float, float] | None = None,
+    reference_phase: Literal["solid", "liquid"] | None = None,
+    temperature_guess: float | None = None,
+    melting_step: int = 200,
+    melting_max_attempts: int = 5,
+    pair_style_target: str | None = None,
+    pair_coeff_target: str | None = None,
+    output_chemical_composition: dict[str, int] | None = None,
+    n_equilibration_steps: int = 25_000,
+    n_switching_steps: int = 50_000,
+    n_iterations: int = 1,
+    npt: bool = True,
+    equilibration_control: Literal["nose-hoover", "berendsen"] = "nose-hoover",
+):
+    """Build a ``calphy.input.Calculation`` from the user kwargs.
+
+    Returns the validated Pydantic model, ready to feed to
+    :func:`calphy.kernel.setup_calculation`. Writes the LAMMPS data
+    file to ``{working_directory}/lammps.data`` as a side effect.
+    """
+    calphy = __import_calphy()
+
+    element_order = _atoms_element_order(structure)
+    mass = [float(atomic_masses[atomic_numbers[s]]) for s in element_order]
+
+    data_path = os.path.join(working_directory, "lammps.data")
+    os.makedirs(working_directory, exist_ok=True)
+    _atoms_to_lammps_data(structure, data_path, element_order)
+
+    binary, mpi, cores = _split_lammps_command(lammps_engine.command)
+
+    kwargs: dict[str, Any] = {
+        "mode": mode,
+        "element": element_order,
+        "mass": mass,
+        "lattice": data_path,
+        "file_format": "lammps-data",
+        "pair_style": potential.pair_style,
+        "pair_coeff": potential.pair_coeff,
+        "potential_file": potential.potential_file,
+        "n_equilibration_steps": n_equilibration_steps,
+        "n_switching_steps": n_switching_steps,
+        "n_iterations": n_iterations,
+        "npt": npt,
+        "equilibration_control": (
+            "nose_hoover" if equilibration_control == "nose-hoover"
+            else equilibration_control
+        ),
+        "script_mode": True,
+        "lammps_executable": binary,
+        "mpi_executable": mpi,
+        "queue": {
+            "scheduler": "local",
+            "cores": cores,
+        },
+    }
+
+    # Per-mode kwarg routing
+    if mode == "fe":
+        if temperature is None:
+            raise ValueError("free_energy requires `temperature`")
+        if reference_phase is None:
+            raise ValueError("free_energy requires `reference_phase`")
+        kwargs["temperature"] = float(temperature)
+        kwargs["pressure"] = float(pressure)
+        kwargs["reference_phase"] = reference_phase
+    elif mode == "ts":
+        if temperature_range is None or len(temperature_range) != 2:
+            raise ValueError(
+                "reversible_scaling_temperature requires "
+                "`temperature_range=(lo, hi)`"
+            )
+        if reference_phase is None:
+            raise ValueError("`reference_phase` is required")
+        kwargs["temperature"] = [float(temperature_range[0]),
+                                 float(temperature_range[1])]
+        kwargs["pressure"] = float(pressure)
+        kwargs["reference_phase"] = reference_phase
+    elif mode == "pscale":
+        if pressure_range is None or len(pressure_range) != 2:
+            raise ValueError(
+                "reversible_scaling_pressure requires "
+                "`pressure_range=(lo, hi)`"
+            )
+        if temperature is None or reference_phase is None:
+            raise ValueError("`temperature` and `reference_phase` are required")
+        kwargs["temperature"] = float(temperature)
+        kwargs["pressure"] = [float(pressure_range[0]),
+                              float(pressure_range[1])]
+        kwargs["reference_phase"] = reference_phase
+    elif mode == "melting_temperature":
+        if temperature_guess is not None:
+            if temperature_guess <= 0:
+                raise ValueError("`temperature_guess` must be positive")
+            kwargs["temperature"] = float(temperature_guess)
+        kwargs["pressure"] = float(pressure)
+        kwargs["melting_temperature"] = {
+            "step": int(melting_step),
+            "attempts": int(melting_max_attempts),
+        }
+    elif mode == "alchemy":
+        if (temperature is None or pair_style_target is None
+                or pair_coeff_target is None):
+            raise ValueError(
+                "alchemy requires `temperature`, `pair_style_target`, "
+                "and `pair_coeff_target`"
+            )
+        kwargs["temperature"] = float(temperature)
+        kwargs["pressure"] = float(pressure)
+        kwargs["reference_phase"] = "solid"
+        kwargs["pair_style"] = [potential.pair_style, pair_style_target]
+        kwargs["pair_coeff"] = [potential.pair_coeff, pair_coeff_target]
+    elif mode == "composition_scaling":
+        if temperature is None or output_chemical_composition is None:
+            raise ValueError(
+                "composition_scaling requires `temperature` and "
+                "`output_chemical_composition`"
+            )
+        kwargs["temperature"] = float(temperature)
+        kwargs["pressure"] = float(pressure)
+        kwargs["reference_phase"] = "solid"
+        kwargs["composition_scaling"] = {
+            "output_chemical_composition": dict(output_chemical_composition),
+        }
+    else:
+        raise ValueError(f"Unknown mode: {mode!r}")
+
+    return calphy.input.Calculation(**kwargs)
+
+
+def __import_calphy():
+    """Import calphy lazily so the adapter module is importable without it."""
+    from pyiron_workflow_atomistics.physics.free_energy._compat import (
+        _require_calphy,
+    )
+
+    return _require_calphy()
