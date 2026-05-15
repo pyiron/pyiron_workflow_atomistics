@@ -35,7 +35,12 @@ def _resolve_simfolder(
     working_directory: str,
     subdir: str,
 ):
-    """Compute the absolute simfolder path and a working-directory-bound engine.
+    """Resolve the absolute simfolder path AND create it on disk.
+
+    Joins ``working_directory`` and ``subdir``, absolute-paths the result,
+    mkdirs it (``exist_ok=True``), and wraps the engine into a child that
+    runs inside that directory. The mkdir side effect is intentional: by
+    the time downstream nodes execute, the simfolder is guaranteed to exist.
 
     Lives in a function-node so the path-join executes at run time with real
     string values, not the proxy UserInput objects a macro body sees during
@@ -79,6 +84,20 @@ def _produce_fc2_view(
     phonon.forces = forces
     phonon.produce_force_constants()
     return phonon
+
+
+class _Phono3pyShim:
+    """Minimal adapter exposing the four attributes _compute_harmonic_observables reads.
+
+    `_compute_harmonic_observables` was originally written against a Phono3py
+    object; for the harmonic-only path we hand it a Phonopy view with the
+    same four attributes. Keeps the helper signature unchanged.
+    """
+
+    def __init__(self, phonopy_view) -> None:
+        self.phonon_primitive = phonopy_view.primitive
+        self.phonon_supercell_matrix = phonopy_view.supercell_matrix
+        self.fc2 = phonopy_view.force_constants
 
 
 @pwf.as_function_node("free_energy_output")
@@ -128,20 +147,6 @@ def _pack_harmonic_output(
         band_structure=band_structure if keep_handles else None,
         phonon_dos=dos if keep_handles else None,
     )
-
-
-class _Phono3pyShim:
-    """Minimal adapter exposing the four attributes _compute_harmonic_observables reads.
-
-    `_compute_harmonic_observables` was originally written against a Phono3py
-    object; for the harmonic-only path we hand it a Phonopy view with the
-    same four attributes. Keeps the helper signature unchanged.
-    """
-
-    def __init__(self, phonopy_view) -> None:
-        self.phonon_primitive = phonopy_view.primitive
-        self.phonon_supercell_matrix = phonopy_view.supercell_matrix
-        self.fc2 = phonopy_view.force_constants
 
 
 @pwf.api.as_macro_node("free_energy_output")
