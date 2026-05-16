@@ -109,21 +109,6 @@ def build_bicrystal_slabs(
 # ---------------------------------------------------------------------------
 
 
-def _count_atoms_in_gb_region(structure: Atoms, bounds: np.ndarray) -> int:
-    """Atom count inside the (pad-extended) GB region.
-
-    Port of GRIP ``Simulation.get_gb_energy``'s z-mask, used to populate
-    ``n_gb_atoms`` for the energy formula.
-    """
-    lowerb, upperb, pad = bounds
-    z = structure.positions[:, 2]
-    z_min, z_max = z.min(), z.max()
-    lower_cutoff = z_min + lowerb - pad
-    upper_cutoff = z_max - upperb + pad
-    mask = (z >= lower_cutoff) & (z <= upper_cutoff)
-    return int(mask.sum())
-
-
 def _make_iter_md_engine(
     md_engine: Engine,
     temperature: int,
@@ -289,7 +274,6 @@ def gco_search(
                 voronoi_warned = True
 
         atoms = bc.gb
-        bounds = bc.bounds
         n_frac = bc.n if bc.n is not None else 0.0
 
         # ---- optional MD -----------------------------------------------
@@ -319,13 +303,12 @@ def gco_search(
             continue
 
         # ---- score + keep ----------------------------------------------
-        n_gb = _count_atoms_in_gb_region(out.final_structure, bounds)
         area = float(out.final_structure.cell[0, 0]) * float(
             out.final_structure.cell[1, 1]
         )
         egb = gb_energy(
             final_energy_ev=out.final_energy,
-            n_gb_atoms=n_gb,
+            n_atoms=len(out.final_structure),
             gb_area_a2=area,
             e_cohesive_ev=e_cohesive,
         )
