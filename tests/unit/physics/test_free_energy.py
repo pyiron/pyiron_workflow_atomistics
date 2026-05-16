@@ -1423,3 +1423,45 @@ def test_setup_calculation_creates_simfolder_first(monkeypatch):
     job = _setup_calculation(calc)
     assert calc._folder_created, "create_folders() must run before the job is built"
     assert isinstance(job, _RecordingJob)
+
+
+def test_pack_free_energy_output_reads_temperature_sweep_dat(tmp_path):
+    """_pack_free_energy_output must read temperature_sweep.dat from job.simfolder.
+
+    Regression for: PR #46/#48 wired the parent simfolder into the packer; the
+    reversible-scaling sweep file lives one level deeper in calphy's job-folder.
+    The packer is now passed `getattr(job, 'simfolder', simfolder)` from
+    _run_one, so the sweep is found and lands on `out.temperature_array` /
+    `out.free_energy_array`.
+    """
+    import numpy as np
+    from ase.build import bulk
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _pack_free_energy_output,
+    )
+
+    # Stub job-folder with a 3-row temperature_sweep.dat (T, F, err).
+    job_simfolder = tmp_path / "ts-lammps.data-solid-200-0"
+    job_simfolder.mkdir()
+    sweep = np.array([[200.0, -4.10, 0.0], [600.0, -4.45, 0.0], [1200.0, -4.83, 0.0]])
+    np.savetxt(job_simfolder / "temperature_sweep.dat", sweep)
+
+    structure = bulk("Cu", "fcc", a=3.615, cubic=True)
+    out = _pack_free_energy_output(
+        mode="ts",
+        job=None,
+        report={"results": {"free_energy": -4.10, "error": 0.0}},
+        simfolder=str(job_simfolder),
+        structure=structure,
+        reference_phase="solid",
+        temperature=200.0,
+        pressure=0.0,
+    )
+
+    assert (
+        out.temperature_array is not None
+    ), "temperature_array must be populated when temperature_sweep.dat exists"
+    assert out.free_energy_array is not None
+    np.testing.assert_array_equal(out.temperature_array, sweep[:, 0])
+    np.testing.assert_array_equal(out.free_energy_array, sweep[:, 1])
