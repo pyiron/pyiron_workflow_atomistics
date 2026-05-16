@@ -73,6 +73,14 @@ def main() -> int:
     )
     p.add_argument("--displacement-distance", type=float, default=0.03)
     p.add_argument("--random-seed", type=int, default=42)
+    p.add_argument(
+        "--eos-strain-range",
+        type=float,
+        nargs=2,
+        default=(-0.02, 0.02),
+        metavar=("LOW", "HIGH"),
+    )
+    p.add_argument("--eos-num-points", type=int, default=11)
     args = p.parse_args()
 
     import numpy as np
@@ -84,6 +92,9 @@ def main() -> int:
     if str(_root) not in sys.path:
         sys.path.insert(0, str(_root))
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.bulk import (
+        optimise_cubic_lattice_parameter,
+    )
     from pyiron_workflow_atomistics.physics.phonons import (
         calculate_phonon_thermal_conductivity,
     )
@@ -91,38 +102,65 @@ def main() -> int:
     spec = json.loads(args.calc_spec)
     args.working_dir.mkdir(parents=True, exist_ok=True)
 
+    # Initial guess; each potential will optimise its own a0 via EOS scan.
     structure = bulk("Al", "fcc", a=args.lattice_a, cubic=True)  # 4 atoms / cell
     calc = build_calculator(spec)
-
-    # one-shot energy/force at the as-built lattice constant
-    structure.calc = calc
-    e0 = float(structure.get_potential_energy())
-    f0_max = float(np.linalg.norm(structure.get_forces(), axis=1).max())
-    structure.calc = None
 
     engine = ASEEngine(
         EngineInput=CalcInputStatic(),
         calculator=calc,
         working_directory=str(args.working_dir),
         write_to_disk=False,
-        properties=("energy", "forces"),
+        properties=("energy", "forces", "volume"),
     )
+
+    # ---- 1) EOS sweep → equilibrium cubic lattice constant ----------------
+    t_eos = time.time()
+    opt = optimise_cubic_lattice_parameter(
+        structure=structure,
+        name="Al",
+        crystalstructure="fcc",
+        engine=engine.with_working_directory("eos"),
+        strain_range=tuple(args.eos_strain_range),
+        num_points=args.eos_num_points,
+        eos_type="birchmurnaghan",
+    )
+    opt.run()
+    a0 = float(opt.outputs.a0.value)
+    bulk_modulus_GPa = float(opt.outputs.B.value)
+    e0_per_atom = float(opt.outputs.equil_energy_per_atom.value)
+    v0_per_atom = float(opt.outputs.equil_volume_per_atom.value)
+    eos_volumes = [float(v) for v in opt.outputs.volumes.value]
+    eos_energies = [float(e) for e in opt.outputs.energies.value]
+    dt_eos = time.time() - t_eos
+
+    structure_relaxed = bulk("Al", "fcc", a=a0, cubic=True)
+    structure_relaxed.calc = calc
+    e0 = float(structure_relaxed.get_potential_energy())
+    f0_max = float(np.linalg.norm(structure_relaxed.get_forces(), axis=1).max())
+    structure_relaxed.calc = None
 
     fc2_sc = (args.fc2_supercell * np.eye(3)).astype(int)
     fc3_sc = (args.fc3_supercell * np.eye(3)).astype(int)
 
     print(
-        f"[{args.label}] start: e0={e0:.4f} eV, |F|max={f0_max:.2e} eV/A, "
-        f"fc2={args.fc2_supercell}**3 ({len(structure) * args.fc2_supercell ** 3} atoms), "
-        f"fc3={args.fc3_supercell}**3 ({len(structure) * args.fc3_supercell ** 3} atoms), "
+        f"[{args.label}] eos done in {dt_eos:.1f}s: a0={a0:.4f} Å (initial {args.lattice_a:.4f}), "
+        f"B={bulk_modulus_GPa:.1f} GPa, E0/atom={e0_per_atom:.4f} eV, |F|max={f0_max:.2e} eV/Å",
+        flush=True,
+    )
+    print(
+        f"[{args.label}] phonon start: "
+        f"fc2={args.fc2_supercell}**3 ({len(structure_relaxed) * args.fc2_supercell ** 3} atoms), "
+        f"fc3={args.fc3_supercell}**3 ({len(structure_relaxed) * args.fc3_supercell ** 3} atoms), "
         f"n_snap={args.n_snapshots}",
         flush=True,
     )
 
+    # ---- 2) Phonon thermal conductivity on the relaxed lattice ------------
     t0 = time.time()
     wf = calculate_phonon_thermal_conductivity(
-        structure=structure,
-        engine=engine,
+        structure=structure_relaxed,
+        engine=engine.with_working_directory("phonon"),
         fc2_supercell_matrix=fc2_sc,
         fc3_supercell_matrix=fc3_sc,
         temperatures=list(args.temperatures),
@@ -143,11 +181,18 @@ def main() -> int:
     payload = {
         "label": args.label,
         "spec": spec,
-        "elapsed_s": dt,
+        "elapsed_eos_s": dt_eos,
+        "elapsed_phonon_s": dt,
         "energy_0": e0,
         "fmax_0": f0_max,
-        "lattice_a": args.lattice_a,
-        "n_atoms_primitive": len(structure),
+        "lattice_a_initial": args.lattice_a,
+        "lattice_a0": a0,
+        "bulk_modulus_GPa": bulk_modulus_GPa,
+        "energy_per_atom": e0_per_atom,
+        "volume_per_atom": v0_per_atom,
+        "eos_volumes": eos_volumes,
+        "eos_energies": eos_energies,
+        "n_atoms_primitive": len(structure_relaxed),
         "fc2_supercell": args.fc2_supercell,
         "fc3_supercell": args.fc3_supercell,
         "n_snapshots": args.n_snapshots,
@@ -166,7 +211,7 @@ def main() -> int:
         if abs(T - 300.0) < 1e-9:
             kappa_diag_300 = np.diag(K).tolist()
     print(
-        f"[{args.label}] done in {dt:.1f}s, "
+        f"[{args.label}] phonon done in {dt:.1f}s (total {dt_eos + dt:.1f}s), "
         f"kappa_300_diag={kappa_diag_300} W/(m·K), wrote {args.out_pkl}",
         flush=True,
     )
