@@ -83,7 +83,9 @@ def validate_gco_config(cfg: GCOConfig) -> None:
             f"frac_min ({cfg.frac_min}) must be <= frac_max ({cfg.frac_max})"
         )
     if cfg.e_mult < 1.0:
-        raise ValueError(f"e_mult must be >= 1.0 (1.0 disables filter); got {cfg.e_mult}")
+        raise ValueError(
+            f"e_mult must be >= 1.0 (1.0 disables filter); got {cfg.e_mult}"
+        )
     if cfg.reps_mode not in _VALID_REPS_MODES:
         raise ValueError(
             f"reps_mode must be one of {sorted(_VALID_REPS_MODES)}; got {cfg.reps_mode}"
@@ -101,9 +103,7 @@ def validate_gco_config(cfg: GCOConfig) -> None:
             f"({cfg.md_max_steps})"
         )
     if not 0.0 <= cfg.inter_p <= 1.0:
-        raise ValueError(
-            f"inter_p must be in [0, 1]; got {cfg.inter_p}"
-        )
+        raise ValueError(f"inter_p must be in [0, 1]; got {cfg.inter_p}")
     if not 0.0 <= cfg.md_run_probability <= 1.0:
         raise ValueError(
             f"md_run_probability must be in [0, 1]; got {cfg.md_run_probability}"

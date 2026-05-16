@@ -11,8 +11,9 @@ from pyiron_workflow_atomistics.physics._grand_canonical_gb_code.interstitial im
 
 
 def test_basic_construction():
-    site = Interstitial(p=[1.0, 2.0, 3.0], symbol="Ti", nn=6, nnd=[2.5, 2.5, 2.5],
-                       label="octahedral0")
+    site = Interstitial(
+        p=[1.0, 2.0, 3.0], symbol="Ti", nn=6, nnd=[2.5, 2.5, 2.5], label="octahedral0"
+    )
     np.testing.assert_array_equal(site.p, np.array([1.0, 2.0, 3.0]))
     assert site.symbol == "Ti"
     assert site.nn == 6
@@ -28,14 +29,16 @@ def test_position_returns_numpy_array():
 
 
 def test_from_df_roundtrips():
-    df = pd.DataFrame({
-        "x": [1.0, 2.0],
-        "y": [3.0, 4.0],
-        "z": [5.0, 6.0],
-        "nn": [4, 6],
-        "nnd": [[2.0, 2.0, 2.0, 2.0], [2.5, 2.5, 2.5, 2.5, 2.5, 2.5]],
-        "label": ["tetrahedral0", "octahedral0"],
-    })
+    df = pd.DataFrame(
+        {
+            "x": [1.0, 2.0],
+            "y": [3.0, 4.0],
+            "z": [5.0, 6.0],
+            "nn": [4, 6],
+            "nnd": [[2.0, 2.0, 2.0, 2.0], [2.5, 2.5, 2.5, 2.5, 2.5, 2.5]],
+            "label": ["tetrahedral0", "octahedral0"],
+        }
+    )
     sites = Interstitial.from_df(df)
     assert len(sites) == 2
     np.testing.assert_array_equal(sites[0].p, np.array([1.0, 3.0, 5.0]))

@@ -125,7 +125,9 @@ def _count_atoms_in_gb_region(structure: Atoms, bounds: np.ndarray) -> int:
 
 
 def _make_iter_md_engine(
-    md_engine: Engine, temperature: int, n_ionic_steps: int,
+    md_engine: Engine,
+    temperature: int,
+    n_ionic_steps: int,
 ) -> Engine:
     """Return a per-iteration MD engine with the chosen T and step count.
 
@@ -155,9 +157,7 @@ def _validate_workflow_inputs(
             f"got {type(minimize_engine.EngineInput).__name__}"
         )
     if config.md_run_probability > 0.0 and md_engine is None:
-        raise ValueError(
-            "config.md_run_probability > 0 requires a non-None md_engine"
-        )
+        raise ValueError("config.md_run_probability > 0 requires a non-None md_engine")
     if md_engine is not None and not isinstance(md_engine.EngineInput, CalcInputMD):
         raise ValueError(
             "md_engine.EngineInput must be a CalcInputMD; "
@@ -177,13 +177,17 @@ def _validate_workflow_inputs(
 # ---------------------------------------------------------------------------
 
 
+# GCOConfig is frozen, so a module-level singleton is safe as a default.
+_DEFAULT_GCO_CONFIG = GCOConfig()
+
+
 @pwf.as_function_node("results", "best_structures")
 def gco_search(
     minimize_engine: Engine,
     lower_slab: Atoms,
     upper_slab: Atoms,
     e_cohesive: float,
-    config: GCOConfig = GCOConfig(),
+    config: GCOConfig = _DEFAULT_GCO_CONFIG,
     n_iters: int = 100,
     md_engine: Engine | None = None,
     seed: int = 0,
@@ -278,7 +282,9 @@ def gco_search(
             if not voronoi_warned:
                 logger.warning(
                     "Voronoi swap failed at iter %d: %s; suppressing "
-                    "further warnings (each iteration is retried).", i, exc,
+                    "further warnings (each iteration is retried).",
+                    i,
+                    exc,
                 )
                 voronoi_warned = True
 
@@ -314,9 +320,8 @@ def gco_search(
 
         # ---- score + keep ----------------------------------------------
         n_gb = _count_atoms_in_gb_region(out.final_structure, bounds)
-        area = (
-            float(out.final_structure.cell[0, 0])
-            * float(out.final_structure.cell[1, 1])
+        area = float(out.final_structure.cell[0, 0]) * float(
+            out.final_structure.cell[1, 1]
         )
         egb = gb_energy(
             final_energy_ev=out.final_energy,
@@ -327,11 +332,20 @@ def gco_search(
         if egb < best_egb * config.e_mult:
             if egb < best_egb:
                 best_egb = egb
-            kept_rows.append({
-                "Egb": egb, "n": n_frac, "dx": dx, "dy": dy,
-                "rx": rx, "ry": ry, "T": T, "n_md_steps": n_md,
-                "iter": i, "converged": True,
-            })
+            kept_rows.append(
+                {
+                    "Egb": egb,
+                    "n": n_frac,
+                    "dx": dx,
+                    "dy": dy,
+                    "rx": rx,
+                    "ry": ry,
+                    "T": T,
+                    "n_md_steps": n_md,
+                    "iter": i,
+                    "converged": True,
+                }
+            )
             kept_atoms.append(out.final_structure)
 
         # ---- periodic dedup --------------------------------------------

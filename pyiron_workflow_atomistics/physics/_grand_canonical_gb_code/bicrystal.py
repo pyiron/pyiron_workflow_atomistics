@@ -16,7 +16,7 @@ Departures from upstream:
 from __future__ import annotations
 
 import logging
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -168,9 +168,7 @@ class Bicrystal:
         to_delete = rng.choice(self.gbplane_ids_u, size=n_vac, replace=False)
         self.make_vacancies_u(to_delete)
         n_udef = self.upper.get_global_number_of_atoms()
-        logger.debug(
-            "%d atoms in defective cell after %d vacancies.", n_udef, n_vac
-        )
+        logger.debug("%d atoms in defective cell after %d vacancies.", n_udef, n_vac)
 
         self.n = np.mod(n_udef, self.npp_u)
         assert self.n == np.mod(self.npp_u - n_vac, self.npp_u), (
@@ -187,7 +185,8 @@ class Bicrystal:
         self.upper.positions[mask_upper, :] += self.dupper * rng.random([n_u, 3])
 
         mask_lower = (
-            self.lower.positions[:, 2] > self.lower.cell[2, 2] - self.config.gb_thick / 2
+            self.lower.positions[:, 2]
+            > self.lower.cell[2, 2] - self.config.gb_thick / 2
         )
         n_l = int(mask_lower.sum())
         self.lower.positions[mask_lower, :] += self.dlower * rng.random([n_l, 3])
@@ -201,9 +200,7 @@ class Bicrystal:
         self.gb = upper_copy
 
     def write_gb(self, filename: str, format: str = "extxyz") -> None:
-        assert self.gb is not None, (
-            "GB hasn't been created yet! Call join_gb() first."
-        )
+        assert self.gb is not None, "GB hasn't been created yet! Call join_gb() first."
         ase_write(filename, self.gb, format=format)
 
     # ------------------------------------------------------------------
@@ -242,9 +239,12 @@ class Bicrystal:
             logger.debug("Adding %d edge midpoints.", len(emps))
 
         mask = (
-            (vert[:, 0] > 0) & (vert[:, 0] < a)
-            & (vert[:, 1] > 0) & (vert[:, 1] < b)
-            & (vert[:, 2] > bounds[0]) & (vert[:, 2] < bounds[1])
+            (vert[:, 0] > 0)
+            & (vert[:, 0] < a)
+            & (vert[:, 1] > 0)
+            & (vert[:, 1] < b)
+            & (vert[:, 2] > bounds[0])
+            & (vert[:, 2] < bounds[1])
         )
         v = vert[mask]
         v = v[v[:, 2].argsort()]
@@ -285,17 +285,17 @@ class Bicrystal:
         tc = oc = tstrainc = ostrainc = trc = trstrainc = otherc = 0
 
         for v in sites:
-            l = np.sort(np.linalg.norm(pos - v, axis=1))[:top_n]
-            vdist = np.abs(l - l[0])
+            dists = np.sort(np.linalg.norm(pos - v, axis=1))[:top_n]
+            vdist = np.abs(dists - dists[0])
             nn1 = int((vdist < abs_tol).sum())
-            nn2 = int((vdist < rel_tol * l[0]).sum())
+            nn2 = int((vdist < rel_tol * dists[0]).sum())
             nn1_dist = vdist[:nn1].sum()
-            same_dist = nn1_dist < rel_tol * l[0]
+            same_dist = nn1_dist < rel_tol * dists[0]
 
             nn_list.append(nn2)
-            nnd_list.append(l[:nn1].round(6))
+            nnd_list.append(dists[:nn1].round(6))
 
-            exist = self.check_exist(other, l, nn1, tol=None)
+            exist = self.check_exist(other, dists, nn1, tol=None)
             if nn2 == 3:
                 if same_dist:
                     if not exist:
@@ -331,14 +331,16 @@ class Bicrystal:
                     otherc += 1
                 labels.append(f"other{otherc}")
 
-        df = pd.DataFrame({
-            "x": sites[:, 0],
-            "y": sites[:, 1],
-            "z": sites[:, 2],
-            "label": labels,
-            "nn": nn_list,
-            "nnd": nnd_list,
-        })
+        df = pd.DataFrame(
+            {
+                "x": sites[:, 0],
+                "y": sites[:, 1],
+                "z": sites[:, 2],
+                "label": labels,
+                "nn": nn_list,
+                "nnd": nnd_list,
+            }
+        )
         df.sort_values(by=["z", "y", "x"], ignore_index=True, inplace=True)
         unique = df.drop_duplicates(subset=["label", "nn"], keep="first")
         if reset_index:
@@ -351,9 +353,7 @@ class Bicrystal:
         edges: bool = False,
         unique_sites: bool = False,
     ) -> list[Interstitial]:
-        assert self.gb is not None, (
-            "GB hasn't been created yet! Call join_gb() first."
-        )
+        assert self.gb is not None, "GB hasn't been created yet! Call join_gb() first."
         if zbounds is None:
             zbounds = (self.bounds[0], self.z - self.bounds[1])
         logger.debug("Searching for interstitials between %s.", zbounds)
@@ -367,9 +367,8 @@ class Bicrystal:
         zbounds: tuple[float, float],
         rng: np.random.Generator,
     ) -> int:
-        gb_mask = (
-            (self.gb.positions[:, 2] >= zbounds[0])
-            & (self.gb.positions[:, 2] <= zbounds[1])
+        gb_mask = (self.gb.positions[:, 2] >= zbounds[0]) & (
+            self.gb.positions[:, 2] <= zbounds[1]
         )
         gb_ind = np.where(gb_mask)[0]
         rng.shuffle(gb_ind)
@@ -378,12 +377,14 @@ class Bicrystal:
             if len(gb_ind) <= len(self.interstitials):
                 logger.warning(
                     "Only %d GB atoms to swap (requested %d).",
-                    len(gb_ind), self.config.inter_n,
+                    len(gb_ind),
+                    self.config.inter_n,
                 )
             else:
                 logger.warning(
                     "Only %d interstitial sites to swap (requested %d).",
-                    len(self.interstitials), self.config.inter_n,
+                    len(self.interstitials),
+                    self.config.inter_n,
                 )
 
         swapped_n = min(self.config.inter_n, len(self.interstitials), len(gb_ind))

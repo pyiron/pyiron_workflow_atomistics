@@ -5,7 +5,7 @@ Direct port of GRIP's ``core/interstitial.py`` (no behavioural change).
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -42,7 +42,7 @@ class Interstitial:
         self.label = label
 
     @classmethod
-    def from_df(cls, df) -> list["Interstitial"]:
+    def from_df(cls, df) -> list[Interstitial]:
         """Construct a list of sites from a DataFrame with ``x, y, z, nn, nnd, label`` columns."""
         sites: list[Interstitial] = []
         for row in df.itertuples():

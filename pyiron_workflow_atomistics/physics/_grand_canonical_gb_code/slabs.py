@@ -78,15 +78,19 @@ def make_slabs(
     builder = _CRYSTAL_TYPES[cs]
 
     if cs == "hcp":
-        upper = builder(symbol=symbol, latticeconstant=(a, c), directions=upper_dirs,
-                        size=init_size)
-        lower = builder(symbol=symbol, latticeconstant=(a, c), directions=lower_dirs,
-                        size=init_size)
+        upper = builder(
+            symbol=symbol, latticeconstant=(a, c), directions=upper_dirs, size=init_size
+        )
+        lower = builder(
+            symbol=symbol, latticeconstant=(a, c), directions=lower_dirs, size=init_size
+        )
     else:
-        upper = builder(symbol=symbol, latticeconstant=a, directions=upper_dirs,
-                        size=init_size)
-        lower = builder(symbol=symbol, latticeconstant=a, directions=lower_dirs,
-                        size=init_size)
+        upper = builder(
+            symbol=symbol, latticeconstant=a, directions=upper_dirs, size=init_size
+        )
+        lower = builder(
+            symbol=symbol, latticeconstant=a, directions=lower_dirs, size=init_size
+        )
 
     # Nudge atoms slightly to avoid PBC edge ties, then wrap.
     upper.positions += [0, _P_SHIFT, _Z_THRESH]
@@ -96,7 +100,10 @@ def make_slabs(
 
     # Trim excess z-height to ``cutoff`` (skip if cutoff=0).
     if cutoff > 0:
-        for name, slab, dirs in [("lower", lower, lower_dirs), ("upper", upper, upper_dirs)]:
+        for name, slab, dirs in [
+            ("lower", lower, lower_dirs),
+            ("upper", upper, upper_dirs),
+        ]:
             if slab.cell[2, 2] > cutoff:
                 nvec = dirs[2]
                 dspace = compute_dhkl(cs, nvec, a, c)
@@ -113,12 +120,14 @@ def make_slabs(
     if cs in {"fcc", "bcc", "sc"}:
         unique_z = sorted(set(lower.positions[:, 2].round(6)))
     elif cs == "dc":
-        parent = FaceCenteredCubic(symbol=symbol, latticeconstant=a,
-                                   directions=lower_dirs, size=init_size)
+        parent = FaceCenteredCubic(
+            symbol=symbol, latticeconstant=a, directions=lower_dirs, size=init_size
+        )
         unique_z = sorted(set(parent.positions[:, 2].round(6)))
     elif cs == "hcp":
-        parent = Hexagonal(symbol=symbol, latticeconstant=(a, c),
-                           directions=lower_dirs, size=init_size)
+        parent = Hexagonal(
+            symbol=symbol, latticeconstant=(a, c), directions=lower_dirs, size=init_size
+        )
         unique_z = sorted(set(parent.positions[:, 2].round(6)))
     else:  # unreachable
         raise ValueError(f"Unhandled crystal '{crystal}'")

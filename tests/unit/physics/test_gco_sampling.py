@@ -18,8 +18,11 @@ from pyiron_workflow_atomistics.physics._grand_canonical_gb_code.sampling import
 
 @pytest.fixture
 def small_slab() -> Atoms:
-    return Atoms("H4", positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]],
-                 cell=[2.5, 3.7, 5.0])
+    return Atoms(
+        "H4",
+        positions=[[0, 0, 0], [1, 0, 0], [0, 1, 0], [1, 1, 0]],
+        cell=[2.5, 3.7, 5.0],
+    )
 
 
 def test_compute_weights_uniform():
@@ -78,8 +81,9 @@ def test_sample_xy_translation_within_cell(small_slab):
 def test_sample_xy_translation_deterministic(small_slab):
     rng1 = np.random.default_rng(seed=42)
     rng2 = np.random.default_rng(seed=42)
-    assert sample_xy_translation(small_slab, rng1, ngrid=10) == \
-           sample_xy_translation(small_slab, rng2, ngrid=10)
+    assert sample_xy_translation(small_slab, rng1, ngrid=10) == sample_xy_translation(
+        small_slab, rng2, ngrid=10
+    )
 
 
 def test_sample_md_temperature_within_bounds_and_multiple_of_100():
@@ -112,7 +116,9 @@ def test_sample_md_steps_linear_within_bounds():
 
 def test_sample_md_steps_exponential_within_bounds():
     rng = np.random.default_rng(seed=0)
-    cfg = GCOConfig(md_min_steps=5000, md_max_steps=500_000, md_step_sampling="exponential")
+    cfg = GCOConfig(
+        md_min_steps=5000, md_max_steps=500_000, md_step_sampling="exponential"
+    )
     for _ in range(20):
         n = sample_md_steps(cfg, rng)
         assert 5000 <= n <= 500_000
@@ -122,7 +128,9 @@ def test_sample_md_steps_linear_respects_min_when_not_multiple_of_1000():
     """Regression: rounding to nearest 1000 must not drop below md_min_steps."""
     rng = np.random.default_rng(seed=0)
     cfg = GCOConfig(
-        md_min_steps=4500, md_max_steps=8500, md_step_sampling="linear",
+        md_min_steps=4500,
+        md_max_steps=8500,
+        md_step_sampling="linear",
     )
     for _ in range(50):
         n = sample_md_steps(cfg, rng)
@@ -133,7 +141,9 @@ def test_sample_md_steps_linear_respects_min_when_not_multiple_of_1000():
 def test_sample_md_steps_exponential_respects_min_when_not_multiple_of_1000():
     rng = np.random.default_rng(seed=0)
     cfg = GCOConfig(
-        md_min_steps=4500, md_max_steps=8500, md_step_sampling="exponential",
+        md_min_steps=4500,
+        md_max_steps=8500,
+        md_step_sampling="exponential",
     )
     for _ in range(50):
         n = sample_md_steps(cfg, rng)

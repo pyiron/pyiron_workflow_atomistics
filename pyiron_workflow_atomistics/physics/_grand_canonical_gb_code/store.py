@@ -30,9 +30,9 @@ def dedup(
     if not rows:
         return [], []
 
-    assert len(rows) == len(atoms), (
-        f"rows ({len(rows)}) and atoms ({len(atoms)}) must align"
-    )
+    assert len(rows) == len(
+        atoms
+    ), f"rows ({len(rows)}) and atoms ({len(atoms)}) must align"
 
     # winner[key] = (rep_product, shift_sq, row_idx)
     winner: dict[tuple[float, float], tuple[int, float, int]] = {}
@@ -47,9 +47,7 @@ def dedup(
             winner[key] = (rep_prod, shift_sq, i)
             continue
         cur_rep, cur_shift, _ = cur
-        if rep_prod < cur_rep or (
-            rep_prod == cur_rep and shift_sq < cur_shift
-        ):
+        if rep_prod < cur_rep or (rep_prod == cur_rep and shift_sq < cur_shift):
             winner[key] = (rep_prod, shift_sq, i)
 
     kept_indices = sorted(v[2] for v in winner.values())

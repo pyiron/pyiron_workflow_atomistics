@@ -32,8 +32,9 @@ def cu_slabs():
 
 def test_construction_stores_slabs(cu_slabs):
     lower, upper = cu_slabs
-    bc = Bicrystal(lower=lower, upper=upper, config=GCOConfig(), dlat=1.8,
-                   make_copy=True)
+    bc = Bicrystal(
+        lower=lower, upper=upper, config=GCOConfig(), dlat=1.8, make_copy=True
+    )
     assert bc.lower is not None
     assert bc.upper is not None
     assert bc.lower0 is lower
@@ -149,20 +150,26 @@ def test_find_interstitials_returns_sites_for_bulk_fcc(cu_slabs):
     bc.join_gb(cfg)
     bc.get_bounds(cfg)
     sites = bc.find_interstitials(unique_sites=True)
-    # Should find at least one site; labels include "octahedral" or "tetrahedral"
     assert isinstance(sites, list)
     if sites:
-        labels = {s.label.rstrip("0123456789") for s in sites if s.label}
-        # At minimum, the classifier should run without exceptions
+        # At minimum, the classifier should run without exceptions and every
+        # returned site should be an Interstitial with a numpy position.
         assert all(isinstance(s.position(), np.ndarray) for s in sites)
+        assert all(s.label for s in sites)
 
 
 def test_find_and_swap_inters_uses_rng(cu_slabs):
     """Two seeded runs with the same rng must produce identical swap selections."""
     lower, upper = cu_slabs
     cfg = GCOConfig(
-        gb_thick=3.0, gb_gap=0.0, vacuum=0.0,
-        inter_n=2, inter_p=1.0, inter_t=2.0, inter_u=False, inter_r=True,
+        gb_thick=3.0,
+        gb_gap=0.0,
+        vacuum=0.0,
+        inter_n=2,
+        inter_p=1.0,
+        inter_t=2.0,
+        inter_u=False,
+        inter_r=True,
     )
 
     def _run(seed: int):

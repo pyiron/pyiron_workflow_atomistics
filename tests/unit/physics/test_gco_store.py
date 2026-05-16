@@ -9,8 +9,18 @@ from pyiron_workflow_atomistics.physics._grand_canonical_gb_code.store import de
 
 
 def _row(Egb, n, dx=0.0, dy=0.0, rx=1, ry=1):
-    return {"Egb": Egb, "n": n, "dx": dx, "dy": dy, "rx": rx, "ry": ry,
-            "T": 0, "n_md_steps": 0, "iter": 0, "converged": True}
+    return {
+        "Egb": Egb,
+        "n": n,
+        "dx": dx,
+        "dy": dy,
+        "rx": rx,
+        "ry": ry,
+        "T": 0,
+        "n_md_steps": 0,
+        "iter": 0,
+        "converged": True,
+    }
 
 
 def _atoms(symbol="H"):
@@ -27,8 +37,8 @@ def test_no_duplicates_returns_input_unchanged():
 
 def test_same_Egb_and_n_smaller_rep_wins():
     rows = [
-        _row(0.5, 0.1, rx=2, ry=3),    # rx*ry=6
-        _row(0.5, 0.1, rx=1, ry=2),    # rx*ry=2 — should win
+        _row(0.5, 0.1, rx=2, ry=3),  # rx*ry=6
+        _row(0.5, 0.1, rx=1, ry=2),  # rx*ry=2 — should win
     ]
     atoms = [_atoms("H"), _atoms("He")]
     out_rows, out_atoms = dedup(rows, atoms)
@@ -39,8 +49,8 @@ def test_same_Egb_and_n_smaller_rep_wins():
 
 def test_same_rep_smaller_shift_wins():
     rows = [
-        _row(0.5, 0.1, rx=1, ry=1, dx=3.0, dy=4.0),   # |d|² = 25
-        _row(0.5, 0.1, rx=1, ry=1, dx=0.5, dy=0.5),   # |d|² = 0.5 — should win
+        _row(0.5, 0.1, rx=1, ry=1, dx=3.0, dy=4.0),  # |d|² = 25
+        _row(0.5, 0.1, rx=1, ry=1, dx=0.5, dy=0.5),  # |d|² = 0.5 — should win
     ]
     atoms = [_atoms("H"), _atoms("Li")]
     out_rows, out_atoms = dedup(rows, atoms)
