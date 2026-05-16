@@ -424,15 +424,93 @@ def __import_calphy():
 
 
 def _setup_calculation(calc):
-    """Indirection seam so tests can monkeypatch without importing calphy."""
+    """Build the calphy phase-job from a Calculation.
+
+    calphy 1.5.6 exposes one job class per reference phase / mode:
+    ``Solid``, ``Liquid``, ``Alchemy``, ``MeltingTemp``,
+    ``CompositionTransformation``. The mode/reference-phase fields on
+    ``calc`` pick the constructor; the simfolder is materialised via
+    ``calc.create_folders()`` before the job is built (the constructors
+    immediately write ``input_file.yaml`` into ``simfolder``, so it must
+    exist on disk).
+    """
     calphy = __import_calphy()
-    return calphy.kernel.setup_calculation(calc)
+    simfolder = calc.create_folders()
+    mode = getattr(calc, "mode", None)
+    ref = getattr(calc, "reference_phase", None)
+    if mode == "alchemy":
+        return calphy.Alchemy(calculation=calc, simfolder=simfolder)
+    if mode == "composition_scaling":
+        from calphy.routines import CompositionTransformation
+
+        return CompositionTransformation(calculation=calc, simfolder=simfolder)
+    if mode == "melting_temperature":
+        return calphy.MeltingTemp(calculation=calc, simfolder=simfolder)
+    # fe / ts / tscale / pscale fork on reference_phase
+    if ref == "liquid":
+        return calphy.Liquid(calculation=calc, simfolder=simfolder)
+    return calphy.Solid(calculation=calc, simfolder=simfolder)
 
 
 def _run_calculation(job):
-    """Same indirection seam for ``calphy.kernel.run_calculation``."""
-    calphy = __import_calphy()
-    return calphy.kernel.run_calculation(job)
+    """Run a calphy phase-job to completion.
+
+    For ``fe``/``ts``/``tscale``/``pscale`` we inline the routine flow:
+    ``run_averaging`` → ``process_averaging_results`` (populates
+    ``self.lx/ly/lz`` from ``avg.dat`` — the step that calphy 1.5.6's
+    ``routine_fe`` omits, expected to be supplied externally by the
+    CLI orchestrator) → ``run_integration`` → integrate. ``alchemy``,
+    ``composition_scaling``, ``melting_temperature`` delegate to the
+    upstream routines unchanged.
+    """
+    from calphy import MeltingTemp
+    from calphy.routines import (
+        routine_alchemy,
+        routine_composition_scaling,
+    )
+
+    if isinstance(job, MeltingTemp):
+        job.run_jobs()
+        return job
+
+    mode = getattr(getattr(job, "calc", None), "mode", None)
+
+    if mode in ("fe", "ts", "tscale", "pscale"):
+        # ── averaging ─────────────────────────────────────────────────
+        job.run_averaging()
+        # bridge missing from upstream routine_fe; populates lx/ly/lz
+        # and the spring constants used by run_integration.
+        job.process_averaging_results()
+        # ── free-energy integration (always; ts/tscale/pscale piggyback) ─
+        for i in range(job.calc.n_iterations):
+            job.run_integration(iteration=i + 1)
+        job.thermodynamic_integration()
+        job.submit_report()
+        if mode == "ts":
+            for i in range(job.calc.n_iterations):
+                job.reversible_scaling(iteration=i + 1)
+            job.integrate_reversible_scaling(scale_energy=True)
+        elif mode == "tscale":
+            for i in range(job.calc.n_iterations):
+                job.reversible_scaling(iteration=i + 1)
+            job.integrate_reversible_scaling(scale_energy=False)
+        elif mode == "pscale":
+            for i in range(job.calc.n_iterations):
+                job.pressure_scaling(iteration=i + 1)
+            job.integrate_pressure_scaling()
+        job.clean_up()
+        return job
+
+    if mode == "alchemy":
+        return routine_alchemy(job)
+    if mode == "composition_scaling":
+        return routine_composition_scaling(job)
+
+    raise ValueError(
+        f"No calphy routine for mode={mode!r}. Supported: "
+        "'fe', 'ts', 'tscale', 'pscale', 'alchemy', 'composition_scaling', "
+        "'melting_temperature'."
+    )
 
 
 def _run_calphy_job(calc):

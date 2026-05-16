@@ -1289,3 +1289,137 @@ def test_public_free_energy_exports():
     assert expected.issubset(set(fe.__all__))
     for name in expected:
         assert hasattr(fe, name), f"missing public export: {name}"
+
+
+# -- Adapter dispatch regression tests (calphy 1.5.6 API) ---------------------
+
+
+class _FakeCalc:
+    """Stand-in for calphy.input.Calculation used by adapter dispatch tests."""
+
+    def __init__(self, mode: str, reference_phase: str = "solid") -> None:
+        self.mode = mode
+        self.reference_phase = reference_phase
+        self.n_iterations = 1
+        self._folder_created = False
+
+    def create_folders(self) -> str:
+        self._folder_created = True
+        return "/tmp/_fake_simfolder"
+
+
+class _RecordingJob:
+    """Captures method invocations in order for adapter-flow assertions."""
+
+    def __init__(self, calc: _FakeCalc) -> None:
+        self.calc = calc
+        self.calls: list[str] = []
+
+    def __getattr__(self, name):
+        if name.startswith("_") or name in ("calc", "calls"):
+            raise AttributeError(name)
+
+        def _record(*args, **kwargs):
+            self.calls.append(name)
+
+        return _record
+
+
+def _patch_calphy_module(monkeypatch):
+    """Install a stand-in calphy module so _setup_calculation can dispatch."""
+    import sys
+    import types
+
+    fake = types.SimpleNamespace()
+    fake.Solid = lambda calculation=None, simfolder=None: _RecordingJob(calculation)
+    fake.Liquid = lambda calculation=None, simfolder=None: _RecordingJob(calculation)
+    fake.Alchemy = lambda calculation=None, simfolder=None: _RecordingJob(calculation)
+    fake.MeltingTemp = type("MeltingTemp", (_RecordingJob,), {})
+
+    fake_routines = types.SimpleNamespace()
+    fake_routines.CompositionTransformation = (
+        lambda calculation=None, simfolder=None: _RecordingJob(calculation)
+    )
+    fake_routines.routine_alchemy = lambda job: (
+        job.calls.append("routine_alchemy") or job
+    )
+    fake_routines.routine_composition_scaling = lambda job: (
+        job.calls.append("routine_composition_scaling") or job
+    )
+    monkeypatch.setitem(sys.modules, "calphy", fake)
+    monkeypatch.setitem(sys.modules, "calphy.routines", fake_routines)
+    fake.routines = fake_routines
+
+
+def test_run_calculation_inlines_process_averaging_for_fe(monkeypatch):
+    """fe-mode dispatch must call process_averaging_results between averaging and integration."""
+    _patch_calphy_module(monkeypatch)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _run_calculation,
+    )
+
+    job = _RecordingJob(_FakeCalc("fe"))
+    _run_calculation(job)
+    expected_prefix = [
+        "run_averaging",
+        "process_averaging_results",
+        "run_integration",
+        "thermodynamic_integration",
+        "submit_report",
+        "clean_up",
+    ]
+    assert job.calls == expected_prefix, job.calls
+
+
+def test_run_calculation_ts_appends_reversible_scaling(monkeypatch):
+    """ts mode adds reversible_scaling + integrate_reversible_scaling at the end."""
+    _patch_calphy_module(monkeypatch)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _run_calculation,
+    )
+
+    job = _RecordingJob(_FakeCalc("ts"))
+    _run_calculation(job)
+    assert "reversible_scaling" in job.calls
+    assert "integrate_reversible_scaling" in job.calls
+    assert job.calls.index("reversible_scaling") > job.calls.index("run_integration")
+
+
+def test_run_calculation_pscale_branches_to_pressure_scaling(monkeypatch):
+    """pscale mode uses pressure_scaling / integrate_pressure_scaling, not the ts variants."""
+    _patch_calphy_module(monkeypatch)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _run_calculation,
+    )
+
+    job = _RecordingJob(_FakeCalc("pscale"))
+    _run_calculation(job)
+    assert "pressure_scaling" in job.calls
+    assert "integrate_pressure_scaling" in job.calls
+    assert "reversible_scaling" not in job.calls
+
+
+def test_run_calculation_rejects_unknown_mode(monkeypatch):
+    _patch_calphy_module(monkeypatch)
+    import pytest as _pytest
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _run_calculation,
+    )
+
+    job = _RecordingJob(_FakeCalc("totally-fake"))
+    with _pytest.raises(ValueError, match="No calphy routine for mode"):
+        _run_calculation(job)
+
+
+def test_setup_calculation_creates_simfolder_first(monkeypatch):
+    """_setup_calculation must materialise the simfolder before constructing the job."""
+    _patch_calphy_module(monkeypatch)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _setup_calculation,
+    )
+
+    calc = _FakeCalc("fe", reference_phase="solid")
+    job = _setup_calculation(calc)
+    assert calc._folder_created, "create_folders() must run before the job is built"
+    assert isinstance(job, _RecordingJob)
