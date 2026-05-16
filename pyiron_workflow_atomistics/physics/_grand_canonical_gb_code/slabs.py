@@ -44,7 +44,7 @@ def compute_dhkl(crystal: str, plane: list[int], a: float, c: float = 0.0) -> fl
             4 / 3 * (plane[0] ** 2 + plane[0] * plane[1] + plane[1] ** 2) / a**2
             + plane[3] ** 2 / c**2
         )
-    raise Exception(f"Crystal structure '{crystal}' is not yet supported.")
+    raise ValueError(f"Crystal structure '{crystal}' is not yet supported.")
 
 
 _CRYSTAL_TYPES: dict[str, type] = {
@@ -72,7 +72,7 @@ def make_slabs(
     """
     cs = crystal.lower()
     if cs not in _CRYSTAL_TYPES:
-        raise Exception(f"Crystal structure '{crystal}' is not yet supported.")
+        raise ValueError(f"Crystal structure '{crystal}' is not yet supported.")
 
     init_size = (1, 1, size_z)
     builder = _CRYSTAL_TYPES[cs]
@@ -121,7 +121,7 @@ def make_slabs(
                            directions=lower_dirs, size=init_size)
         unique_z = sorted(set(parent.positions[:, 2].round(6)))
     else:  # unreachable
-        raise Exception(f"Unhandled crystal '{crystal}'")
+        raise ValueError(f"Unhandled crystal '{crystal}'")
 
     dlat = abs(unique_z[1] - unique_z[0])
 

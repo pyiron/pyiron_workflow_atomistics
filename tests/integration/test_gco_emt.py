@@ -25,6 +25,7 @@ from pyiron_workflow_atomistics.physics.grand_canonical_gb import (
 )
 
 
+@pytest.mark.slow
 def test_gco_search_emt_minimize_only(tmp_path):
     lower, upper, dlat = build_bicrystal_slabs.node_function(
         crystal="fcc",
@@ -62,6 +63,7 @@ def test_gco_search_emt_minimize_only(tmp_path):
     assert len(df) == len(atoms_list)
 
 
+@pytest.mark.slow
 def test_gco_search_emt_with_md(tmp_path):
     lower, upper, dlat = build_bicrystal_slabs.node_function(
         crystal="fcc",

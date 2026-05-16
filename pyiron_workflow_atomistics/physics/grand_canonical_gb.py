@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -143,7 +142,7 @@ def _make_iter_md_engine(
 
 def _validate_workflow_inputs(
     minimize_engine: Engine,
-    md_engine: Optional[Engine],
+    md_engine: Engine | None,
     config: GCOConfig,
     n_iters: int,
     e_cohesive: float,
@@ -186,7 +185,7 @@ def gco_search(
     e_cohesive: float,
     config: GCOConfig = GCOConfig(),
     n_iters: int = 100,
-    md_engine: Optional[Engine] = None,
+    md_engine: Engine | None = None,
     seed: int = 0,
     dlat: float = 0.0,
 ) -> tuple[pd.DataFrame, list[Atoms]]:
