@@ -91,6 +91,8 @@ def main() -> int:
     _root = Path(__file__).resolve().parent.parent
     if str(_root) not in sys.path:
         sys.path.insert(0, str(_root))
+    from pyiron_workflow import Workflow
+
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
     from pyiron_workflow_atomistics.physics.bulk import (
         optimise_cubic_lattice_parameter,
@@ -114,9 +116,23 @@ def main() -> int:
         properties=("energy", "forces", "volume"),
     )
 
-    # ---- 1) EOS sweep → equilibrium cubic lattice constant ----------------
-    t_eos = time.time()
-    opt = optimise_cubic_lattice_parameter(
+    fc2_sc = (args.fc2_supercell * np.eye(3)).astype(int)
+    fc3_sc = (args.fc3_supercell * np.eye(3)).astype(int)
+
+    # Build a single Workflow that wires EOS-optimised structure straight
+    # into the phonon macro. Channels are connected via wf.opt.outputs.*,
+    # so wf.run() executes EOS first, then the phonon macro on the relaxed
+    # cell, in one graph rather than two manual calls.
+    print(
+        f"[{args.label}] start: "
+        f"fc2={args.fc2_supercell}**3 ({len(structure) * args.fc2_supercell ** 3} atoms), "
+        f"fc3={args.fc3_supercell}**3 ({len(structure) * args.fc3_supercell ** 3} atoms), "
+        f"n_snap={args.n_snapshots}, initial a={args.lattice_a:.4f} Å",
+        flush=True,
+    )
+    t_total = time.time()
+    wf = Workflow(f"al_kappa_{spec['kind']}")
+    wf.opt = optimise_cubic_lattice_parameter(
         structure=structure,
         name="Al",
         crystalstructure="fcc",
@@ -125,41 +141,8 @@ def main() -> int:
         num_points=args.eos_num_points,
         eos_type="birchmurnaghan",
     )
-    opt.run()
-    a0 = float(opt.outputs.a0.value)
-    bulk_modulus_GPa = float(opt.outputs.B.value)
-    e0_per_atom = float(opt.outputs.equil_energy_per_atom.value)
-    v0_per_atom = float(opt.outputs.equil_volume_per_atom.value)
-    eos_volumes = [float(v) for v in opt.outputs.volumes.value]
-    eos_energies = [float(e) for e in opt.outputs.energies.value]
-    dt_eos = time.time() - t_eos
-
-    structure_relaxed = bulk("Al", "fcc", a=a0, cubic=True)
-    structure_relaxed.calc = calc
-    e0 = float(structure_relaxed.get_potential_energy())
-    f0_max = float(np.linalg.norm(structure_relaxed.get_forces(), axis=1).max())
-    structure_relaxed.calc = None
-
-    fc2_sc = (args.fc2_supercell * np.eye(3)).astype(int)
-    fc3_sc = (args.fc3_supercell * np.eye(3)).astype(int)
-
-    print(
-        f"[{args.label}] eos done in {dt_eos:.1f}s: a0={a0:.4f} Å (initial {args.lattice_a:.4f}), "
-        f"B={bulk_modulus_GPa:.1f} GPa, E0/atom={e0_per_atom:.4f} eV, |F|max={f0_max:.2e} eV/Å",
-        flush=True,
-    )
-    print(
-        f"[{args.label}] phonon start: "
-        f"fc2={args.fc2_supercell}**3 ({len(structure_relaxed) * args.fc2_supercell ** 3} atoms), "
-        f"fc3={args.fc3_supercell}**3 ({len(structure_relaxed) * args.fc3_supercell ** 3} atoms), "
-        f"n_snap={args.n_snapshots}",
-        flush=True,
-    )
-
-    # ---- 2) Phonon thermal conductivity on the relaxed lattice ------------
-    t0 = time.time()
-    wf = calculate_phonon_thermal_conductivity(
-        structure=structure_relaxed,
+    wf.phonon = calculate_phonon_thermal_conductivity(
+        structure=wf.opt.outputs.equil_struct,
         engine=engine.with_working_directory("phonon"),
         fc2_supercell_matrix=fc2_sc,
         fc3_supercell_matrix=fc3_sc,
@@ -173,8 +156,23 @@ def main() -> int:
         harmonic_observables=True,
     )
     wf.run()
-    out = wf.outputs.phonon_output.value
-    dt = time.time() - t0
+    dt = time.time() - t_total
+
+    a0 = float(wf.opt.outputs.a0.value)
+    bulk_modulus_GPa = float(wf.opt.outputs.B.value)
+    e0_per_atom = float(wf.opt.outputs.equil_energy_per_atom.value)
+    v0_per_atom = float(wf.opt.outputs.equil_volume_per_atom.value)
+    eos_volumes = [float(v) for v in wf.opt.outputs.volumes.value]
+    eos_energies = [float(e) for e in wf.opt.outputs.energies.value]
+    structure_relaxed = wf.opt.outputs.equil_struct.value
+    out = wf.phonon.outputs.phonon_output.value
+
+    # Cheap sanity check at the relaxed lattice (not part of the workflow graph).
+    structure_relaxed.calc = calc
+    e0 = float(structure_relaxed.get_potential_energy())
+    f0_max = float(np.linalg.norm(structure_relaxed.get_forces(), axis=1).max())
+    structure_relaxed.calc = None
+    dt_eos = 0.0  # subsumed by single wf.run() — kept in payload for back-compat
 
     # Pickle only what the notebook plots — keep the dump small and
     # cross-env-loadable (no live phono3py / TF / torch handles).
@@ -211,7 +209,8 @@ def main() -> int:
         if abs(T - 300.0) < 1e-9:
             kappa_diag_300 = np.diag(K).tolist()
     print(
-        f"[{args.label}] phonon done in {dt:.1f}s (total {dt_eos + dt:.1f}s), "
+        f"[{args.label}] workflow done in {dt:.1f}s: "
+        f"a0={a0:.4f} Å, B={bulk_modulus_GPa:.1f} GPa, "
         f"kappa_300_diag={kappa_diag_300} W/(m·K), wrote {args.out_pkl}",
         flush=True,
     )
