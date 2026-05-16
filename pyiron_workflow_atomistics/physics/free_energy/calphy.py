@@ -68,11 +68,15 @@ def _run_one(
             **builder_kwargs,
         )
         job, report = _run_calphy_job(calc)
+        # job.simfolder is calphy's job-folder (e.g. ".../ts-lammps.data-solid-200-0"),
+        # one level deeper than the wrapper's parent simfolder. The sweep files
+        # (temperature_sweep.dat, pressure_sweep.dat) live there, so the packer
+        # must read job.simfolder rather than the parent.
         return _pack_free_energy_output(
             mode=mode,
             job=job,
             report=report,
-            simfolder=simfolder,
+            simfolder=getattr(job, "simfolder", simfolder),
             structure=structure,
             reference_phase=reference_phase,
             temperature=temperature,
