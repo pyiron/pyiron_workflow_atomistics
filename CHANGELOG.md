@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.0.10] — 2026-05-16
+
+### Added
+
+- **`pyiron_workflow_atomistics.physics.grand_canonical_gb`** — new
+  subpackage for grand-canonical optimization (GCO) of grain-boundary
+  phases. Port of the algorithm from Chen, Heo, Wood, Asta, Frolov,
+  *Nat. Commun.* **15**, 7049 (2024) (upstream:
+  https://github.com/enze-chen/grip). Two public function-nodes:
+  - ``gco_search(minimize_engine, lower_slab, upper_slab, e_cohesive,
+    config, n_iters, md_engine=None, seed=0, dlat=0.0)``
+    — sequential per-seed GCO loop returning a kept-structure DataFrame
+    plus the corresponding list of ``ase.Atoms``. Parallelism across
+    seeds is composed by the caller via ``for_node``.
+  - ``build_bicrystal_slabs(crystal, symbol, a, upper_dirs, lower_dirs,
+    c=0.0, cutoff=35.0, size_z=15)`` — convenience slab builder for fcc/bcc/hcp/
+    dc/sc.
+- **`GCOConfig`** dataclass — all algorithmic knobs (geometry,
+  sampling, MD, dedup). Pre-loop validation rejects inconsistent
+  configs; warnings on sketchy ones.
+
+### Out of scope (v2 follow-ups)
+
+- LAMMPS-engine MD integration (waits on ``pyiron_workflow_lammps``
+  shipping ``CalcInputMD`` support; ``gco_search`` will work unchanged).
+- Multi-component composition sampling (GRIP ``inter_w`` / ``inter_s``).
+- ``plot_gco.py`` equivalent (existing matplotlib idioms in
+  ``physics.grain_boundary`` cover n-vs-Egb plots).
+- Aggressive ``extra=True`` dedup pass.
+
 ## [0.0.9] — 2026-05-15
 
 ### Added
