@@ -9,7 +9,7 @@ import contextlib
 import json
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -133,7 +133,7 @@ def ase_calc_structure(
     record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10_000,
-    cell_relaxation: str = "none",
+    cell_relaxation: Literal["none", "volume", "shape", "full"] = "none",
     energy_convergence_tolerance: float | None = None,
     properties: tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
     write_to_disk: bool = False,
