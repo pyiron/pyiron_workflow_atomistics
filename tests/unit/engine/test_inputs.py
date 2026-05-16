@@ -6,11 +6,10 @@ import warnings
 import pytest
 
 from pyiron_workflow_atomistics.engine.inputs import (
+    CalcInputMD,
     CalcInputMinimize,
     CalcInputStatic,
-    CalcInputMD,
 )
-
 
 # ---------------------------------------------------------------------------
 # Legacy tests (preserved from original test_inputs.py)
@@ -66,9 +65,7 @@ class TestCellRelaxationField:
         ci = CalcInputMinimize()
         assert ci.cell_relaxation == "none"
 
-    @pytest.mark.parametrize(
-        "value", ["none", "volume", "shape", "full"]
-    )
+    @pytest.mark.parametrize("value", ["none", "volume", "shape", "full"])
     def test_accepts_all_four_modes(self, value):
         ci = CalcInputMinimize(cell_relaxation=value)
         assert ci.cell_relaxation == value

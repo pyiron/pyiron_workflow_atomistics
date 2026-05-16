@@ -22,12 +22,16 @@ def _make_engine(tmp_path, mode):
 class TestASEMinimizeRouting:
     def test_none_runs(self, tmp_path):
         eng = _make_engine(tmp_path, "none")
-        out = calculate.node_function(structure=bulk("Cu", "fcc", a=3.6, cubic=True), engine=eng)
+        out = calculate.node_function(
+            structure=bulk("Cu", "fcc", a=3.6, cubic=True), engine=eng
+        )
         assert out.final_energy is not None
 
     def test_full_runs(self, tmp_path):
         eng = _make_engine(tmp_path, "full")
-        out = calculate.node_function(structure=bulk("Cu", "fcc", a=3.6, cubic=True), engine=eng)
+        out = calculate.node_function(
+            structure=bulk("Cu", "fcc", a=3.6, cubic=True), engine=eng
+        )
         assert out.final_energy is not None
 
     @pytest.mark.parametrize("mode", ["volume", "shape"])
