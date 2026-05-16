@@ -27,6 +27,7 @@ def test_calc_input_minimize_defaults():
     assert inp.force_convergence_tolerance > 0
     assert inp.energy_convergence_tolerance > 0
     assert inp.max_iterations > 0
+    assert inp.cell_relaxation == "none"
     assert inp.relax_cell is False
 
 

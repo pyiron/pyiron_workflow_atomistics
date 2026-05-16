@@ -8,6 +8,7 @@ responsible for translating these to its native parameters.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Literal
 
@@ -65,9 +66,7 @@ class CalcInputMinimize:
                 "relax_cell is deprecated; prefer cell_relaxation."
             )
         if relax_cell is not None:
-            import warnings as _warnings
-
-            _warnings.warn(
+            warnings.warn(
                 "relax_cell is deprecated; use cell_relaxation='full' or "
                 "cell_relaxation='none' instead.",
                 DeprecationWarning,
@@ -76,10 +75,10 @@ class CalcInputMinimize:
             cell_relaxation = "full" if relax_cell else "none"
         if cell_relaxation is None:
             cell_relaxation = "none"
-        object.__setattr__(self, "force_convergence_tolerance", force_convergence_tolerance)
-        object.__setattr__(self, "energy_convergence_tolerance", energy_convergence_tolerance)
-        object.__setattr__(self, "max_iterations", max_iterations)
-        object.__setattr__(self, "cell_relaxation", cell_relaxation)
+        self.force_convergence_tolerance = force_convergence_tolerance
+        self.energy_convergence_tolerance = energy_convergence_tolerance
+        self.max_iterations = max_iterations
+        self.cell_relaxation = cell_relaxation
 
     @property
     def relax_cell(self) -> bool:
