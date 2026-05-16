@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.0.11] — 2026-05-16
+
+### Fixed
+
+- **`physics.grand_canonical_gb` GB-energy formula.** The ported
+  ``gb_energy()`` followed GRIP's ``(E_total − n_mask·E_coh) / area``
+  formulation, which only works when the calculator provides per-atom
+  energy decomposition (LAMMPS-native). Under any ASE engine the full
+  slab energy was summed against a partial atom mask, producing
+  non-physical negative excess that clamped to 100 J/m² every iteration.
+  Now matches ``physics.grain_boundary.get_GB_energy``:
+
+      Egb = (E_total − N·E_coh) / (2·area) · 16.021766    [J/m²]
+
+  where ``N`` is the **total** atom count in the slab and the factor of 2
+  accounts for the two equivalent GB planes in a periodic bicrystal.
+  The private ``_count_atoms_in_gb_region`` helper is removed.
+- The ``n_gb_atoms`` parameter of ``gb_energy()`` is renamed to
+  ``n_atoms`` to reflect the new semantics. The signature change is
+  internal to ``_grand_canonical_gb_code`` (not part of the public
+  ``physics.grand_canonical_gb`` API), so consumers of ``gco_search``
+  see no breakage.
+
 ## [0.0.10] — 2026-05-16
 
 ### Added
