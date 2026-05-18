@@ -57,3 +57,56 @@ def require_dynaphopy() -> Any:
             "dynaphopy is required for this workflow. "
             "Install with: pip install pyiron_workflow_atomistics[phonons-md]"
         ) from e
+
+
+def ir_qpoints_and_weights(
+    *,
+    mesh,
+    phonopy_obj,
+    is_gamma_center: bool = True,
+    is_mesh_symmetry: bool = True,
+) -> tuple[Any, Any]:
+    """Return ir-q-points and weights on a Monkhorst-Pack mesh of the primitive cell.
+
+    Bridges the phonopy v3 → v4 API split:
+
+    * v4 (``phonopy>=4.0``) exposes ``phonopy.phonon.grid.get_ir_qpoints_and_weights``
+      which takes the primitive lattice (row vectors) plus a ``Symmetry`` object.
+    * v3 used ``phonopy.structure.grid_points.GridPoints``, which took the
+      reciprocal lattice plus a raw rotations array.
+
+    ``phonopy_obj`` is an already-built ``phonopy.Phonopy`` instance whose
+    ``.primitive`` and ``.primitive_symmetry`` are used to seed the grid.
+    Built before force constants exist so callers cannot rely on
+    ``Phonopy.run_mesh``.
+    """
+    require_phonopy()
+    import numpy as np
+
+    mesh_arr = np.asarray(list(mesh), dtype="int64")
+    primitive_lattice = np.asarray(phonopy_obj.primitive.cell, dtype="double")
+
+    try:
+        from phonopy.phonon.grid import get_ir_qpoints_and_weights  # v4
+    except ImportError:
+        from phonopy.structure.grid_points import GridPoints  # v3
+
+        reciprocal_lattice = np.linalg.inv(primitive_lattice).T
+        rotations = phonopy_obj.primitive_symmetry.pointgroup_operations
+        gp = GridPoints(
+            mesh_numbers=mesh_arr,
+            reciprocal_lattice=reciprocal_lattice,
+            rotations=rotations,
+            is_mesh_symmetry=is_mesh_symmetry,
+            is_gamma_center=is_gamma_center,
+        )
+        return np.asarray(gp.qpoints, dtype=float), np.asarray(gp.weights, dtype=float)
+
+    q_points, weights = get_ir_qpoints_and_weights(
+        mesh=mesh_arr,
+        lattice=primitive_lattice,
+        primitive_symmetry=phonopy_obj.primitive_symmetry,
+        is_gamma_center=is_gamma_center,
+        is_mesh_symmetry=is_mesh_symmetry,
+    )
+    return np.asarray(q_points, dtype=float), np.asarray(weights, dtype=float)

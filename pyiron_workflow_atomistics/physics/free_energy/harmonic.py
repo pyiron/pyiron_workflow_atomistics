@@ -86,20 +86,6 @@ def _produce_fc2_view(
     return phonon
 
 
-class _Phono3pyShim:
-    """Minimal adapter exposing the four attributes _compute_harmonic_observables reads.
-
-    `_compute_harmonic_observables` was originally written against a Phono3py
-    object; for the harmonic-only path we hand it a Phonopy view with the
-    same four attributes. Keeps the helper signature unchanged.
-    """
-
-    def __init__(self, phonopy_view) -> None:
-        self.phonon_primitive = phonopy_view.primitive
-        self.phonon_supercell_matrix = phonopy_view.supercell_matrix
-        self.fc2 = phonopy_view.force_constants
-
-
 @pwf.as_function_node("free_energy_output")
 def _pack_harmonic_output(
     structure: Atoms,
@@ -131,7 +117,7 @@ def _pack_harmonic_output(
 
     T = np.asarray(temperatures, dtype=float)
     band_structure, dos, free_energy_dict = _compute_harmonic_observables(
-        ph3=_Phono3pyShim(phonopy_view), temperatures=T
+        ph3=phonopy_view, temperatures=T
     )
     # phonopy → eV / (eV/K) per primitive-cell atom.
     n_atoms_primitive = len(phonopy_view.primitive)
