@@ -9,7 +9,7 @@ import contextlib
 import json
 import os
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -133,7 +133,7 @@ def ase_calc_structure(
     record_interval: int = 1,
     fmax: float = 0.01,
     max_steps: int = 10_000,
-    relax_cell: bool = False,
+    cell_relaxation: Literal["none", "volume", "shape", "full"] = "none",
     energy_convergence_tolerance: float | None = None,
     properties: tuple[str, ...] = ("energy", "forces", "stresses", "volume"),
     write_to_disk: bool = False,
@@ -175,7 +175,14 @@ def ase_calc_structure(
         converged = True
     else:
         # Relaxation
-        if relax_cell:
+        if cell_relaxation in ("volume", "shape"):
+            raise NotImplementedError(
+                f"ASEEngine does not support cell_relaxation={cell_relaxation!r}; "
+                "ASE has no native volume-only or shape-only relaxation primitive. "
+                "Use cell_relaxation='full' or switch to a backend that supports "
+                "it (e.g. VaspEngine)."
+            )
+        if cell_relaxation == "full":
             try:
                 from ase.filters import ExpCellFilter
             except ImportError:  # pragma: no cover  (ASE < 3.23)
@@ -457,7 +464,7 @@ class ASEEngine:
                 "record_interval": self.record_interval,
                 "fmax": mi.force_convergence_tolerance,
                 "max_steps": self.max_steps if self.max_steps else mi.max_iterations,
-                "relax_cell": mi.relax_cell,
+                "cell_relaxation": mi.cell_relaxation,
                 "energy_convergence_tolerance": mi.energy_convergence_tolerance,
             }
             return ase_calc_structure, kwargs

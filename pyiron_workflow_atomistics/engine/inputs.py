@@ -8,6 +8,7 @@ responsible for translating these to its native parameters.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 from typing import Literal
 
@@ -19,7 +20,7 @@ class CalcInputStatic:
     pass
 
 
-@dataclass
+@dataclass(init=False)
 class CalcInputMinimize:
     """Structural relaxation parameters.
 
@@ -31,14 +32,58 @@ class CalcInputMinimize:
         Energy change between consecutive steps, in eV. Default 1e-5.
     max_iterations
         Hard cap on optimiser steps.
-    relax_cell
-        If True, relax cell vectors too (variable-cell relaxation).
+    cell_relaxation
+        Which cell degrees of freedom to relax. ``"none"`` (atoms only,
+        fixed cell), ``"volume"`` (cell volume only, shape and atoms
+        fixed), ``"shape"`` (cell shape only, volume and atoms fixed), or
+        ``"full"`` (cell + atoms). Default ``"none"``.
+
+    Notes
+    -----
+    The legacy ``relax_cell: bool`` argument is still accepted but
+    deprecated — ``relax_cell=True`` is an alias for
+    ``cell_relaxation="full"`` and ``relax_cell=False`` for
+    ``cell_relaxation="none"``. Specifying both raises ``ValueError``.
     """
 
     force_convergence_tolerance: float = 1e-2
     energy_convergence_tolerance: float = 1e-5
     max_iterations: int = 1_000_000
-    relax_cell: bool = False
+    cell_relaxation: Literal["none", "volume", "shape", "full"] = "none"
+
+    def __init__(
+        self,
+        force_convergence_tolerance: float = 1e-2,
+        energy_convergence_tolerance: float = 1e-5,
+        max_iterations: int = 1_000_000,
+        cell_relaxation: Literal["none", "volume", "shape", "full"] | None = None,
+        *,
+        relax_cell: bool | None = None,
+    ) -> None:
+        if cell_relaxation is not None and relax_cell is not None:
+            raise ValueError(
+                "Specify cell_relaxation OR relax_cell, not both. "
+                "relax_cell is deprecated; prefer cell_relaxation."
+            )
+        if relax_cell is not None:
+            warnings.warn(
+                "relax_cell is deprecated; use cell_relaxation='full' or "
+                "cell_relaxation='none' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            cell_relaxation = "full" if relax_cell else "none"
+        if cell_relaxation is None:
+            cell_relaxation = "none"
+        self.force_convergence_tolerance = force_convergence_tolerance
+        self.energy_convergence_tolerance = energy_convergence_tolerance
+        self.max_iterations = max_iterations
+        self.cell_relaxation = cell_relaxation
+
+    @property
+    def relax_cell(self) -> bool:
+        """Deprecated. Backwards-compat property: True iff cell_relaxation != 'none'."""
+        return self.cell_relaxation != "none"
 
 
 @dataclass
