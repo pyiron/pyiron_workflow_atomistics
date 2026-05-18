@@ -9,7 +9,10 @@ from ase import Atoms
 from pyiron_workflow_atomistics.engine import Engine
 from pyiron_workflow_atomistics.physics.free_energy.harmonic import _resolve_simfolder
 from pyiron_workflow_atomistics.physics.free_energy.outputs import FreeEnergyOutput
-from pyiron_workflow_atomistics.physics.phonons._compat import require_phonopy
+from pyiron_workflow_atomistics.physics.phonons._compat import (
+    ir_qpoints_and_weights,
+    require_phonopy,
+)
 from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
     calculate_phonon_md_renormalisation,
 )
@@ -101,19 +104,17 @@ def _free_energy_from_spectrum(
 def _commensurate_q_points(structure: Atoms, q_mesh) -> tuple[np.ndarray, np.ndarray]:
     """Return (q_points, weights) on a commensurate Monkhorst-Pack mesh.
 
-    Phonopy's `GridPoints` lays out the mesh on the *primitive* cell that
-    phonopy infers via primitive_matrix="auto". We mirror that convention
-    here so the mesh is consistent with the FC2 view dynaphopy projects into.
-    Weights sum to 1.
+    The mesh is laid out on the *primitive* cell that phonopy infers via
+    primitive_matrix="auto", so it stays consistent with the FC2 view
+    dynaphopy projects into. Weights sum to 1.
 
-    Uses ``phonopy.structure.grid_points.GridPoints`` directly so the mesh
-    can be built before force constants exist — ``Phonopy.run_mesh`` requires
-    a built dynamical matrix, which we do not have at this stage.
+    The actual ir-grid reduction is delegated to
+    :func:`pyiron_workflow_atomistics.physics.phonons._compat.ir_qpoints_and_weights`,
+    which bridges the phonopy v3/v4 API split (``GridPoints`` → ``get_ir_qpoints_and_weights``).
     """
     require_phonopy()
     import phonopy
     from phonopy.structure.atoms import PhonopyAtoms
-    from phonopy.structure.grid_points import GridPoints
 
     unitcell = PhonopyAtoms(
         symbols=list(structure.get_chemical_symbols()),
@@ -126,20 +127,12 @@ def _commensurate_q_points(structure: Atoms, q_mesh) -> tuple[np.ndarray, np.nda
         supercell_matrix=np.eye(3, dtype=int),
         primitive_matrix="auto",
     )
-    primitive = phonon.primitive
-    # phonopy reciprocal-lattice convention: column vectors a*, b*, c*.
-    reciprocal_lattice = np.linalg.inv(np.asarray(primitive.cell)).T
-    rotations = phonon.primitive_symmetry.pointgroup_operations
-
-    gp = GridPoints(
-        mesh_numbers=np.asarray(list(q_mesh), dtype="int64"),
-        reciprocal_lattice=reciprocal_lattice,
-        rotations=rotations,
-        is_mesh_symmetry=True,
+    q_points, weights = ir_qpoints_and_weights(
+        mesh=q_mesh,
+        phonopy_obj=phonon,
         is_gamma_center=True,
+        is_mesh_symmetry=True,
     )
-    q_points = np.asarray(gp.qpoints, dtype=float)
-    weights = np.asarray(gp.weights, dtype=float)
     weights = weights / weights.sum()
     return q_points, weights
 

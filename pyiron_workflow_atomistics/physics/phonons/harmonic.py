@@ -121,9 +121,11 @@ def _compute_harmonic_observables(
     """Compute band structure, total DOS, and Helmholtz free energy F(T).
 
     Builds a lightweight ``Phonopy`` view from ph3's already-computed FC2
-    data (primitive cell, supercell matrix, force constants), avoiding any
-    double force-evaluation.  The default band path is derived automatically
-    by ASE from the primitive cell (``ase.dft.kpoints.bandpath``).
+    data (unit cell, supercell matrix, force constants), avoiding any
+    double force-evaluation.  Accepts either a real ``Phono3py`` instance
+    (κ workflow) or a pre-built ``Phonopy`` view (harmonic-only path).
+    The default band path is derived automatically by ASE from the
+    primitive cell (``ase.dft.kpoints.bandpath``).
 
     Returns
     -------
@@ -132,24 +134,25 @@ def _compute_harmonic_observables(
 
     Notes
     -----
-    The plan originally suggested ``ase_bandpath("GXG", ...)``, but "GXG"
-    is not a recognised high-symmetry label.  We use ``path=None`` instead
-    so ASE auto-derives the canonical path for the lattice (e.g. FCC →
-    "GXWLGKUWLKG").
-
-    ``ph3.phonon`` does not exist in the installed phono3py version; instead
-    we build a ``Phonopy`` instance directly from ``ph3.phonon_primitive``,
-    ``ph3.phonon_supercell_matrix``, and ``ph3.fc2``.
+    Rebuilding from ``ph3.unitcell`` (the original input cell) — *not*
+    ``ph3.phonon_primitive`` — is required so that the supercell built by
+    Phonopy matches the supercell phono3py used when fitting ``fc2``;
+    otherwise the FC2 array shape disagrees with phonopy's expected
+    ``(num_patom_or_satom, num_satom, 3, 3)`` and phonopy v4's Rust
+    dynamical-matrix kernel raises ``ValueError`` (v3 was lenient).
     """
     import phonopy
 
-    # Build a Phonopy view from the already-computed FC2 data.
-    phonopy_view = phonopy.Phonopy(
-        unitcell=ph3.phonon_primitive,
-        supercell_matrix=ph3.phonon_supercell_matrix,
-        primitive_matrix="auto",
-    )
-    phonopy_view.force_constants = ph3.fc2
+    if isinstance(ph3, phonopy.Phonopy):
+        # Harmonic-only path: caller already built a Phonopy with FC fitted.
+        phonopy_view = ph3
+    else:
+        phonopy_view = phonopy.Phonopy(
+            unitcell=ph3.unitcell,
+            supercell_matrix=ph3.phonon_supercell_matrix,
+            primitive_matrix="auto",
+        )
+        phonopy_view.force_constants = ph3.fc2
 
     # ---- band structure (auto path from the unit cell) ----
     from ase.dft.kpoints import bandpath as ase_bandpath
