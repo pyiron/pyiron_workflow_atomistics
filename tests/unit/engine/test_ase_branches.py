@@ -59,7 +59,7 @@ def test_ase_calc_structure_static_path_records_one_frame(tmp_path):
         record_interval=1,
         fmax=0.0,
         max_steps=0,
-        relax_cell=False,
+        cell_relaxation="none",
         properties=("energy", "forces", "volume"),
         write_to_disk=False,
         working_directory=str(tmp_path),
