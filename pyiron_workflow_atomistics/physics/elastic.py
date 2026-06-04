@@ -24,11 +24,7 @@ def voigt_stress_to_gpa(stress_voigt) -> np.ndarray:
     """ASE Voigt stress (eV/A^3, order [xx,yy,zz,yz,xz,xy]) -> 3x3 tensor in GPa."""
     s = np.asarray(stress_voigt, dtype=float) * _ASE_STRESS_SIGN * EV_PER_A3_TO_GPA
     xx, yy, zz, yz, xz, xy = s
-    return np.array(
-        [[xx, xy, xz],
-         [xy, yy, yz],
-         [xz, yz, zz]]
-    )
+    return np.array([[xx, xy, xz], [xy, yy, yz], [xz, yz, zz]])
 
 
 def with_calc_input(engine, calc_input):
@@ -68,7 +64,9 @@ def generate_mp_deformations(
         norm_strains=list(norm_strains),
         shear_strains=list(shear_strains),
     )
-    deformed_structures = [AseAtomsAdaptor.get_atoms(s) for s in dss.deformed_structures]
+    deformed_structures = [
+        AseAtomsAdaptor.get_atoms(s) for s in dss.deformed_structures
+    ]
     strains = [np.asarray(d.green_lagrange_strain) for d in dss.deformations]
     return deformed_structures, strains
 

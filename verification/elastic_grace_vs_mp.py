@@ -14,6 +14,7 @@ Usage:
       /ptmp/hmai/pwa_elastic/.venv/bin/python verification/elastic_grace_vs_mp.py \
       --material Cu --out-dir verification/results
 """
+
 import argparse
 import csv
 import json
@@ -57,16 +58,18 @@ def load_grace_calculator(model_name=GRACE_MODEL):
 
     try:
         return grace_fm(model_name)
-    except AssertionError:
+    except AssertionError as err:
         from tensorpotential.calculator.asecalculator import TPCalculator
 
-        cache_dir = os.environ.get("GRACE_CACHE") or os.path.expanduser("~/.cache/grace")
+        cache_dir = os.environ.get("GRACE_CACHE") or os.path.expanduser(
+            "~/.cache/grace"
+        )
         model_path = os.path.join(cache_dir, model_name)
         if not os.path.isdir(model_path):
             raise FileNotFoundError(
                 f"{model_name} not in tensorpotential allowlist and not cached "
                 f"at {model_path}; set GRACE_CACHE to the cache root."
-            )
+            ) from err
         print(f"Using cached GRACE model from {model_path} (direct TPCalculator load)")
         return TPCalculator(model=model_path)
 
@@ -83,7 +86,9 @@ def grace_elastic(structure, workdir):
         calculator=calc,
         working_directory=os.path.abspath(workdir),
     )
-    wf = calculate_elastic_constants(structure=structure, engine=engine, relax_initial=True)
+    wf = calculate_elastic_constants(
+        structure=structure, engine=engine, relax_initial=True
+    )
     out = wf.run()
     return out["elastic_constants"]
 
@@ -108,9 +113,16 @@ def mp_reference(mp_id, api_key):
         docs = m.materials.elasticity.search(
             material_ids=[mp_id],
             fields=[
-                "material_id", "formula_pretty", "state", "warnings",
-                "bulk_modulus", "shear_modulus", "youngs_modulus",
-                "homogeneous_poisson", "universal_anisotropy", "elastic_tensor",
+                "material_id",
+                "formula_pretty",
+                "state",
+                "warnings",
+                "bulk_modulus",
+                "shear_modulus",
+                "youngs_modulus",
+                "homogeneous_poisson",
+                "universal_anisotropy",
+                "elastic_tensor",
             ],
         )
     if not docs:
@@ -118,7 +130,11 @@ def mp_reference(mp_id, api_key):
     d = docs[0]
     state = str(getattr(d, "state", None))
     warnings = list(getattr(d, "warnings", None) or [])
-    C = np.asarray(d.elastic_tensor.ieee_format) if getattr(d, "elastic_tensor", None) else None
+    C = (
+        np.asarray(d.elastic_tensor.ieee_format)
+        if getattr(d, "elastic_tensor", None)
+        else None
+    )
     ym = getattr(d, "youngs_modulus", None)
     if ym is None:
         ym = getattr(d, "young_modulus", None)
@@ -176,18 +192,29 @@ def main():
     mp = record.get("mp") or {}
     gC = np.asarray(g["elastic_tensor_ieee"]) if g.get("elastic_tensor_ieee") else None
     row = {
-        "material": args.material, "mp_id": spec["mp_id"],
-        "grace_ok": record["grace_ok"], "grace_seconds": record["grace_seconds"],
-        "mp_state": mp.get("state"), "mp_reliable": mp.get("reliable"),
+        "material": args.material,
+        "mp_id": spec["mp_id"],
+        "grace_ok": record["grace_ok"],
+        "grace_seconds": record["grace_seconds"],
+        "mp_state": mp.get("state"),
+        "mp_reliable": mp.get("reliable"),
         "grace_stable": g.get("mechanically_stable"),
-        "grace_K_VRH": g.get("K_VRH"), "mp_K_VRH": mp.get("K_VRH"),
-        "grace_G_VRH": g.get("G_VRH"), "mp_G_VRH": mp.get("G_VRH"),
-        "grace_E": g.get("youngs_modulus"), "mp_E": mp.get("youngs_modulus"),
-        "grace_poisson": g.get("poisson_ratio"), "mp_poisson": mp.get("poisson_ratio"),
-        "grace_A_U": g.get("universal_anisotropy"), "mp_A_U": mp.get("universal_anisotropy"),
-        "grace_C11": gC[0, 0] if gC is not None else None, "mp_C11": mp.get("C11"),
-        "grace_C12": gC[0, 1] if gC is not None else None, "mp_C12": mp.get("C12"),
-        "grace_C44": gC[3, 3] if gC is not None else None, "mp_C44": mp.get("C44"),
+        "grace_K_VRH": g.get("K_VRH"),
+        "mp_K_VRH": mp.get("K_VRH"),
+        "grace_G_VRH": g.get("G_VRH"),
+        "mp_G_VRH": mp.get("G_VRH"),
+        "grace_E": g.get("youngs_modulus"),
+        "mp_E": mp.get("youngs_modulus"),
+        "grace_poisson": g.get("poisson_ratio"),
+        "mp_poisson": mp.get("poisson_ratio"),
+        "grace_A_U": g.get("universal_anisotropy"),
+        "mp_A_U": mp.get("universal_anisotropy"),
+        "grace_C11": gC[0, 0] if gC is not None else None,
+        "mp_C11": mp.get("C11"),
+        "grace_C12": gC[0, 1] if gC is not None else None,
+        "mp_C12": mp.get("C12"),
+        "grace_C44": gC[3, 3] if gC is not None else None,
+        "mp_C44": mp.get("C44"),
     }
     with open(os.path.join(args.out_dir, f"{args.material}.csv"), "w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(row))

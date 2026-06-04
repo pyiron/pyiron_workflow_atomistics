@@ -6,6 +6,7 @@ import pytest
 def test_calculate_elastic_constants_emt_cu(tmp_path):
     from ase.build import bulk
     from ase.calculators.emt import EMT
+
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
     from pyiron_workflow_atomistics.physics.elastic import calculate_elastic_constants
 
@@ -24,7 +25,9 @@ def test_calculate_elastic_constants_emt_cu(tmp_path):
     d = out["elastic_constants"]
     C = np.asarray(d["elastic_tensor_voigt"])
     # Physically sane cubic metal: positive-definite, C11>C12, C44>0, sign correct
-    assert d["mechanically_stable"] is True, f"C eigenvalues {d['stiffness_eigenvalues']}"
+    assert (
+        d["mechanically_stable"] is True
+    ), f"C eigenvalues {d['stiffness_eigenvalues']}"
     assert C[0, 0] > 0 and C[0, 0] > C[0, 1]
     assert C[3, 3] > 0
     assert d["K_VRH"] > 0 and d["G_VRH"] > 0

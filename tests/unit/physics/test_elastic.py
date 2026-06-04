@@ -1,6 +1,10 @@
 import numpy as np
 from ase import Atoms
-from pyiron_workflow_atomistics.physics.elastic import voigt_stress_to_gpa, EV_PER_A3_TO_GPA
+
+from pyiron_workflow_atomistics.physics.elastic import (
+    EV_PER_A3_TO_GPA,
+    voigt_stress_to_gpa,
+)
 
 
 def test_ev_per_a3_to_gpa_constant():
@@ -23,11 +27,20 @@ def test_voigt_stress_to_gpa_shape_and_units():
 
 def test_with_calc_input_swaps_engine_mode():
     from ase.calculators.emt import EMT
-    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic, CalcInputMinimize
+
+    from pyiron_workflow_atomistics.engine import (
+        ASEEngine,
+        CalcInputMinimize,
+        CalcInputStatic,
+    )
     from pyiron_workflow_atomistics.physics.elastic import with_calc_input
 
-    base = ASEEngine(EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=".")
-    relaxed = with_calc_input(base, CalcInputMinimize(relax_cell=False, force_convergence_tolerance=1e-3))
+    base = ASEEngine(
+        EngineInput=CalcInputStatic(), calculator=EMT(), working_directory="."
+    )
+    relaxed = with_calc_input(
+        base, CalcInputMinimize(relax_cell=False, force_convergence_tolerance=1e-3)
+    )
     assert isinstance(relaxed.EngineInput, CalcInputMinimize)
     assert relaxed.EngineInput.relax_cell is False
     assert relaxed.EngineInput.force_convergence_tolerance == 1e-3
@@ -39,6 +52,7 @@ def test_with_calc_input_swaps_engine_mode():
 
 def test_generate_mp_deformations_count_and_pairing():
     from ase.build import bulk
+
     from pyiron_workflow_atomistics.physics.elastic import generate_mp_deformations
 
     atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
@@ -57,7 +71,11 @@ def test_generate_mp_deformations_count_and_pairing():
 
 def test_extract_stresses_gpa_from_engine_outputs():
     from types import SimpleNamespace
-    from pyiron_workflow_atomistics.physics.elastic import extract_stresses_gpa, EV_PER_A3_TO_GPA
+
+    from pyiron_workflow_atomistics.physics.elastic import (
+        EV_PER_A3_TO_GPA,
+        extract_stresses_gpa,
+    )
 
     o1 = SimpleNamespace(final_stress_voigt=np.array([1.0, 0, 0, 0, 0, 0]))
     o2 = SimpleNamespace(final_stress_voigt=np.array([0, 0, 0, 0, 0, 0.5]))
@@ -69,8 +87,10 @@ def test_extract_stresses_gpa_from_engine_outputs():
 
 
 def test_extract_stresses_gpa_raises_on_none():
-    import pytest
     from types import SimpleNamespace
+
+    import pytest
+
     from pyiron_workflow_atomistics.physics.elastic import extract_stresses_gpa
 
     o1 = SimpleNamespace(final_stress_voigt=np.array([1.0, 0, 0, 0, 0, 0]))
@@ -81,21 +101,24 @@ def test_extract_stresses_gpa_raises_on_none():
 
 def test_fit_elastic_tensor_recovers_known_cubic():
     from ase.build import bulk
-    from pymatgen.io.ase import AseAtomsAdaptor
     from pymatgen.analysis.elasticity.elastic import ElasticTensor
     from pymatgen.analysis.elasticity.strain import DeformedStructureSet
+    from pymatgen.io.ase import AseAtomsAdaptor
+
     from pyiron_workflow_atomistics.physics.elastic import fit_elastic_tensor
 
     # Known cubic stiffness (GPa)
     C11, C12, C44 = 200.0, 130.0, 100.0
-    voigt = np.array([
-        [C11, C12, C12, 0, 0, 0],
-        [C12, C11, C12, 0, 0, 0],
-        [C12, C12, C11, 0, 0, 0],
-        [0, 0, 0, C44, 0, 0],
-        [0, 0, 0, 0, C44, 0],
-        [0, 0, 0, 0, 0, C44],
-    ])
+    voigt = np.array(
+        [
+            [C11, C12, C12, 0, 0, 0],
+            [C12, C11, C12, 0, 0, 0],
+            [C12, C12, C11, 0, 0, 0],
+            [0, 0, 0, C44, 0, 0],
+            [0, 0, 0, 0, C44, 0],
+            [0, 0, 0, 0, 0, C44],
+        ]
+    )
     C_true = ElasticTensor.from_voigt(voigt)
 
     atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
@@ -105,7 +128,9 @@ def test_fit_elastic_tensor_recovers_known_cubic():
     # synthesize stresses (GPa) from the known tensor for each strain
     stresses = [np.asarray(C_true.calculate_stress(s)) for s in strains]
 
-    out = fit_elastic_tensor.node_function(strains=strains, stresses=stresses, structure=atoms)
+    out = fit_elastic_tensor.node_function(
+        strains=strains, stresses=stresses, structure=atoms
+    )
     C_fit = out  # single output "elastic_tensor"
     np.testing.assert_allclose(C_fit.voigt, voigt, atol=1.0)  # within 1 GPa
 
@@ -113,17 +138,20 @@ def test_fit_elastic_tensor_recovers_known_cubic():
 def test_elastic_constants_summary_known_cubic():
     from ase.build import bulk
     from pymatgen.analysis.elasticity.elastic import ElasticTensor
+
     from pyiron_workflow_atomistics.physics.elastic import elastic_constants_summary
 
     C11, C12, C44 = 200.0, 130.0, 100.0
-    voigt = np.array([
-        [C11, C12, C12, 0, 0, 0],
-        [C12, C11, C12, 0, 0, 0],
-        [C12, C12, C11, 0, 0, 0],
-        [0, 0, 0, C44, 0, 0],
-        [0, 0, 0, 0, C44, 0],
-        [0, 0, 0, 0, 0, C44],
-    ])
+    voigt = np.array(
+        [
+            [C11, C12, C12, 0, 0, 0],
+            [C12, C11, C12, 0, 0, 0],
+            [C12, C12, C11, 0, 0, 0],
+            [0, 0, 0, C44, 0, 0],
+            [0, 0, 0, 0, C44, 0],
+            [0, 0, 0, 0, 0, C44],
+        ]
+    )
     et = ElasticTensor.from_voigt(voigt)
     atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
     d = elastic_constants_summary.node_function(et, atoms)
@@ -148,15 +176,23 @@ def test_elastic_constants_summary_known_cubic():
 def test_public_import_surface():
     from pyiron_workflow_atomistics.physics.elastic import (
         calculate_elastic_constants,
-        generate_mp_deformations,
+        elastic_constants_summary,
         extract_stresses_gpa,
         fit_elastic_tensor,
-        elastic_constants_summary,
+        generate_mp_deformations,
         voigt_stress_to_gpa,
         with_calc_input,
     )
-    assert all(callable(x) for x in (
-        calculate_elastic_constants, generate_mp_deformations,
-        extract_stresses_gpa, fit_elastic_tensor,
-        elastic_constants_summary, voigt_stress_to_gpa, with_calc_input,
-    ))
+
+    assert all(
+        callable(x)
+        for x in (
+            calculate_elastic_constants,
+            generate_mp_deformations,
+            extract_stresses_gpa,
+            fit_elastic_tensor,
+            elastic_constants_summary,
+            voigt_stress_to_gpa,
+            with_calc_input,
+        )
+    )

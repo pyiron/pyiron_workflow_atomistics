@@ -8,10 +8,14 @@ verification/results/<MAT>.json (leaving the GRACE results untouched).
     source /ptmp/hmai/.mp_api_key
     /ptmp/hmai/pwa_elastic/.venv/bin/python verification/fetch_mp_references.py
 """
+
 import json
 import os
 
-from elastic_grace_vs_mp import MATERIALS, mp_reference  # local import (no TF at module load)
+from elastic_grace_vs_mp import (  # local import (no TF at module load)
+    MATERIALS,
+    mp_reference,
+)
 
 RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
 
@@ -29,9 +33,11 @@ def main():
         with open(p, "w") as f:
             json.dump(rec, f, indent=2, default=float)
         mp = rec["mp"]
-        print(f"{mat:3} {spec['mp_id']:7} state={mp.get('state')} "
-              f"reliable={mp.get('reliable')} K_VRH={mp.get('K_VRH')} "
-              f"G_VRH={mp.get('G_VRH')} nwarn={mp.get('n_warnings')}")
+        print(
+            f"{mat:3} {spec['mp_id']:7} state={mp.get('state')} "
+            f"reliable={mp.get('reliable')} K_VRH={mp.get('K_VRH')} "
+            f"G_VRH={mp.get('G_VRH')} nwarn={mp.get('n_warnings')}"
+        )
 
 
 if __name__ == "__main__":
