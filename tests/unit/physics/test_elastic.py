@@ -35,3 +35,21 @@ def test_with_calc_input_swaps_engine_mode():
     assert isinstance(base.EngineInput, CalcInputStatic)
     # calculator is preserved
     assert relaxed.calculator is base.calculator
+
+
+def test_generate_mp_deformations_count_and_pairing():
+    from ase.build import bulk
+    from pyiron_workflow_atomistics.physics.elastic import generate_mp_deformations
+
+    atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
+    # multi-output node_function returns a tuple in output order (pyiron_workflow 0.15.6)
+    structs, strains = generate_mp_deformations.node_function(atoms)
+    # 6 strain modes x 4 magnitudes = 24
+    assert len(structs) == 24
+    assert len(strains) == 24
+    assert all(isinstance(s, Atoms) for s in structs)
+    # strains are 3x3 arrays
+    assert np.asarray(strains[0]).shape == (3, 3)
+    # deformed cells actually differ from the reference cell
+    ref = atoms.cell.array
+    assert any(not np.allclose(s.cell.array, ref) for s in structs)

@@ -38,3 +38,28 @@ def with_calc_input(engine, calc_input):
     full-relax and fixed-cell-relax modes without the user wiring two engines.
     """
     return dataclasses.replace(engine, EngineInput=calc_input)
+
+
+@pwf.as_function_node("deformed_structures", "strains")
+def generate_mp_deformations(
+    structure: Atoms,
+    norm_strains: tuple[float, ...] = (-0.01, -0.005, 0.005, 0.01),
+    shear_strains: tuple[float, ...] = (-0.06, -0.03, 0.03, 0.06),
+):
+    """MP-standard deformation set (6 modes x 4 magnitudes = 24 cells).
+
+    Returns the deformed ASE structures and their Green-Lagrange strain
+    tensors (3x3), paired in order for the downstream fit.
+    """
+    from pymatgen.analysis.elasticity.strain import DeformedStructureSet
+    from pymatgen.io.ase import AseAtomsAdaptor
+
+    pmg = AseAtomsAdaptor.get_structure(structure)
+    dss = DeformedStructureSet(
+        pmg,
+        norm_strains=list(norm_strains),
+        shear_strains=list(shear_strains),
+    )
+    deformed_structures = [AseAtomsAdaptor.get_atoms(s) for s in dss.deformed_structures]
+    strains = [np.asarray(d.green_lagrange_strain) for d in dss.deformations]
+    return deformed_structures, strains
