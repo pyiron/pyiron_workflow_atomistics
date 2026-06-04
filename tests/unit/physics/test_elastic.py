@@ -68,6 +68,17 @@ def test_extract_stresses_gpa_from_engine_outputs():
     np.testing.assert_allclose(stresses[1][0, 1], 0.5 * EV_PER_A3_TO_GPA)
 
 
+def test_extract_stresses_gpa_raises_on_none():
+    import pytest
+    from types import SimpleNamespace
+    from pyiron_workflow_atomistics.physics.elastic import extract_stresses_gpa
+
+    o1 = SimpleNamespace(final_stress_voigt=np.array([1.0, 0, 0, 0, 0, 0]))
+    o2 = SimpleNamespace(final_stress_voigt=None)
+    with pytest.raises(ValueError):
+        extract_stresses_gpa.node_function([o1, o2])
+
+
 def test_fit_elastic_tensor_recovers_known_cubic():
     from ase.build import bulk
     from pymatgen.io.ase import AseAtomsAdaptor

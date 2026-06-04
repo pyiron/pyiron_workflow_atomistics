@@ -36,7 +36,15 @@ def with_calc_input(engine, calc_input):
 
     Lets the elastic macro switch a single user-supplied engine between
     full-relax and fixed-cell-relax modes without the user wiring two engines.
+
+    ``engine`` must be a dataclass (e.g. ``ASEEngine``); a clear ``TypeError``
+    is raised otherwise.
     """
+    if not dataclasses.is_dataclass(engine):
+        raise TypeError(
+            f"with_calc_input requires a dataclass engine (got {type(engine).__name__}); "
+            "ASEEngine is a dataclass."
+        )
     return dataclasses.replace(engine, EngineInput=calc_input)
 
 
@@ -68,7 +76,15 @@ def generate_mp_deformations(
 @pwf.as_function_node("stresses")
 def extract_stresses_gpa(engine_outputs):
     """3x3 stress tensors in GPa from a list of EngineOutput (input order)."""
-    return [voigt_stress_to_gpa(o.final_stress_voigt) for o in engine_outputs]
+    stresses = []
+    for i, o in enumerate(engine_outputs):
+        if o.final_stress_voigt is None:
+            raise ValueError(
+                f"Engine output {i} has final_stress_voigt=None; elastic constants "
+                "require computed stresses (engine must produce a stress tensor)."
+            )
+        stresses.append(voigt_stress_to_gpa(o.final_stress_voigt))
+    return stresses
 
 
 @pwf.as_function_node("elastic_tensor")
@@ -102,6 +118,32 @@ def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     moduli (Voigt/Reuss/Hill), Young's modulus, Poisson ratio, universal
     anisotropy, and a mechanical-stability flag (Born criteria, cubic + general).
     Moduli in GPa.
+
+    Returns
+    -------
+    dict
+        Flat dictionary with the following keys (all moduli in GPa):
+
+        - ``K_Voigt``, ``K_Reuss``, ``K_VRH`` : bulk modulus, Voigt / Reuss /
+          Voigt-Reuss-Hill average (GPa).
+        - ``G_Voigt``, ``G_Reuss``, ``G_VRH`` : shear modulus, Voigt / Reuss /
+          Voigt-Reuss-Hill average (GPa).
+        - ``youngs_modulus`` : Young's modulus E = 9KG/(3K+G) from the VRH
+          K and G (GPa).
+        - ``poisson_ratio`` : homogeneous (isotropic) Poisson ratio
+          (dimensionless).
+        - ``universal_anisotropy`` : universal elastic anisotropy index
+          (dimensionless).
+        - ``mechanically_stable`` : bool; True iff all stiffness eigenvalues
+          exceed a small tolerance (general Born stability criterion).
+        - ``stiffness_eigenvalues`` : the 6 eigenvalues of the Voigt stiffness
+          matrix (GPa).
+        - ``elastic_tensor_voigt`` : 6x6 stiffness tensor, Voigt notation (GPa).
+        - ``elastic_tensor_ieee`` : 6x6 stiffness tensor rotated to IEEE
+          standard axes (GPa); falls back to the unrotated tensor if the IEEE
+          rotation is undefined for the cell.
+        - ``compliance_tensor_voigt`` : 6x6 compliance tensor, Voigt notation
+          (1/GPa).
     """
     from pymatgen.io.ase import AseAtomsAdaptor
 
@@ -109,23 +151,31 @@ def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     pmg = AseAtomsAdaptor.get_structure(structure)
     try:
         et_ieee = et.convert_to_ieee(pmg)
-    except Exception:
+    except (ValueError, NotImplementedError):
+        # IEEE rotation can be undefined for some low-symmetry / degenerate cells;
+        # fall back to the unrotated tensor rather than failing the whole workflow.
         et_ieee = et
 
     C = np.asarray(et.voigt)
     # General Born stability: stiffness matrix positive-definite
     eigvals = np.linalg.eigvalsh(C)
-    mech_stable = bool(np.all(eigvals > 0))
+    STABILITY_TOL = 1e-8  # GPa; guards against rounding-noise eigenvalues
+    mech_stable = bool(np.all(eigvals > STABILITY_TOL))
+
+    # Young's modulus from the VRH moduli (both already in GPa), so the result
+    # is unit-consistent: E = 9KG / (3K + G).
+    K_vrh = float(et.k_vrh)
+    G_vrh = float(et.g_vrh)
+    youngs = 9.0 * K_vrh * G_vrh / (3.0 * K_vrh + G_vrh)
 
     d = {
         "K_Voigt": float(et.k_voigt),
         "K_Reuss": float(et.k_reuss),
-        "K_VRH": float(et.k_vrh),
+        "K_VRH": K_vrh,
         "G_Voigt": float(et.g_voigt),
         "G_Reuss": float(et.g_reuss),
-        "G_VRH": float(et.g_vrh),
-        # pymatgen's y_mod is Pa-scale here; normalize to GPa.
-        "youngs_modulus": float(et.y_mod) / 1e9 if et.y_mod > 1e6 else float(et.y_mod),
+        "G_VRH": G_vrh,
+        "youngs_modulus": youngs,
         "poisson_ratio": float(et.homogeneous_poisson),
         "universal_anisotropy": float(et.universal_anisotropy),
         "mechanically_stable": mech_stable,
@@ -166,10 +216,51 @@ def calculate_elastic_constants(
 ):
     """Full MP-style elastic-constants workflow.
 
-    relax_initial: full cell+ion relax of the input before deforming.
-    Deformations are MP-standard; each deformed cell has its ions relaxed at
-    fixed cell. Returns the relaxed reference structure, the fitted pymatgen
-    ElasticTensor, and a flat dict of all MP elastic constants.
+    Relaxes the input (optionally), applies the Materials Project standard
+    deformation set, relaxes each deformed cell at fixed cell, and fits the
+    full 6x6 stiffness tensor from the resulting stress-strain pairs.
+
+    Parameters
+    ----------
+    structure : ase.Atoms
+        Reference structure to compute elastic constants for.
+    engine
+        A dataclass engine that *produces stresses* (e.g. ``ASEEngine``). The
+        macro internally clones it via :func:`with_calc_input` to switch
+        between full-relax and fixed-cell-relax modes, so a single engine is
+        supplied. The underlying calculator must return a stress tensor; an
+        engine that yields ``final_stress_voigt=None`` will fail in
+        :func:`extract_stresses_gpa`.
+    relax_initial : bool, default True
+        If True, perform a full cell+ion relaxation of ``structure`` before
+        deforming, and use its residual stress as ``eq_stress`` in the fit.
+        If False, deform the input as-is with no reference stress.
+    norm_strains, shear_strains : tuple of float
+        Normal and shear strain magnitudes for the MP deformation set
+        (6 modes x len(magnitudes) deformed cells).
+    fmax : float, default 1e-3
+        Force-convergence tolerance (eV/A) for every relaxation.
+    max_iterations : int, default 300
+        Maximum optimizer steps per relaxation.
+
+    Returns
+    -------
+    relaxed_structure : ase.Atoms
+        The relaxed reference structure (equal to ``structure`` when
+        ``relax_initial`` is False).
+    elastic_tensor : pymatgen ElasticTensor
+        The fitted, symmetrized 6x6 stiffness tensor (GPa).
+    elastic_constants : dict
+        Flat dict of all MP elastic constants (see
+        :func:`elastic_constants_summary` for the full key list). Carries the
+        full Voigt stiffness, the IEEE-rotated stiffness, and the compliance
+        tensor, plus all derived moduli.
+
+    Notes
+    -----
+    - All returned moduli are in GPa.
+    - Stress sign convention is ASE/pymatgen: tension-positive Cauchy stress.
+    - Deformations are parameterized by the Green-Lagrange strain tensor.
     """
     from pyiron_workflow_atomistics.engine import CalcInputMinimize, calculate
     from pyiron_workflow_atomistics.physics.bulk import evaluate_structures
