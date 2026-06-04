@@ -19,3 +19,19 @@ def test_voigt_stress_to_gpa_shape_and_units():
     np.testing.assert_allclose(t2[1, 2] / EV_PER_A3_TO_GPA, 2.0)  # yz
     np.testing.assert_allclose(t2[0, 2] / EV_PER_A3_TO_GPA, 3.0)  # xz
     np.testing.assert_allclose(t2[0, 1] / EV_PER_A3_TO_GPA, 4.0)  # xy
+
+
+def test_with_calc_input_swaps_engine_mode():
+    from ase.calculators.emt import EMT
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic, CalcInputMinimize
+    from pyiron_workflow_atomistics.physics.elastic import with_calc_input
+
+    base = ASEEngine(EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=".")
+    relaxed = with_calc_input(base, CalcInputMinimize(relax_cell=False, force_convergence_tolerance=1e-3))
+    assert isinstance(relaxed.EngineInput, CalcInputMinimize)
+    assert relaxed.EngineInput.relax_cell is False
+    assert relaxed.EngineInput.force_convergence_tolerance == 1e-3
+    # original is untouched (immutability via dataclasses.replace)
+    assert isinstance(base.EngineInput, CalcInputStatic)
+    # calculator is preserved
+    assert relaxed.calculator is base.calculator

@@ -29,3 +29,12 @@ def voigt_stress_to_gpa(stress_voigt) -> np.ndarray:
          [xy, yy, yz],
          [xz, yz, zz]]
     )
+
+
+def with_calc_input(engine, calc_input):
+    """Return a copy of a dataclass engine with its EngineInput replaced.
+
+    Lets the elastic macro switch a single user-supplied engine between
+    full-relax and fixed-cell-relax modes without the user wiring two engines.
+    """
+    return dataclasses.replace(engine, EngineInput=calc_input)
