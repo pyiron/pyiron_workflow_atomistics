@@ -132,3 +132,20 @@ def test_elastic_constants_summary_known_cubic():
     K, G = d["K_VRH"], d["G_VRH"]
     expected_E = 9 * K * G / (3 * K + G)
     np.testing.assert_allclose(d["youngs_modulus"], expected_E, rtol=1e-3)
+
+
+def test_public_import_surface():
+    from pyiron_workflow_atomistics.physics.elastic import (
+        calculate_elastic_constants,
+        generate_mp_deformations,
+        extract_stresses_gpa,
+        fit_elastic_tensor,
+        elastic_constants_summary,
+        voigt_stress_to_gpa,
+        with_calc_input,
+    )
+    assert all(callable(x) for x in (
+        calculate_elastic_constants, generate_mp_deformations,
+        extract_stresses_gpa, fit_elastic_tensor,
+        elastic_constants_summary, voigt_stress_to_gpa, with_calc_input,
+    ))
