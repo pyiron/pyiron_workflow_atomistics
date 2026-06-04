@@ -1,0 +1,2 @@
+material,mp_id,grace_ok,grace_seconds,mp_state,mp_reliable,grace_stable,grace_K_VRH,mp_K_VRH,grace_G_VRH,mp_G_VRH,grace_E,mp_E,grace_poisson,mp_poisson,grace_A_U,mp_A_U,grace_C11,mp_C11,grace_C12,mp_C12,grace_C44,mp_C44
+Ni,mp-23,True,68.0,,,True,199.95587925134745,,95.39879115319411,,246.92684033487134,,0.2941822288835356,,0.9355539039539087,,276.11717110797525,,161.87523332303337,,134.5198680267797,

@@ -1,0 +1,4 @@
+results/_work_*/
+results/*.stdout
+results/*.stderr
+results/slurm_*
