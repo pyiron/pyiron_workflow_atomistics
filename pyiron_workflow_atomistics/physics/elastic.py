@@ -92,3 +92,46 @@ def fit_elastic_tensor(strains, stresses, structure: Atoms, eq_stress=None):
         pmg_strains, pmg_stresses, eq_stress=eq, vasp=False
     )
     return ElasticTensor(et.voigt_symmetrized)
+
+
+@pwf.as_function_node("elastic_constants")
+def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
+    """Every elastic constant in the MP elasticity methodology, as a flat dict.
+
+    Includes full stiffness (raw + IEEE) and compliance tensors, bulk and shear
+    moduli (Voigt/Reuss/Hill), Young's modulus, Poisson ratio, universal
+    anisotropy, and a mechanical-stability flag (Born criteria, cubic + general).
+    Moduli in GPa.
+    """
+    from pymatgen.io.ase import AseAtomsAdaptor
+
+    et = elastic_tensor
+    pmg = AseAtomsAdaptor.get_structure(structure)
+    try:
+        et_ieee = et.convert_to_ieee(pmg)
+    except Exception:
+        et_ieee = et
+
+    C = np.asarray(et.voigt)
+    # General Born stability: stiffness matrix positive-definite
+    eigvals = np.linalg.eigvalsh(C)
+    mech_stable = bool(np.all(eigvals > 0))
+
+    d = {
+        "K_Voigt": float(et.k_voigt),
+        "K_Reuss": float(et.k_reuss),
+        "K_VRH": float(et.k_vrh),
+        "G_Voigt": float(et.g_voigt),
+        "G_Reuss": float(et.g_reuss),
+        "G_VRH": float(et.g_vrh),
+        # pymatgen's y_mod is Pa-scale here; normalize to GPa.
+        "youngs_modulus": float(et.y_mod) / 1e9 if et.y_mod > 1e6 else float(et.y_mod),
+        "poisson_ratio": float(et.homogeneous_poisson),
+        "universal_anisotropy": float(et.universal_anisotropy),
+        "mechanically_stable": mech_stable,
+        "stiffness_eigenvalues": eigvals.tolist(),
+        "elastic_tensor_voigt": C.tolist(),
+        "elastic_tensor_ieee": np.asarray(et_ieee.voigt).tolist(),
+        "compliance_tensor_voigt": np.asarray(et.compliance_tensor.voigt).tolist(),
+    }
+    return d

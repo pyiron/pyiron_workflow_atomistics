@@ -97,3 +97,38 @@ def test_fit_elastic_tensor_recovers_known_cubic():
     out = fit_elastic_tensor.node_function(strains=strains, stresses=stresses, structure=atoms)
     C_fit = out  # single output "elastic_tensor"
     np.testing.assert_allclose(C_fit.voigt, voigt, atol=1.0)  # within 1 GPa
+
+
+def test_elastic_constants_summary_known_cubic():
+    from ase.build import bulk
+    from pymatgen.analysis.elasticity.elastic import ElasticTensor
+    from pyiron_workflow_atomistics.physics.elastic import elastic_constants_summary
+
+    C11, C12, C44 = 200.0, 130.0, 100.0
+    voigt = np.array([
+        [C11, C12, C12, 0, 0, 0],
+        [C12, C11, C12, 0, 0, 0],
+        [C12, C12, C11, 0, 0, 0],
+        [0, 0, 0, C44, 0, 0],
+        [0, 0, 0, 0, C44, 0],
+        [0, 0, 0, 0, 0, C44],
+    ])
+    et = ElasticTensor.from_voigt(voigt)
+    atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
+    d = elastic_constants_summary.node_function(et, atoms)
+
+    # Cubic Voigt bulk modulus K_V = (C11 + 2 C12)/3
+    np.testing.assert_allclose(d["K_VRH"], (C11 + 2 * C12) / 3.0, rtol=1e-6)
+    assert "K_Voigt" in d and "K_Reuss" in d
+    assert "G_Voigt" in d and "G_Reuss" in d and "G_VRH" in d
+    assert "youngs_modulus" in d and "poisson_ratio" in d
+    assert "universal_anisotropy" in d
+    assert d["mechanically_stable"] is True
+    # full tensors present
+    assert np.asarray(d["elastic_tensor_voigt"]).shape == (6, 6)
+    assert np.asarray(d["compliance_tensor_voigt"]).shape == (6, 6)
+    assert np.asarray(d["elastic_tensor_ieee"]).shape == (6, 6)
+
+    K, G = d["K_VRH"], d["G_VRH"]
+    expected_E = 9 * K * G / (3 * K + G)
+    np.testing.assert_allclose(d["youngs_modulus"], expected_E, rtol=1e-3)
