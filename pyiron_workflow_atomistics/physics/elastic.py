@@ -69,3 +69,26 @@ def generate_mp_deformations(
 def extract_stresses_gpa(engine_outputs):
     """3x3 stress tensors in GPa from a list of EngineOutput (input order)."""
     return [voigt_stress_to_gpa(o.final_stress_voigt) for o in engine_outputs]
+
+
+@pwf.as_function_node("elastic_tensor")
+def fit_elastic_tensor(strains, stresses, structure: Atoms, eq_stress=None):
+    """Least-squares fit of the 6x6 stiffness tensor (GPa), MP convention.
+
+    strains: list of 3x3 strain tensors (Green-Lagrange).
+    stresses: list of 3x3 stress tensors in GPa (same order).
+    structure: the reference (relaxed) ASE structure, used for symmetry.
+    eq_stress: 3x3 reference stress in GPa (defaults to zero).
+    Returns a pymatgen ElasticTensor, symmetrized.
+    """
+    from pymatgen.analysis.elasticity.elastic import ElasticTensor
+    from pymatgen.analysis.elasticity.strain import Strain
+    from pymatgen.analysis.elasticity.stress import Stress
+
+    pmg_strains = [Strain(s) for s in strains]
+    pmg_stresses = [Stress(s) for s in stresses]
+    eq = None if eq_stress is None else Stress(eq_stress)
+    et = ElasticTensor.from_independent_strains(
+        pmg_strains, pmg_stresses, eq_stress=eq, vasp=False
+    )
+    return ElasticTensor(et.voigt_symmetrized)

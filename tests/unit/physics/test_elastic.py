@@ -66,3 +66,34 @@ def test_extract_stresses_gpa_from_engine_outputs():
     assert len(stresses) == 2
     np.testing.assert_allclose(stresses[0][0, 0], 1.0 * EV_PER_A3_TO_GPA)
     np.testing.assert_allclose(stresses[1][0, 1], 0.5 * EV_PER_A3_TO_GPA)
+
+
+def test_fit_elastic_tensor_recovers_known_cubic():
+    from ase.build import bulk
+    from pymatgen.io.ase import AseAtomsAdaptor
+    from pymatgen.analysis.elasticity.elastic import ElasticTensor
+    from pymatgen.analysis.elasticity.strain import DeformedStructureSet
+    from pyiron_workflow_atomistics.physics.elastic import fit_elastic_tensor
+
+    # Known cubic stiffness (GPa)
+    C11, C12, C44 = 200.0, 130.0, 100.0
+    voigt = np.array([
+        [C11, C12, C12, 0, 0, 0],
+        [C12, C11, C12, 0, 0, 0],
+        [C12, C12, C11, 0, 0, 0],
+        [0, 0, 0, C44, 0, 0],
+        [0, 0, 0, 0, C44, 0],
+        [0, 0, 0, 0, 0, C44],
+    ])
+    C_true = ElasticTensor.from_voigt(voigt)
+
+    atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
+    pmg = AseAtomsAdaptor.get_structure(atoms)
+    dss = DeformedStructureSet(pmg)
+    strains = [np.asarray(d.green_lagrange_strain) for d in dss.deformations]
+    # synthesize stresses (GPa) from the known tensor for each strain
+    stresses = [np.asarray(C_true.calculate_stress(s)) for s in strains]
+
+    out = fit_elastic_tensor.node_function(strains=strains, stresses=stresses, structure=atoms)
+    C_fit = out  # single output "elastic_tensor"
+    np.testing.assert_allclose(C_fit.voigt, voigt, atol=1.0)  # within 1 GPa
