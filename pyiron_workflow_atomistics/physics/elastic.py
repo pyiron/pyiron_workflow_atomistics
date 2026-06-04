@@ -63,3 +63,9 @@ def generate_mp_deformations(
     deformed_structures = [AseAtomsAdaptor.get_atoms(s) for s in dss.deformed_structures]
     strains = [np.asarray(d.green_lagrange_strain) for d in dss.deformations]
     return deformed_structures, strains
+
+
+@pwf.as_function_node("stresses")
+def extract_stresses_gpa(engine_outputs):
+    """3x3 stress tensors in GPa from a list of EngineOutput (input order)."""
+    return [voigt_stress_to_gpa(o.final_stress_voigt) for o in engine_outputs]

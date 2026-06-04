@@ -53,3 +53,16 @@ def test_generate_mp_deformations_count_and_pairing():
     # deformed cells actually differ from the reference cell
     ref = atoms.cell.array
     assert any(not np.allclose(s.cell.array, ref) for s in structs)
+
+
+def test_extract_stresses_gpa_from_engine_outputs():
+    from types import SimpleNamespace
+    from pyiron_workflow_atomistics.physics.elastic import extract_stresses_gpa, EV_PER_A3_TO_GPA
+
+    o1 = SimpleNamespace(final_stress_voigt=np.array([1.0, 0, 0, 0, 0, 0]))
+    o2 = SimpleNamespace(final_stress_voigt=np.array([0, 0, 0, 0, 0, 0.5]))
+    out = extract_stresses_gpa.node_function([o1, o2])
+    stresses = out  # node returns single output "stresses"
+    assert len(stresses) == 2
+    np.testing.assert_allclose(stresses[0][0, 0], 1.0 * EV_PER_A3_TO_GPA)
+    np.testing.assert_allclose(stresses[1][0, 1], 0.5 * EV_PER_A3_TO_GPA)
