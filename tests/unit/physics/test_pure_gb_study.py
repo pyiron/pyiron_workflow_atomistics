@@ -92,8 +92,12 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     assert v0 > 0
 
     eng_min = ASEEngine(
+        # max_iterations must actually be honoured now (the engine no longer
+        # silently caps at 10_000 — see ASEEngine.max_steps). The cleavage
+        # relaxations here need a few more than 10 BFGS steps to converge at
+        # fmax=0.5; 50 keeps the smoke test fast while letting them finish.
         EngineInput=CalcInputMinimize(
-            force_convergence_tolerance=0.5, max_iterations=10
+            force_convergence_tolerance=0.5, max_iterations=50
         ),
         calculator=EAM(potential=str(EAM_PATH)),
         working_directory=str(tmp_path),

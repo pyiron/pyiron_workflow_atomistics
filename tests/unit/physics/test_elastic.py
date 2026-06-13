@@ -50,6 +50,55 @@ def test_with_calc_input_swaps_engine_mode():
     assert relaxed.calculator is base.calculator
 
 
+def test_make_minimize_input_returns_concrete_floats():
+    """Regression: the calc-input node must yield a real CalcInputMinimize with
+    plain Python scalars, never a leaked pyiron_workflow input channel.
+
+    The elastic macro builds its CalcInputMinimize objects through this node so
+    that, at run time, ``force_convergence_tolerance``/``max_iterations`` are
+    concrete numbers. If a channel object ever leaked into
+    ``force_convergence_tolerance``, ASE's ``BFGS.run(fmax=<channel>)`` would
+    "converge" at step 0 and the cell would never relax.
+    """
+    from pyiron_workflow_atomistics.engine import CalcInputMinimize
+    from pyiron_workflow_atomistics.physics.elastic import make_minimize_input
+
+    ci = make_minimize_input.node_function(
+        relax_cell=True, force_convergence_tolerance=1e-3, max_iterations=42
+    )
+    assert isinstance(ci, CalcInputMinimize)
+    assert ci.relax_cell is True
+    # Must be genuine scalars, not UserInput/OutputData channel objects.
+    assert isinstance(ci.force_convergence_tolerance, float)
+    assert ci.force_convergence_tolerance == 1e-3
+    assert isinstance(ci.max_iterations, int)
+    assert ci.max_iterations == 42
+
+
+def test_engine_honours_calc_input_max_iterations():
+    """Regression: an explicit CalcInputMinimize.max_iterations must reach the
+    optimiser. Previously ASEEngine.max_steps defaulted to 10_000 and silently
+    overrode it; now max_steps defaults to None and defers to the calc input.
+    """
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputMinimize
+
+    engine = ASEEngine(
+        EngineInput=CalcInputMinimize(
+            relax_cell=True, force_convergence_tolerance=1e-4, max_iterations=37
+        ),
+        calculator=EMT(),
+        working_directory=".",
+    )
+    assert engine.max_steps is None  # defer-to-calc-input default
+    from ase.build import bulk
+
+    _fn, kwargs = engine.get_calculate_fn(bulk("Cu", "fcc", a=3.6, cubic=True))
+    # The calc-input cap, not the old 10_000 engine default, must be used.
+    assert kwargs["max_steps"] == 37
+
+
 def test_generate_mp_deformations_count_and_pairing():
     from ase.build import bulk
 
@@ -180,6 +229,7 @@ def test_public_import_surface():
         extract_stresses_gpa,
         fit_elastic_tensor,
         generate_mp_deformations,
+        make_minimize_input,
         voigt_stress_to_gpa,
         with_calc_input,
     )
@@ -194,5 +244,6 @@ def test_public_import_surface():
             elastic_constants_summary,
             voigt_stress_to_gpa,
             with_calc_input,
+            make_minimize_input,
         )
     )

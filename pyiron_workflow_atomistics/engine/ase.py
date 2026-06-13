@@ -413,7 +413,11 @@ class ASEEngine:
     optimizer_class: type | None = BFGS
     optimizer_kwargs: dict[str, Any] = field(default_factory=dict)
     record_interval: int = 1
-    max_steps: int = 10_000
+    # Engine-level override for the optimiser step cap. ``None`` (the default)
+    # means "defer to the per-calculation setting", i.e. honour
+    # ``CalcInputMinimize.max_iterations``. Set this only to force a global cap
+    # regardless of the calc input.
+    max_steps: int | None = None
     properties: tuple[str, ...] = ("energy", "forces", "stresses", "volume")
     write_to_disk: bool = False
     initial_struct_path: str | None = "initial_structure.xyz"
@@ -456,7 +460,14 @@ class ASEEngine:
                 "optimizer_kwargs": self.optimizer_kwargs,
                 "record_interval": self.record_interval,
                 "fmax": mi.force_convergence_tolerance,
-                "max_steps": self.max_steps if self.max_steps else mi.max_iterations,
+                # Honour the per-calculation step cap by default; only let the
+                # engine-level max_steps win when it was explicitly set (not
+                # None). Previously max_steps defaulted to 10_000 and always
+                # overrode CalcInputMinimize.max_iterations, silently ignoring
+                # a user-requested iteration cap.
+                "max_steps": (
+                    self.max_steps if self.max_steps is not None else mi.max_iterations
+                ),
                 "relax_cell": mi.relax_cell,
                 "energy_convergence_tolerance": mi.energy_convergence_tolerance,
             }
