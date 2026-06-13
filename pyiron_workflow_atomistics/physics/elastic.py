@@ -185,6 +185,37 @@ def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     return d
 
 
+@pwf.as_function_node("calc_input")
+def make_minimize_input(
+    relax_cell: bool = False,
+    force_convergence_tolerance: float = 1e-3,
+    max_iterations: int = 300,
+):
+    """Build a concrete :class:`CalcInputMinimize` *at run time*.
+
+    Inside a ``@pwf.as_macro_node`` the macro arguments (``fmax``,
+    ``max_iterations``, ...) are pyiron_workflow input *channels*, not plain
+    Python scalars. Constructing a dataclass directly in the macro body would
+    therefore store those channel objects in the dataclass fields (e.g.
+    ``force_convergence_tolerance`` would hold a ``UserInput`` channel instead
+    of a float). That channel then leaks all the way into ASE's
+    ``BFGS.run(fmax=<channel>)``, where the convergence test
+    ``max_force < fmax`` against a non-numeric object is satisfied immediately,
+    so the relaxation "converges" at step 0 and the cell never moves.
+
+    Routing the construction through this function node delays evaluation to
+    graph-execution time, where the inputs are resolved to concrete scalars, so
+    the returned ``CalcInputMinimize`` carries real floats/ints.
+    """
+    from pyiron_workflow_atomistics.engine import CalcInputMinimize
+
+    return CalcInputMinimize(
+        relax_cell=relax_cell,
+        force_convergence_tolerance=force_convergence_tolerance,
+        max_iterations=max_iterations,
+    )
+
+
 @pwf.as_function_node("engine")
 def with_calc_input_node(engine, calc_input):
     """Node wrapper around :func:`with_calc_input` for use inside the macro graph."""
@@ -260,22 +291,28 @@ def calculate_elastic_constants(
     - Stress sign convention is ASE/pymatgen: tension-positive Cauchy stress.
     - Deformations are parameterized by the Green-Lagrange strain tensor.
     """
-    from pyiron_workflow_atomistics.engine import CalcInputMinimize, calculate
+    from pyiron_workflow_atomistics.engine import calculate
     from pyiron_workflow_atomistics.physics.bulk import evaluate_structures
 
-    fixed_cell = CalcInputMinimize(
+    # Build the CalcInputMinimize objects through function nodes rather than
+    # constructing the dataclasses directly here: inside the macro body
+    # ``fmax``/``max_iterations`` are input *channels*, not scalars, so a direct
+    # ``CalcInputMinimize(force_convergence_tolerance=fmax, ...)`` would store a
+    # channel object in the dataclass and silently break relaxation (see
+    # :func:`make_minimize_input`). The node resolves the inputs at run time.
+    wf.fixed_cell_input = make_minimize_input(
         relax_cell=False,
         force_convergence_tolerance=fmax,
         max_iterations=max_iterations,
     )
 
     if relax_initial:
-        full_relax = CalcInputMinimize(
+        wf.full_relax_input = make_minimize_input(
             relax_cell=True,
             force_convergence_tolerance=fmax,
             max_iterations=max_iterations,
         )
-        wf.relax_engine = with_calc_input_node(engine, full_relax)
+        wf.relax_engine = with_calc_input_node(engine, wf.full_relax_input)
         wf.relax = calculate(structure=structure, engine=wf.relax_engine)
         ref_structure = wf.relax.outputs.engine_output.final_structure
         wf.eq_stress = _reference_stress_gpa(wf.relax.outputs.engine_output)
@@ -287,7 +324,7 @@ def calculate_elastic_constants(
     wf.deform = generate_mp_deformations(
         ref_structure, norm_strains=norm_strains, shear_strains=shear_strains
     )
-    wf.deform_engine = with_calc_input_node(engine, fixed_cell)
+    wf.deform_engine = with_calc_input_node(engine, wf.fixed_cell_input)
     wf.evals = evaluate_structures(
         structures=wf.deform.outputs.deformed_structures,
         engine=wf.deform_engine,
