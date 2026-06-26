@@ -25,3 +25,6 @@ class MeltingInput:
     boundary_value: float = 0.25
     delta_t_melt: float = 1000.0  # superheat for interface build
     seed: int | None = None
+    # NPT thermostat must keep the cell isotropic/orthorhombic: "berendsen" for the
+    # ASE engine, "nose-hoover" for the LAMMPS engine (fix npt ... iso).
+    npt_thermostat: str = "berendsen"

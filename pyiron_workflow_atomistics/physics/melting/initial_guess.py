@@ -15,11 +15,15 @@ def _fraction(structure, key_max):
 
 
 def _heated_solid(structure, engine, temperature, strain_run_steps, timestep, seed,
-                  subdir):
-    """NPT-heat ``structure`` at ``temperature`` and return the final structure."""
+                  subdir, npt_thermostat="berendsen"):
+    """NPT-heat ``structure`` at ``temperature`` and return the final structure.
+
+    ``npt_thermostat`` must keep the cell isotropic/orthorhombic ("berendsen" for
+    ASE, "nose-hoover" for LAMMPS) so CNA classification stays valid.
+    """
     md = CalcInputMD(
         mode="NPT",
-        thermostat="berendsen",
+        thermostat=npt_thermostat,
         temperature=temperature,
         pressure=0.0,
         n_ionic_steps=strain_run_steps,
@@ -49,6 +53,7 @@ def estimate_melting_temperature(
     t_step_min=10.0,
     max_iterations=40,
     t_ceiling=None,
+    npt_thermostat="berendsen",
     subdir="guess",
 ):
     """Bisection: heat the bulk solid in NPT; raise T while it stays crystalline.
@@ -63,7 +68,8 @@ def estimate_melting_temperature(
     t_left, t_right = temperature_left, temperature_right
     struct_left = structure
     struct_right = _heated_solid(
-        structure, engine, t_right, strain_run_steps, timestep, seed, subdir
+        structure, engine, t_right, strain_run_steps, timestep, seed, subdir,
+        npt_thermostat=npt_thermostat,
     )
     step = t_right - t_left
     iteration = 0
@@ -78,20 +84,23 @@ def estimate_melting_temperature(
             struct_left, t_left = struct_right.copy(), t_right
             t_right = min(t_right + diff, ceiling)
             struct_right = _heated_solid(
-                structure, engine, t_right, strain_run_steps, timestep, seed, subdir
+                structure, engine, t_right, strain_run_steps, timestep, seed, subdir,
+                npt_thermostat=npt_thermostat,
             )
         elif f_left > distribution_half >= f_right:
             diff /= 2.0
             t_left += diff
             struct_left = _heated_solid(
-                structure, engine, t_left, strain_run_steps, timestep, seed, subdir
+                structure, engine, t_left, strain_run_steps, timestep, seed, subdir,
+                npt_thermostat=npt_thermostat,
             )
         else:  # both molten
             diff /= 2.0
             t_right, struct_right = t_left, struct_left.copy()
             t_left -= diff
             struct_left = _heated_solid(
-                structure, engine, t_left, strain_run_steps, timestep, seed, subdir
+                structure, engine, t_left, strain_run_steps, timestep, seed, subdir,
+                npt_thermostat=npt_thermostat,
             )
         step = t_right - t_left
     t_guess = int(round(t_left))

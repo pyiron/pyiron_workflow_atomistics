@@ -42,12 +42,14 @@ def coexistence_iteration(
     ratio_boundary=0.25,
     boundary_value=0.25,
     seed=None,
+    npt_thermostat="berendsen",
     subdir="iter",
 ):
     """One interface-method temperature iteration -> next-T estimate."""
     solid, _ = npt_relax_solid.node_function(
         structure, engine, temperature=temperature, n_steps=npt_steps,
-        timestep=timestep, seed=seed, subdir=f"{subdir}_npt",
+        timestep=timestep, seed=seed, npt_thermostat=npt_thermostat,
+        subdir=f"{subdir}_npt",
     )
     interface = build_solid_liquid_interface.node_function(
         solid, engine, t_solid=temperature, t_liquid=temperature + delta_t_melt,
@@ -106,7 +108,8 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
             n_strain_points=mi.n_strain_points, nvt_steps=mi.nvt_run_steps,
             nve_steps=nve_steps, npt_steps=mi.npt_run_steps, timestep=timestep,
             delta_t_melt=mi.delta_t_melt, ratio_boundary=mi.ratio_boundary,
-            boundary_value=mi.boundary_value, seed=mi.seed, subdir=f"iter_{step_idx}",
+            boundary_value=mi.boundary_value, seed=mi.seed,
+            npt_thermostat=mi.npt_thermostat, subdir=f"iter_{step_idx}",
         )
         iterations.append(rec)
         delta = abs(rec.temperature_next - temperature)

@@ -38,12 +38,19 @@ def npt_relax_solid(
     n_steps=10000,
     timestep=2.0,
     seed=None,
+    npt_thermostat="berendsen",
     subdir="npt_solid",
 ):
-    """NPT MD on the bulk solid at ``temperature`` (P=0)."""
+    """NPT MD on the bulk solid at ``temperature`` (P=0).
+
+    ``npt_thermostat`` must yield an *isotropic* (orthorhombic) cell so the
+    downstream CNA/Voronoi analyses stay valid: use ``"berendsen"`` for the ASE
+    engine (scalar-pressure, orthorhombic) and ``"nose-hoover"`` for the LAMMPS
+    engine (``fix npt ... iso``). Full triclinic NPT must be avoided.
+    """
     md = CalcInputMD(
         mode="NPT",
-        thermostat="berendsen",
+        thermostat=npt_thermostat,
         temperature=temperature,
         pressure=0.0,
         n_ionic_steps=n_steps,
