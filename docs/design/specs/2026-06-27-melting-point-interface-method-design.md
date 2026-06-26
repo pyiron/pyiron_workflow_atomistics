@@ -104,28 +104,44 @@ temperature is ~½ the initial. To land at the target `T`, NVE/strain runs set
 Verified: a 900 K MaxwellBoltzmann init equilibrates near ~450 K without it.
 
 ### 3.4 Module layout
+
+**General, reusable analysis quantities** (decision: CNA/Voronoi/trajectory
+quantities are *general*, not melting-local) extend the existing `analysis/`
+package so other workflows can reuse them:
+```
+pyiron_workflow_atomistics/analysis/
+  structure_descriptors.py   # NEW: cna_fractions, classify_solid,
+                             #   analyse_reference_structure, voronoi_max_mean, holes_mask
+  trajectory.py              # NEW: temperatures_from_trajectory,
+                             #   pressures_from_trajectory  (operate on EngineOutput)
+  # (quantities.py / featurisers.py unchanged)
+```
+
+**Melting-specific** code (the method itself) lives in the new subpackage:
 ```
 pyiron_workflow_atomistics/physics/melting/
   __init__.py          # public API exports
   inputs.py            # MeltingInput dataclass
   outputs.py           # MeltingResult dataclass (+ MeltingIterationRecord)
   structures.py        # coexistence supercell, freeze_half, strain_cell_along_z, unfreeze
-  analysis.py          # cna_fractions, classify_solid, solid_fraction_kde,
-                       #   voronoi_max_mean / holes_mask,
-                       #   temperatures_from_trajectory, pressures_from_trajectory
-  md_steps.py          # with_calc_input, relax_structure, npt_relax_solid,
+  solid_fraction.py    # solid_fraction_kde (CNA + KDE; melting-specific)
+  md_steps.py          # with_calc_input, npt_relax_solid,
                        #   build_solid_liquid_interface, strain_scan_nvt_nve
   fitting.py           # ratio_selection, predict_melting_point
   initial_guess.py     # estimate_melting_temperature (Step 1 bisection driver)
   coexistence.py       # coexistence_iteration + refine_melting_point (Step 2 loop)
   study.py             # calculate_melting_point (top-level macro/driver)
+```
 
-pyiron_workflow_atomistics/engine/lammps.py   # LammpsEngine (conformant)
-
+**LAMMPS engine** — we do NOT hand-roll one. The melting algorithm consumes the
+existing, protocol-conformant `pyiron_workflow_lammps.engine.LammpsEngine`
+(see §4). The only addition is a surgical velocity-capture patch in that package.
+```
 scripts/meltingpoint.py                        # notebook → script (EMT/Al Step-1 demo)
 
+tests/unit/analysis/test_structure_descriptors.py
+tests/unit/analysis/test_trajectory.py
 tests/unit/physics/melting/                    # fast unit tests
-tests/unit/engine/test_lammps_conformance.py   # LammpsEngine vs conformance suite
 tests/integration/test_melting_emt.py          # EMT/Al smoke (slow marker)
 ```
 
@@ -235,31 +251,50 @@ class MeltingResult:
 
 ---
 
-## 4. The `LammpsEngine`
+## 4. The `LammpsEngine` — wrap `pyiron_workflow_lammps` (examined 2026-06-27)
 
-A new `engine/lammps.py::LammpsEngine` conforming to the `Engine` Protocol so the
-*same* melting algorithm runs on LAMMPS.
+Decision: **reuse the existing `pyiron_workflow_lammps.engine.LammpsEngine`**
+rather than hand-rolling one. As of `origin/main` (commit 4e05b46) it is a pure,
+pickleable `@dataclass` already migrated to *this* package's Engine Protocol:
+`working_directory`, `get_calculate_fn(structure)`, `with_working_directory(subdir)`,
+`EngineInput ∈ {CalcInputStatic, CalcInputMinimize, CalcInputMD}` (the same
+dataclasses), returning an `EngineOutput`. It runs LAMMPS by shelling out to an
+`lmp` binary (configurable `command` field), supports `pair_style grace` (the
+default), and already emits a per-frame trajectory (`structures`, `energies`,
+`stresses`).
 
-- **Backend**: in-process LAMMPS via the `lammps` Python module
-  (`/ptmp/hmai/lammps/python` + `liblammps.so`), reusing the notebook's
-  `atomistics`-style command templating (NPT/NVT/NVE via jinja templates), or
-  `pyiron_workflow_lammps` (pulled by the `free-energy` extra) if it offers a
-  clean structure-in / results-out call. Final choice made in the plan.
-- **Inputs**: `EngineInput ∈ {CalcInputStatic, CalcInputMinimize, CalcInputMD}` —
-  same dataclasses as ASE; the engine translates to LAMMPS commands (units metal,
-  `fix npt/nvt/nve`, `velocity create`, `box/relax`).
-- **Potential**: a `LammpsPotential(pair_style, pair_coeff, potential_file)`
-  (reuse `physics/free_energy/inputs.py::LammpsPotential`); for GRACE,
-  `pair_style grace` + the exported model dir.
-- **Output**: builds `EngineOutput` with `final_structure`, `final_energy`,
-  `converged`, `final_forces/stress`, and trajectory `structures` (**with
-  velocities**), `energies`, `stresses` so the coexistence analysis works
-  unchanged.
-- **Contract methods**: `working_directory`, `get_calculate_fn(structure)`,
-  `with_working_directory(subdir)`; must be a pickleable `@dataclass`.
-- **Validation**: a `tests/unit/engine/test_lammps_conformance.py` inheriting
-  `pyiron_workflow_atomistics.testing.EngineConformanceTests`, plus a short MD
-  smoke test (skipped if `lammps` import / LAMMPS build is unavailable).
+### 4.1 The one gap to fix — velocity capture (so coexistence T is recoverable)
+The backend `pyiron_lammps` **already parses per-atom velocities** from the dump
+(`output_raw.py` collects `velocities`; the engine dump line writes `vx vy vz`).
+But `pyiron_workflow_lammps/lammps.py::arrays_to_ase_atoms` builds each trajectory
+`Atoms` from **positions/cell only** — velocities are dropped. So the coexistence
+analysis (which needs per-frame temperature from momenta) cannot run on LAMMPS as-is.
+
+**Fix (surgical, in `pyiron_workflow_lammps`):** thread the already-parsed
+`generic["velocities"]` through `parse_LammpsOutput` → `arrays_to_ase_atoms`, and
+`atoms.set_velocities(v)` (Å/fs → ASE momenta) on each frame. This makes the
+LAMMPS `EngineOutput.structures` velocity-bearing and **symmetric with the ASE
+engine**, so the *general* `analysis/trajectory.py` quantities compute temperature
+& pressure identically for both. Done on a branch
+(`/ptmp/hmai/pwl_dev`, branch `feat/velocity-capture-for-melting`), installed
+editable `--no-deps` into the dev venv; intended for upstream PR.
+
+### 4.2 Wiring & potential
+- For GRACE: set `command` → `/ptmp/hmai/lammps/build/lmp …`, `path_to_model` →
+  an exported GRACE model dir, `input_script_pair_style="grace"`,
+  `potential_elements` from the structure. (`LammpsEngine` exposes all of these
+  as dataclass fields.)
+- The melting algorithm is unchanged: it just receives a `LammpsEngine` instead of
+  an `ASEEngine`.
+
+### 4.3 Validation
+- A `tests/unit/engine/test_lammps_velocity_capture.py` in `pwl_dev` asserting the
+  patched parser attaches velocities (parse a tiny recorded dump fixture).
+- A short LAMMPS MD smoke test (skipped if no `lmp` binary), plus the full
+  coexistence verification run (§6.3).
+- The engine itself is already covered by `pyiron_workflow_lammps`' own tests;
+  conformance against *our* `testing.EngineConformanceTests` is a light add-on if
+  time permits (skip-guarded on `lmp` availability).
 
 ---
 
@@ -305,12 +340,18 @@ full output paths.
 ## 7. Environment
 
 - Fresh clone: `/ptmp/hmai/pwa_melting` (branch `feat/melting-point-interface-method`).
-- Isolated `uv` venv `.venv` (Python 3.11): `uv pip install -e ".[test]"` +
-  `structuretoolkit` + `pyscal3`. **Built & verified** 2026-06-27 (engine API +
-  structuretoolkit import clean; ASE 3.28.0 / numpy 1.26.4 / pandas 3.0.3).
-- GRACE step may need `tensorflow` + `grace` (TF_USE_LEGACY_KERAS=1) added to the
-  venv, or fall back to the `grace` conda env.
-- LAMMPS step uses the existing GRACE-enabled build at `/ptmp/hmai/lammps`.
+- **Dev/test venv** `/ptmp/hmai/pwa_melting/.venv` (Python 3.11, uv):
+  `uv pip install -e ".[test]"` + `structuretoolkit` + `pyscal3`, plus
+  `pyiron_lammps` and the patched `pyiron_workflow_lammps` (`/ptmp/hmai/pwl_dev`)
+  installed editable `--no-deps` (preserves the ase 3.28 / pandas 3.0.3 pins).
+  **Built & verified** 2026-06-27 (engine API, structuretoolkit, LammpsEngine
+  import clean). Runs unit tests + EMT/Al + LAMMPS (`pair_style grace`, shells to
+  `/ptmp/hmai/lammps/build/lmp`).
+- **GRACE venv** `/ptmp/hmai/pwa_melting/.venv-grace` (fresh uv venv): pwa editable
+  + structuretoolkit + `tensorpotential==0.5.1` + `tensorflow==2.16.2`. Isolated so
+  the TF stack / `pandas 2.3.3` downgrade does not perturb the dev venv. Used only
+  for the ASE-engine GRACE verification (`grace_fm`, `GRACE_CACHE=/ptmp/hmai/grace_cache`).
+- LAMMPS uses the existing GRACE-enabled `lmp` build at `/ptmp/hmai/lammps`.
 
 ---
 
@@ -324,11 +365,11 @@ full output paths.
 
 ---
 
-## 9. Open questions for review
-1. `LammpsEngine` backend: hand-rolled `lammps`-module templating (closest to the
-   notebook) vs wrapping `pyiron_workflow_lammps`? (Plan will pick; leaning
-   hand-rolled for control over velocity/stress trajectory capture.)
-2. Place CNA/Voronoi as **general** `analysis/` quantities (reusable) vs keep them
-   melting-local? (Leaning: keep melting-local now; promote later.)
-3. GRACE for the ASE step — install into the uv venv, or run that step in the
-   `grace` conda env with the package installed there?
+## 9. Resolved decisions (was: open questions)
+1. **LAMMPS engine** → *wrap* `pyiron_workflow_lammps`'s existing protocol-conformant
+   `LammpsEngine`; add a surgical velocity-capture patch to its parser (§4). Not
+   hand-rolled.
+2. **CNA/Voronoi/trajectory quantities** → placed as **general** `analysis/`
+   quantities (reusable), not melting-local (§3.4).
+3. **GRACE** → installed into a dedicated **fresh uv venv** `.venv-grace` (§7), not
+   the conda env.
