@@ -13,6 +13,7 @@ class MeltingIterationRecord:
     pressures: list[float]
     temperatures: list[float]
     converged: bool
+    center: float = 1.0  # fitted zero-pressure strain; next grid re-centres here
 
 
 @dataclass

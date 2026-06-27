@@ -14,6 +14,7 @@ class MeltingInput:
     temperature_left: float = 0.0
     temperature_right: float = 1000.0
     convergence_goal: float = 1.0  # K
+    max_coexistence_iterations: int = 12  # safety cap on the refinement loop
     timestep_lst: list[float] = field(default_factory=lambda: [2.0, 2.0, 1.0])
     fit_range_lst: list[float] = field(default_factory=lambda: [0.05, 0.01, 0.01])
     nve_steps_lst: list[int] = field(default_factory=lambda: [25000, 20000, 50000])

@@ -23,13 +23,6 @@ def _engine_with(engine, calc_input, subdir):
     return replace(engine, EngineInput=calc_input).with_working_directory(subdir)
 
 
-@pwf.as_function_node("engine_out")
-def with_calc_input(engine, calc_input):
-    """Return an engine copy whose EngineInput is replaced by ``calc_input``."""
-    engine_out = replace(engine, EngineInput=calc_input)
-    return engine_out
-
-
 @pwf.as_function_node("relaxed_structure", "engine_output")
 def npt_relax_solid(
     structure,
@@ -138,13 +131,18 @@ def strain_scan_nvt_nve(
         equil = calculate.node_function(
             strained, engine=_engine_with(engine, nvt_md, f"{subdir}_nvt_{i:03d}")
         ).final_structure
+        # The NVE input `equil` is already NVT-equilibrated at `temperature`
+        # (thermally warm, PE above the lattice minimum). The 2*T half-velocity
+        # trick is only valid from a COLD lattice; re-seeding a warm config at 2*T
+        # equipartitions to a kinetic temperature ~1.5*T. Re-seed at 1*T so the
+        # thermostat-free NVE settles back to ~T (the measured coexistence T).
         nve_md = CalcInputMD(
             mode="NVE",
             temperature=temperature,
             n_ionic_steps=nve_steps,
             n_print=max(1, nve_steps // 100),
             time_step=timestep,
-            initial_temperature=2.0 * temperature,
+            initial_temperature=temperature,
             seed=seed,
         )
         nve_out = calculate.node_function(

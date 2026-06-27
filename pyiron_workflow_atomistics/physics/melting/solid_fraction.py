@@ -15,6 +15,10 @@ def solid_fraction_kde(structure, crystalstructure: str, threshold: float = 0.1)
     method's ``plot_solid_liquid_ratio`` (minus plotting).
     """
     target = crystalstructure.lower()
+    # Wrap coordinates into the cell (the notebook's center_coordinates_in_unit_cell):
+    # MD lets atoms drift across PBC, so the raw z would smear the KDE slab width.
+    structure = structure.copy()
+    structure.wrap()
     labels = np.array(
         get_adaptive_cna_descriptors(
             structure=structure, mode="str", ovito_compatibility=False

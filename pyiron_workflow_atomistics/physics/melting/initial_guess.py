@@ -94,12 +94,21 @@ def estimate_melting_temperature(
                 structure, engine, t_left, strain_run_steps, timestep, seed, subdir,
                 npt_thermostat=npt_thermostat,
             )
-        else:  # both molten
+        elif f_left <= distribution_half and f_right <= distribution_half:  # both molten
             diff /= 2.0
             t_right, struct_right = t_left, struct_left.copy()
             t_left -= diff
             struct_left = _heated_solid(
                 structure, engine, t_left, strain_run_steps, timestep, seed, subdir,
+                npt_thermostat=npt_thermostat,
+            )
+        else:  # inverted (left molten, right solid): non-physical/noisy CNA — shrink
+            # the bracket from the right and re-sample nearer the middle rather than
+            # silently treating it as both-molten.
+            diff /= 2.0
+            t_right -= diff
+            struct_right = _heated_solid(
+                structure, engine, t_right, strain_run_steps, timestep, seed, subdir,
                 npt_thermostat=npt_thermostat,
             )
         step = t_right - t_left

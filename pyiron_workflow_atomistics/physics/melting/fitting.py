@@ -10,10 +10,12 @@ def ratio_selection(strains, ratios, pressures, temperatures, ratio_boundary: fl
 
     ``sl_flag`` is +1 if the selected window is mostly solid (>0.5), else -1.
     """
+    # Group by POSITION (index), not by ratio value: duplicate mid-band ratios in
+    # separate windows would otherwise be merged, breaking contiguity.
     groups, current = [], []
-    for r in ratios:
+    for i, r in enumerate(ratios):
         if (0.5 - ratio_boundary) < r < (0.5 + ratio_boundary):
-            current.append(r)
+            current.append(i)
         elif current:
             groups.append(current)
             current = []
@@ -24,13 +26,11 @@ def ratio_selection(strains, ratios, pressures, temperatures, ratio_boundary: fl
         flag = 1 if np.mean(ratios) > 0.5 else -1
     else:
         best = groups[int(np.argmax([len(g) for g in groups]))]
-        keep = [r in best for r in ratios]
-        sel_r = np.array(ratios)[keep]
-        flag = 1 if np.mean(sel_r) > 0.5 else -1
-        sel_strains = np.array(strains)[keep].tolist()
-        sel_ratios = sel_r.tolist()
-        sel_pressures = np.array(pressures)[keep].tolist()
-        sel_temperatures = np.array(temperatures)[keep].tolist()
+        sel_strains = [strains[i] for i in best]
+        sel_ratios = [ratios[i] for i in best]
+        sel_pressures = [pressures[i] for i in best]
+        sel_temperatures = [temperatures[i] for i in best]
+        flag = 1 if np.mean(sel_ratios) > 0.5 else -1
     return sel_strains, sel_ratios, sel_pressures, sel_temperatures, flag
 
 

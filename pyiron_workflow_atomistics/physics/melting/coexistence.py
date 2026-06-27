@@ -26,6 +26,26 @@ def _strain_grid(center, fit_range, n_points):
     ]
 
 
+def _next_center(strains, pressures, fallback=1.0):
+    """Zero-pressure strain from a linear P(strain) fit (reference get_center_point).
+
+    Returns ``fallback`` if the fit is degenerate or the root is unphysical so the
+    strain grid never wanders far from the equilibrium c-length.
+    """
+    if len(strains) < 2:
+        return fallback
+    try:
+        slope, intercept = np.polyfit(strains, pressures, 1)
+        if abs(slope) < 1e-12:
+            return fallback
+        center = abs(-intercept / slope)
+    except Exception:
+        return fallback
+    if not np.isfinite(center) or not (0.5 < center < 1.5):
+        return fallback
+    return float(round(center, 4))
+
+
 @pwf.as_function_node("record")
 def coexistence_iteration(
     structure,
@@ -43,9 +63,15 @@ def coexistence_iteration(
     boundary_value=0.25,
     seed=None,
     npt_thermostat="berendsen",
+    center=1.0,
     subdir="iter",
 ):
-    """One interface-method temperature iteration -> next-T estimate."""
+    """One interface-method temperature iteration -> next-T estimate.
+
+    ``center`` is the strain the grid is built around (the previous iteration's
+    fitted zero-pressure strain); the returned record carries the newly fitted
+    ``center`` for the next iteration.
+    """
     solid, _ = npt_relax_solid.node_function(
         structure, engine, temperature=temperature, n_steps=npt_steps,
         timestep=timestep, seed=seed, npt_thermostat=npt_thermostat,
@@ -55,7 +81,7 @@ def coexistence_iteration(
         solid, engine, t_solid=temperature, t_liquid=temperature + delta_t_melt,
         n_steps=npt_steps, timestep=timestep, seed=seed, subdir=f"{subdir}_iface",
     )
-    strains = _strain_grid(1.0, fit_range, n_strain_points)
+    strains = _strain_grid(center, fit_range, n_strain_points)
     records = strain_scan_nvt_nve.node_function(
         interface, engine, temperature=temperature, strains=strains,
         crystalstructure=crystalstructure, nvt_steps=nvt_steps, nve_steps=nve_steps,
@@ -79,8 +105,10 @@ def coexistence_iteration(
         t_next, _, _, _ = predict_melting_point.node_function(
             sel_s, sel_p, sel_t, boundary_value=boundary_value
         )
+        next_center = _next_center(sel_s, sel_p, fallback=center)
     else:
         t_next = temperature * (1.10 if flag > 0 else 0.90)
+        next_center = center
     record = MeltingIterationRecord(
         temperature_in=float(temperature),
         temperature_next=float(t_next),
@@ -89,19 +117,29 @@ def coexistence_iteration(
         pressures=list(pressures),
         temperatures=list(temps),
         converged=False,
+        center=float(next_center),
     )
     return record
 
 
 @pwf.as_function_node("result")
 def refine_melting_point(structure, engine, t_guess, melting_input, crystalstructure):
-    """Convergence loop over the refinement schedules until |dT| <= goal."""
+    """Iterate coexistence steps until |dT| <= convergence_goal.
+
+    Refinement schedules (timestep, fit_range, nve_steps) advance one entry per
+    iteration and then HOLD at the finest entry, repeating it until the
+    temperature change between consecutive iterations meets the goal (or the
+    ``max_coexistence_iterations`` safety cap is hit). Each iteration re-centres
+    the strain grid on the previous iteration's fitted zero-pressure strain.
+    """
     mi = melting_input
     schedules = list(zip(mi.timestep_lst, mi.fit_range_lst, mi.nve_steps_lst))
     temperature = float(t_guess)
+    center = 1.0
     iterations: list[MeltingIterationRecord] = []
     converged = False
-    for step_idx, (timestep, fit_range, nve_steps) in enumerate(schedules):
+    for step_idx in range(mi.max_coexistence_iterations):
+        timestep, fit_range, nve_steps = schedules[min(step_idx, len(schedules) - 1)]
         rec = coexistence_iteration.node_function(
             structure, engine, temperature=temperature,
             crystalstructure=crystalstructure, fit_range=fit_range,
@@ -109,12 +147,14 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
             nve_steps=nve_steps, npt_steps=mi.npt_run_steps, timestep=timestep,
             delta_t_melt=mi.delta_t_melt, ratio_boundary=mi.ratio_boundary,
             boundary_value=mi.boundary_value, seed=mi.seed,
-            npt_thermostat=mi.npt_thermostat, subdir=f"iter_{step_idx}",
+            npt_thermostat=mi.npt_thermostat, center=center, subdir=f"iter_{step_idx}",
         )
         iterations.append(rec)
         delta = abs(rec.temperature_next - temperature)
         temperature = rec.temperature_next
-        if delta <= mi.convergence_goal:
+        center = rec.center
+        # only declare convergence once the finest schedule is in effect
+        if delta <= mi.convergence_goal and step_idx >= len(schedules) - 1:
             converged = True
             break
     result = MeltingResult(
@@ -126,6 +166,7 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
         n_atoms=len(structure),
         initial_guess=float(t_guess),
         iterations=iterations,
-        report={"schedules": schedules},
+        report={"schedules": schedules,
+                "max_coexistence_iterations": mi.max_coexistence_iterations},
     )
     return result

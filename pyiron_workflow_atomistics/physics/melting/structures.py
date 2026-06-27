@@ -13,8 +13,18 @@ def create_coexistence_supercell(
     a: float | None = None,
     n_atoms: int = 8000,
 ):
-    """Cubic bulk repeated i x i x i so the atom count is closest to ``n_atoms/2``."""
-    base = bulk(element, crystalstructure, a=a, cubic=True)
+    """Bulk repeated i x i x i so the atom count is closest to ``n_atoms/2``.
+
+    Uses a cubic conventional cell where possible; hcp falls back to an
+    orthorhombic cell (cubic=True is invalid for hcp), matching the notebook.
+    """
+    cs = (crystalstructure or "").lower()
+    if cs == "hcp":
+        base = bulk(element, crystalstructure, a=a, orthorhombic=True)
+    elif crystalstructure is None:
+        base = bulk(element, a=a)
+    else:
+        base = bulk(element, crystalstructure, a=a, cubic=True)
     target = n_atoms / 2.0
     reps = range(2, 30)
     cells = [base.repeat((i, i, i)) for i in reps]
