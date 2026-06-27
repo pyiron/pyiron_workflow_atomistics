@@ -11,6 +11,11 @@ class MeltingInput:
     crystalstructure: str | None = None  # default: ASE reference state
     a: float | None = None
     n_atoms: int = 8000  # solid cell targets n_atoms/2
+    # Across-the-table scan (melting_point_scan): candidate solid polymorphs to
+    # screen, and how many top survivors get the expensive coexistence refinement.
+    # ``None`` -> {fcc, bcc, hcp} plus the element's ASE reference state.
+    candidate_phases: list[str] | None = None
+    n_refine: int = 2
     temperature_left: float = 0.0
     temperature_right: float = 1000.0
     convergence_goal: float = 1.0  # K

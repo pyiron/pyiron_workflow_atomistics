@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pyiron_workflow as pwf
 from ase.data import atomic_numbers, reference_states
 
-from pyiron_workflow_atomistics.analysis.structure_descriptors import (
-    analyse_reference_structure,
-)
-from pyiron_workflow_atomistics.engine import CalcInputMinimize, calculate
 from pyiron_workflow_atomistics.physics.melting.coexistence import refine_melting_point
-from pyiron_workflow_atomistics.physics.melting.initial_guess import (
-    estimate_melting_temperature,
-)
+from pyiron_workflow_atomistics.physics.melting.screen import screen_phase
 from pyiron_workflow_atomistics.physics.melting.structures import (
-    create_coexistence_supercell,
+    estimate_lattice_constant,
 )
 
 
@@ -24,35 +16,38 @@ def _default_crystalstructure(element):
 
 @pwf.as_function_node("result")
 def calculate_melting_point(engine, melting_input):
-    """Full interface-method melting point: build -> relax -> Step 1 -> Step 2."""
+    """Full interface-method melting point for ONE phase: screen -> refine.
+
+    Builds, relaxes and runs the Step-1 superheating estimate (``screen_phase``),
+    then refines with the Step-2 coexistence loop. Use ``melting_point_scan`` to
+    discover the pre-melt phase across polymorphs instead of fixing it here.
+    """
     mi = melting_input
     crystalstructure = mi.crystalstructure or _default_crystalstructure(mi.element)
-    structure = create_coexistence_supercell.node_function(
-        mi.element, crystalstructure, a=mi.a, n_atoms=mi.n_atoms
-    )
-    relax_engine = replace(
-        engine, EngineInput=CalcInputMinimize(relax_cell=True)
-    ).with_working_directory("minimize")
-    relaxed = calculate.node_function(structure, engine=relax_engine).final_structure
-    key_max, _, distribution_half = analyse_reference_structure.node_function(relaxed)
-    t_guess, struct_at_guess = estimate_melting_temperature.node_function(
-        relaxed,
+    a = mi.a
+    if a is None and crystalstructure != _default_crystalstructure(mi.element):
+        a = estimate_lattice_constant.node_function(
+            mi.element, engine, crystalstructure
+        )
+    t_guess, struct_at_guess, observed = screen_phase.node_function(
         engine,
-        key_max=key_max,
-        distribution_half=distribution_half,
-        crystalstructure=crystalstructure,
+        mi.element,
+        crystalstructure,
+        a,
+        n_atoms=mi.n_atoms,
         temperature_left=mi.temperature_left,
         temperature_right=mi.temperature_right,
         strain_run_steps=mi.strain_run_steps,
         timestep=mi.timestep_lst[0],
         seed=mi.seed,
         npt_thermostat=mi.npt_thermostat,
+        subdir="single",
     )
     result = refine_melting_point.node_function(
         struct_at_guess,
         engine,
         t_guess=t_guess,
         melting_input=mi,
-        crystalstructure=crystalstructure,
+        crystalstructure=observed,
     )
     return result
