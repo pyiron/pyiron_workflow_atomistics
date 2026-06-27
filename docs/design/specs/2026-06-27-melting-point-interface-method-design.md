@@ -373,3 +373,48 @@ full output paths.
    quantities (reusable), not melting-local (§3.4).
 3. **GRACE** → installed into a dedicated **fresh uv venv** `.venv-grace` (§7), not
    the conda env.
+
+---
+
+## 10. Addendum (2026-06-27): across-the-table polymorph scan
+
+The single-phase macro (`calculate_melting_point`) fixes the solid phase up front.
+Across the periodic table the pre-melt phase varies *per potential* — a potential's
+melting point is a property of **its own** free-energy landscape, so the relevant
+solid is whichever polymorph that potential makes most stable just below melting,
+discovered rather than imposed.
+
+**Driver:** `physics/melting/screen.py::melting_point_scan(engine, melting_input)`.
+
+- **Screen (cheap):** `screen_phase` runs build → cell-relax → **Step 1 only** (the
+  superheating NPT bisection) for each candidate polymorph. Step 1 is cheap enough
+  to use as the phase screen and yields (a) the relaxed cell's dominant CNA class
+  (`observed_phase`), (b) whether the seeded phase held, and (c) a `t_guess` to rank
+  by. Seed lattice constants for non-reference phases come from
+  `estimate_lattice_constant` (relax the ASE reference state, invert the ideal
+  volume-per-atom relation; cell-relax then corrects it).
+- **Select:** dedupe by `observed_phase` (a collapsed seed merges into its product
+  phase, preferring the `held` record), keep CNA-refinable solids (fcc/bcc/hcp),
+  take the top `n_refine` by `t_guess`.
+- **Refine (expensive):** run the full Step-2 coexistence (`refine_melting_point`)
+  on the survivors, labelled by `observed_phase` (the crystal actually present, so
+  the solid-fraction CNA target matches).
+- **Aggregate:** `Tm = max` over refined polymorphs; `selected_phase` is the
+  argmax (the potential's pre-melt phase); `runner_up_phase` + `delta_runner_up`
+  expose near-degeneracy (within Tm error ⇒ report both, do not over-resolve).
+
+Self-correcting by construction: a metastable seed either transforms during
+equilibration (caught by CNA) or yields a lower coexistence `Tm` that `max`
+discards. No TI/free-energy stage is needed — it would be redundant where Step 1
+already screens and fragile exactly on the anharmonically-stabilised high-T bcc
+phases (Ti/Zr/Hf) where a harmonic reference is undefined.
+
+**Inputs:** `MeltingInput.candidate_phases` (default `None` ⇒ {fcc, bcc, hcp} +
+reference state) and `MeltingInput.n_refine` (default 2).
+**Outputs:** `MeltingScanResult` (+ `PhaseScreenRecord` per candidate), both with
+`to_dict()`. **CLI:** `scripts/meltingpoint.py --scan [--candidate-phases ...]
+[--n-refine N]`.
+
+**Known limitation:** non-close-packed reference states (diamond Si/C, etc.) screen
+but are not CNA-refinable; the scan falls back to the deduped set and flags them via
+`observed_phase` ∉ {fcc,bcc,hcp}. Molecular/sublimating elements are out of scope.
