@@ -14,8 +14,16 @@ def _fraction(structure, key_max):
     return counts.get(key_max, 0) / len(structure)
 
 
-def _heated_solid(structure, engine, temperature, strain_run_steps, timestep, seed,
-                  subdir, npt_thermostat="berendsen"):
+def _heated_solid(
+    structure,
+    engine,
+    temperature,
+    strain_run_steps,
+    timestep,
+    seed,
+    subdir,
+    npt_thermostat="berendsen",
+):
     """NPT-heat ``structure`` at ``temperature`` and return the final structure.
 
     ``npt_thermostat`` must keep the cell isotropic/orthorhombic ("berendsen" for
@@ -62,13 +70,21 @@ def estimate_melting_temperature(
     a hard ``max_iterations`` guard and ``t_ceiling`` so an undersampled MD run
     (where nothing melts) cannot expand the bracket without bound.
     """
-    ceiling = t_ceiling if t_ceiling is not None else max(
-        temperature_right * 3.0, temperature_right + 1.0
+    ceiling = (
+        t_ceiling
+        if t_ceiling is not None
+        else max(temperature_right * 3.0, temperature_right + 1.0)
     )
     t_left, t_right = temperature_left, temperature_right
     struct_left = structure
     struct_right = _heated_solid(
-        structure, engine, t_right, strain_run_steps, timestep, seed, subdir,
+        structure,
+        engine,
+        t_right,
+        strain_run_steps,
+        timestep,
+        seed,
+        subdir,
         npt_thermostat=npt_thermostat,
     )
     step = t_right - t_left
@@ -84,22 +100,42 @@ def estimate_melting_temperature(
             struct_left, t_left = struct_right.copy(), t_right
             t_right = min(t_right + diff, ceiling)
             struct_right = _heated_solid(
-                structure, engine, t_right, strain_run_steps, timestep, seed, subdir,
+                structure,
+                engine,
+                t_right,
+                strain_run_steps,
+                timestep,
+                seed,
+                subdir,
                 npt_thermostat=npt_thermostat,
             )
         elif f_left > distribution_half >= f_right:
             diff /= 2.0
             t_left += diff
             struct_left = _heated_solid(
-                structure, engine, t_left, strain_run_steps, timestep, seed, subdir,
+                structure,
+                engine,
+                t_left,
+                strain_run_steps,
+                timestep,
+                seed,
+                subdir,
                 npt_thermostat=npt_thermostat,
             )
-        elif f_left <= distribution_half and f_right <= distribution_half:  # both molten
+        elif (
+            f_left <= distribution_half and f_right <= distribution_half
+        ):  # both molten
             diff /= 2.0
             t_right, struct_right = t_left, struct_left.copy()
             t_left -= diff
             struct_left = _heated_solid(
-                structure, engine, t_left, strain_run_steps, timestep, seed, subdir,
+                structure,
+                engine,
+                t_left,
+                strain_run_steps,
+                timestep,
+                seed,
+                subdir,
                 npt_thermostat=npt_thermostat,
             )
         else:  # inverted (left molten, right solid): non-physical/noisy CNA — shrink
@@ -108,7 +144,13 @@ def estimate_melting_temperature(
             diff /= 2.0
             t_right -= diff
             struct_right = _heated_solid(
-                structure, engine, t_right, strain_run_steps, timestep, seed, subdir,
+                structure,
+                engine,
+                t_right,
+                strain_run_steps,
+                timestep,
+                seed,
+                subdir,
                 npt_thermostat=npt_thermostat,
             )
         step = t_right - t_left

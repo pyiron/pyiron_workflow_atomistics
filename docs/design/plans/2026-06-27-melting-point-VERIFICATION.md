@@ -38,10 +38,13 @@ Al→ACE species, builds neighbor lists, computes step-0 forces (1 dump frame), 
 the GRACE evaluator aborts at the first dynamics step — on **both CPU and A100**.
 This is a `pair_style grace` model/build pairing issue in the LAMMPS-GRACE stack,
 independent of the melting module: the engine-agnostic algorithm is identical to
-the EMT/GRACE-ASE paths that succeed. The ready-to-run driver
-(`scripts/_verify_lammps_grace_coex.py`) + SLURM job (`scripts/submit_grace_verify.sh`)
-will run once pointed at a `pair_style grace`-compatible model/build (e.g. a
-`grace/fs` export, which Han uses in the calphy campaigns).
+the EMT/GRACE-ASE paths that succeed. Building a `LammpsEngine` with
+`command=<grace lmp>`, `path_to_model=<exported GRACE model>`,
+`input_script_pair_style="grace"` and calling `coexistence_iteration(...,
+npt_thermostat="nose-hoover")` will run once pointed at a `pair_style
+grace`-compatible model/build (e.g. a `grace/fs` export, as in the calphy
+campaigns). The per-session verification driver/SLURM scripts were kept local
+(not committed upstream) to avoid hard-coded paths in the library.
 
 ## Bugs found & fixed during verification
 
@@ -100,10 +103,12 @@ Documented follow-ups (not blocking the ASE path):
 /ptmp/hmai/pwa_melting/.venv/bin/python -m pytest tests/unit/analysis tests/unit/physics/melting -q
 # EMT integration (slow)
 /ptmp/hmai/pwa_melting/.venv/bin/python -m pytest tests/integration -q -m slow
-# Step-1 estimate (EMT)
+# Step-1 estimate (EMT) — or --full for the complete method
 /ptmp/hmai/pwa_melting/.venv/bin/python scripts/meltingpoint.py --element Al --a 4.05
-# GRACE + LAMMPS on a GPU node
-sbatch /ptmp/hmai/pwa_melting/scripts/submit_grace_verify.sh
+# GRACE (ASE): build an ASEEngine with tensorpotential.calculator.grace_fm(<model>)
+#   and call estimate_melting_temperature / calculate_melting_point on a GPU node.
+# LAMMPS: build a LammpsEngine (command=<grace lmp>, path_to_model=<model>,
+#   input_script_pair_style="grace") and call coexistence_iteration(npt_thermostat="nose-hoover").
 ```
 
 ## Output locations
