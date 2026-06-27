@@ -22,6 +22,7 @@ dependencies:
 - pytest
 - pytest-cov
 - pyscal3
+- structuretoolkit
 - nbformat
 - nbclient
 - phonopy

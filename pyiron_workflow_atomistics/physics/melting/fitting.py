@@ -5,7 +5,9 @@ import pyiron_workflow as pwf
 
 
 @pwf.as_function_node("strains", "ratios", "pressures", "temperatures", "sl_flag")
-def ratio_selection(strains, ratios, pressures, temperatures, ratio_boundary: float = 0.25):
+def ratio_selection(
+    strains, ratios, pressures, temperatures, ratio_boundary: float = 0.25
+):
     """Keep the longest contiguous strain window with ratio in 0.5 +/- boundary.
 
     ``sl_flag`` is +1 if the selected window is mostly solid (>0.5), else -1.
@@ -35,7 +37,9 @@ def ratio_selection(strains, ratios, pressures, temperatures, ratio_boundary: fl
 
 
 @pwf.as_function_node("t_next", "t_mean", "t_left", "t_right")
-def predict_melting_point(strains, pressures, temperatures, boundary_value: float = 0.25):
+def predict_melting_point(
+    strains, pressures, temperatures, boundary_value: float = 0.25
+):
     """Extrapolate temperature to zero pressure; bracket via boundary_value."""
     fit_temp_from_press = np.poly1d(np.polyfit(pressures, temperatures, 1))
     t_next = float(fit_temp_from_press(0.0))

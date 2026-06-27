@@ -7,7 +7,9 @@ from structuretoolkit.analyse import get_adaptive_cna_descriptors
 
 
 @pwf.as_function_node("solid_fraction")
-def solid_fraction_kde(structure, crystalstructure: str, threshold: float = 0.1) -> float:
+def solid_fraction_kde(
+    structure, crystalstructure: str, threshold: float = 0.1
+) -> float:
     """Fraction of the z-extent occupied by the crystalline phase.
 
     Per-atom CNA labels the target phase; a 1-D KDE of those atoms' z-positions

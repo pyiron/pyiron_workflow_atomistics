@@ -155,7 +155,9 @@ def strain_scan_nvt_nve(
                 "mean_T": temperatures_from_trajectory.node_function(
                     nve_out, last_n=last_n
                 ),
-                "mean_P": pressures_from_trajectory.node_function(nve_out, last_n=last_n),
+                "mean_P": pressures_from_trajectory.node_function(
+                    nve_out, last_n=last_n
+                ),
                 "solid_fraction": solid_fraction_kde.node_function(
                     nve_out.final_structure, crystalstructure
                 ),

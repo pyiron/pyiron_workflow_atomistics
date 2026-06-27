@@ -22,6 +22,7 @@ dependencies:
   - pytest
   - pytest-cov
   - pyscal3  # used by structure/defects.py void-analysis helpers (Tier 2 tests)
+  - structuretoolkit  # CNA + Voronoi descriptors for analysis/ + physics/melting/
   - nbformat
   - nbclient
 

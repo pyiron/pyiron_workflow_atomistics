@@ -36,13 +36,23 @@ def calculate_melting_point(engine, melting_input):
     relaxed = calculate.node_function(structure, engine=relax_engine).final_structure
     key_max, _, distribution_half = analyse_reference_structure.node_function(relaxed)
     t_guess, struct_at_guess = estimate_melting_temperature.node_function(
-        relaxed, engine, key_max=key_max, distribution_half=distribution_half,
-        crystalstructure=crystalstructure, temperature_left=mi.temperature_left,
-        temperature_right=mi.temperature_right, strain_run_steps=mi.strain_run_steps,
-        timestep=mi.timestep_lst[0], seed=mi.seed, npt_thermostat=mi.npt_thermostat,
+        relaxed,
+        engine,
+        key_max=key_max,
+        distribution_half=distribution_half,
+        crystalstructure=crystalstructure,
+        temperature_left=mi.temperature_left,
+        temperature_right=mi.temperature_right,
+        strain_run_steps=mi.strain_run_steps,
+        timestep=mi.timestep_lst[0],
+        seed=mi.seed,
+        npt_thermostat=mi.npt_thermostat,
     )
     result = refine_melting_point.node_function(
-        struct_at_guess, engine, t_guess=t_guess, melting_input=mi,
+        struct_at_guess,
+        engine,
+        t_guess=t_guess,
+        melting_input=mi,
         crystalstructure=crystalstructure,
     )
     return result

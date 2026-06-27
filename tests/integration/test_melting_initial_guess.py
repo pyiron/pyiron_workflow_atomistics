@@ -21,9 +21,18 @@ def test_initial_guess_brackets_a_temperature(tmp_path):
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
     t_guess, struct = estimate_melting_temperature.node_function(
-        s, eng, key_max=key_max, distribution_half=half, crystalstructure="fcc",
-        temperature_left=0.0, temperature_right=1400.0, strain_run_steps=40,
-        timestep=2.0, seed=1, t_step_min=200.0, max_iterations=8,
+        s,
+        eng,
+        key_max=key_max,
+        distribution_half=half,
+        crystalstructure="fcc",
+        temperature_left=0.0,
+        temperature_right=1400.0,
+        strain_run_steps=40,
+        timestep=2.0,
+        seed=1,
+        t_step_min=200.0,
+        max_iterations=8,
     )
     assert math.isfinite(t_guess)
     assert t_guess >= 0

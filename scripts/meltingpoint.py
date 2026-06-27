@@ -44,13 +44,18 @@ def run(
     )
 
     engine = ASEEngine(
-        EngineInput=CalcInputStatic(), calculator=EMT(),
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
         working_directory=working_directory,
     )
     if full:
         mi = MeltingInput(
-            element=element, crystalstructure=crystalstructure, a=a, n_atoms=n_atoms,
-            temperature_right=temperature_right, strain_run_steps=strain_run_steps,
+            element=element,
+            crystalstructure=crystalstructure,
+            a=a,
+            n_atoms=n_atoms,
+            temperature_right=temperature_right,
+            strain_run_steps=strain_run_steps,
             seed=seed,
         )
         res = calculate_melting_point.node_function(engine, mi).to_dict()
@@ -65,9 +70,14 @@ def run(
     )
     key_max, _, half = analyse_reference_structure.node_function(structure)
     t_guess, _ = estimate_melting_temperature.node_function(
-        structure, engine, key_max=key_max, distribution_half=half,
-        crystalstructure=crystalstructure, temperature_right=temperature_right,
-        strain_run_steps=strain_run_steps, seed=seed,
+        structure,
+        engine,
+        key_max=key_max,
+        distribution_half=half,
+        crystalstructure=crystalstructure,
+        temperature_right=temperature_right,
+        strain_run_steps=strain_run_steps,
+        seed=seed,
     )
     print(f"Step-1 melting-temperature estimate: {t_guess} K")
     return {"initial_guess": float(t_guess)}
@@ -86,10 +96,15 @@ def main():
     p.add_argument("--seed", type=int, default=12345)
     args = p.parse_args()
     run(
-        element=args.element, crystalstructure=args.crystalstructure, a=args.a,
-        n_atoms=args.n_atoms, working_directory=args.working_directory, full=args.full,
+        element=args.element,
+        crystalstructure=args.crystalstructure,
+        a=args.a,
+        n_atoms=args.n_atoms,
+        working_directory=args.working_directory,
+        full=args.full,
         temperature_right=args.temperature_right,
-        strain_run_steps=args.strain_run_steps, seed=args.seed,
+        strain_run_steps=args.strain_run_steps,
+        seed=args.seed,
     )
 
 

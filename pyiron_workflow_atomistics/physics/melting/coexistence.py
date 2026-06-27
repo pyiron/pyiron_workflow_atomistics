@@ -73,19 +73,37 @@ def coexistence_iteration(
     ``center`` for the next iteration.
     """
     solid, _ = npt_relax_solid.node_function(
-        structure, engine, temperature=temperature, n_steps=npt_steps,
-        timestep=timestep, seed=seed, npt_thermostat=npt_thermostat,
+        structure,
+        engine,
+        temperature=temperature,
+        n_steps=npt_steps,
+        timestep=timestep,
+        seed=seed,
+        npt_thermostat=npt_thermostat,
         subdir=f"{subdir}_npt",
     )
     interface = build_solid_liquid_interface.node_function(
-        solid, engine, t_solid=temperature, t_liquid=temperature + delta_t_melt,
-        n_steps=npt_steps, timestep=timestep, seed=seed, subdir=f"{subdir}_iface",
+        solid,
+        engine,
+        t_solid=temperature,
+        t_liquid=temperature + delta_t_melt,
+        n_steps=npt_steps,
+        timestep=timestep,
+        seed=seed,
+        subdir=f"{subdir}_iface",
     )
     strains = _strain_grid(center, fit_range, n_strain_points)
     records = strain_scan_nvt_nve.node_function(
-        interface, engine, temperature=temperature, strains=strains,
-        crystalstructure=crystalstructure, nvt_steps=nvt_steps, nve_steps=nve_steps,
-        timestep=timestep, seed=seed, subdir=f"{subdir}_strain",
+        interface,
+        engine,
+        temperature=temperature,
+        strains=strains,
+        crystalstructure=crystalstructure,
+        nvt_steps=nvt_steps,
+        nve_steps=nve_steps,
+        timestep=timestep,
+        seed=seed,
+        subdir=f"{subdir}_strain",
     )
     ratios = [r["solid_fraction"] for r in records]
     pressures = [r["mean_P"] for r in records]
@@ -141,13 +159,23 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
     for step_idx in range(mi.max_coexistence_iterations):
         timestep, fit_range, nve_steps = schedules[min(step_idx, len(schedules) - 1)]
         rec = coexistence_iteration.node_function(
-            structure, engine, temperature=temperature,
-            crystalstructure=crystalstructure, fit_range=fit_range,
-            n_strain_points=mi.n_strain_points, nvt_steps=mi.nvt_run_steps,
-            nve_steps=nve_steps, npt_steps=mi.npt_run_steps, timestep=timestep,
-            delta_t_melt=mi.delta_t_melt, ratio_boundary=mi.ratio_boundary,
-            boundary_value=mi.boundary_value, seed=mi.seed,
-            npt_thermostat=mi.npt_thermostat, center=center, subdir=f"iter_{step_idx}",
+            structure,
+            engine,
+            temperature=temperature,
+            crystalstructure=crystalstructure,
+            fit_range=fit_range,
+            n_strain_points=mi.n_strain_points,
+            nvt_steps=mi.nvt_run_steps,
+            nve_steps=nve_steps,
+            npt_steps=mi.npt_run_steps,
+            timestep=timestep,
+            delta_t_melt=mi.delta_t_melt,
+            ratio_boundary=mi.ratio_boundary,
+            boundary_value=mi.boundary_value,
+            seed=mi.seed,
+            npt_thermostat=mi.npt_thermostat,
+            center=center,
+            subdir=f"iter_{step_idx}",
         )
         iterations.append(rec)
         delta = abs(rec.temperature_next - temperature)
@@ -166,7 +194,9 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
         n_atoms=len(structure),
         initial_guess=float(t_guess),
         iterations=iterations,
-        report={"schedules": schedules,
-                "max_coexistence_iterations": mi.max_coexistence_iterations},
+        report={
+            "schedules": schedules,
+            "max_coexistence_iterations": mi.max_coexistence_iterations,
+        },
     )
     return result
