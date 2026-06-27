@@ -9,6 +9,17 @@ from .featurisers import (
 )
 from .gb_plane import find_gb_plane, plot_gb_plane
 from .quantities import get_per_atom_quantity
+from .structure_descriptors import (
+    analyse_reference_structure,
+    classify_solid,
+    cna_fractions,
+    holes_mask,
+    voronoi_max_mean,
+)
+from .trajectory import (
+    pressures_from_trajectory,
+    temperatures_from_trajectory,
+)
 
 __all__ = [
     "voronoi_site_featuriser",
@@ -19,4 +30,11 @@ __all__ = [
     "find_gb_plane",
     "plot_gb_plane",
     "get_per_atom_quantity",
+    "analyse_reference_structure",
+    "classify_solid",
+    "cna_fractions",
+    "holes_mask",
+    "voronoi_max_mean",
+    "pressures_from_trajectory",
+    "temperatures_from_trajectory",
 ]

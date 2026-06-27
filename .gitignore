@@ -48,3 +48,10 @@ Thumbs.db
 nohup.out
 pyiron.log
 core.*
+
+# melting verification run artifacts
+_verify_runs/
+lammps_job/
+lammps.data
+dump.out
+log.lammps
