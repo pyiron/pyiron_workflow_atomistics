@@ -70,12 +70,16 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_a(self):
         """Test generating structures with strain along axis a."""
-        structures = bulk_module.generate_structures.pwf.run(
-            base_structure=self.test_atoms,
-            axes=["a"],
-            strain_range=(-0.1, 0.1),
-            num_points=4,  # Really important this never lands on 0.0
-        ).outputs["structure_list"].value
+        structures = (
+            bulk_module.generate_structures.pwf.run(
+                base_structure=self.test_atoms,
+                axes=["a"],
+                strain_range=(-0.1, 0.1),
+                num_points=4,  # Really important this never lands on 0.0
+            )
+            .outputs["structure_list"]
+            .value
+        )
 
         self.assertEqual(len(structures), 4)
 
@@ -93,12 +97,16 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_b(self):
         """Test generating structures with strain along axis b."""
-        structures = bulk_module.generate_structures.pwf.run(
-            base_structure=self.test_atoms,
-            axes=["b"],
-            strain_range=(-0.05, 0.05),
-            num_points=4,
-        ).outputs["structure_list"].value
+        structures = (
+            bulk_module.generate_structures.pwf.run(
+                base_structure=self.test_atoms,
+                axes=["b"],
+                strain_range=(-0.05, 0.05),
+                num_points=4,
+            )
+            .outputs["structure_list"]
+            .value
+        )
 
         self.assertEqual(len(structures), 4)
 
@@ -115,12 +123,16 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_c(self):
         """Test generating structures with strain along axis c."""
-        structures = bulk_module.generate_structures.pwf.run(
-            base_structure=self.test_atoms,
-            axes=["c"],
-            strain_range=(-0.05, 0.05),
-            num_points=4,
-        ).outputs["structure_list"].value
+        structures = (
+            bulk_module.generate_structures.pwf.run(
+                base_structure=self.test_atoms,
+                axes=["c"],
+                strain_range=(-0.05, 0.05),
+                num_points=4,
+            )
+            .outputs["structure_list"]
+            .value
+        )
 
         self.assertEqual(len(structures), 4)
 
@@ -137,12 +149,16 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_multiple_axes(self):
         """Test generating structures with strain along multiple axes."""
-        structures = bulk_module.generate_structures.pwf.run(
-            base_structure=self.test_atoms,
-            axes=["a", "b"],
-            strain_range=(-0.1, 0.1),
-            num_points=4,
-        ).outputs["structure_list"].value
+        structures = (
+            bulk_module.generate_structures.pwf.run(
+                base_structure=self.test_atoms,
+                axes=["a", "b"],
+                strain_range=(-0.1, 0.1),
+                num_points=4,
+            )
+            .outputs["structure_list"]
+            .value
+        )
 
         self.assertEqual(len(structures), 4)
 
@@ -165,12 +181,16 @@ class TestBulkFunctions(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            structures = bulk_module.generate_structures.pwf.run(
-                base_structure=self.test_atoms,
-                axes=["a", "unknown", "b"],
-                strain_range=strain_range,
-                num_points=num_points,
-            ).outputs["structure_list"].value
+            structures = (
+                bulk_module.generate_structures.pwf.run(
+                    base_structure=self.test_atoms,
+                    axes=["a", "unknown", "b"],
+                    strain_range=strain_range,
+                    num_points=num_points,
+                )
+                .outputs["structure_list"]
+                .value
+            )
 
         # One warning per generated structure for the unknown axis
         unknown_msgs = [
@@ -200,9 +220,7 @@ class TestBulkFunctions(unittest.TestCase):
         volumes = np.array([10.0, 12.0, 14.0, 16.0, 18.0])
         energies = 0.1 * (volumes - 14.0) ** 2 + 5.0  # Parabola centered at V=14
 
-        e0, v0, B = bulk_module.equation_of_state(
-            energies, volumes, eos_type="sj"
-        )
+        e0, v0, B = bulk_module.equation_of_state(energies, volumes, eos_type="sj")
 
         # Check that results are reasonable
         self.assertIsInstance(e0, float)

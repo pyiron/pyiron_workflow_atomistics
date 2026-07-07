@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pyiron_workflow as pwf_legacy
 import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 from ase.build import bulk as ase_bulk

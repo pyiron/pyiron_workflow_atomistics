@@ -131,7 +131,6 @@ def eos_volume_scan(
     return v0, e0, B_GPa, volumes, structures, energies
 
 
-
 @pwf.workflow(
     "equil_struct",
     "a0",
