@@ -27,7 +27,7 @@ dependencies = [
     "pandas==3.0.3",
     "matplotlib==3.11.0",
     "ase==3.29.0",
-    "scipy==1.17.1",
+    "scipy==1.18.0",
     "pyiron-workflow==0.15.6",
     "pymatgen==2026.5.4",
     "pyiron_snippets==1.4.0",
@@ -35,7 +35,7 @@ dependencies = [
     "structuretoolkit==0.0.45",
     "pyscal3==3.3.2",
     "lz-GB-code==0.1.0",
-    "tqdm==4.68.3",
+    "tqdm==4.68.4",
 ]
 dynamic = ["version"]
 authors = [
