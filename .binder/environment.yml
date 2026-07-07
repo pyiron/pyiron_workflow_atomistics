@@ -10,7 +10,7 @@ dependencies:
 - scikit-learn>=1.0.0
 - pip
 - pymatgen>=2024.8.8
-- pyiron_workflow
+- pyiron_workflow =0.17.0
 - pyiron_snippets
 - tqdm
 - pytest
