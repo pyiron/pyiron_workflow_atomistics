@@ -22,7 +22,7 @@ def test_get_per_atom_quantity_divides_by_atom_count():
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True)  # 4 atoms
     assert len(structure) == 4
-    per_atom = get_per_atom_quantity.node_function(quantity=-16.0, structure=structure)
+    per_atom = get_per_atom_quantity(quantity=-16.0, structure=structure)
     assert per_atom == -4.0
 
 

@@ -80,7 +80,8 @@ def calculate_surface_energy(
     no-vacuum slab, which gave physically wrong (often negative) surface
     energies because a slab with ``vacuum=0`` is not equivalent to bulk.
     """
-    wf.slab_vac = create_surface_slab(
+    wf.slab_vac = pwf.function_node(
+        create_surface_slab,
         bulk_structure=bulk_structure,
         miller_indices=miller_indices,
         layers=layers,

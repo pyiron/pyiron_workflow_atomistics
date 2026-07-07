@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 
 
-@pwf.as_function_node("per_atom_quantity")
+@pwf.atomic("per_atom_quantity")
 def get_per_atom_quantity(quantity: float, structure) -> float:
     """Divide a total-cell quantity by the number of atoms."""
     per_atom_quantity = quantity / len(structure)

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import pyiron_workflow as pwf
+import pyiron_workflow as pwf_legacy
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 from ase.build import bulk as ase_bulk
 from ase.build import surface as ase_surface
 
 
-@pwf.as_function_node("equil_struct")
+@pwf.atomic("equil_struct")
 def get_bulk(
     name: str,
     crystalstructure: str | None = None,
@@ -26,7 +27,7 @@ def get_bulk(
 
     Examples
     --------
-    >>> cu = get_bulk.node_function("Cu", crystalstructure="fcc", a=3.6, cubic=True)
+    >>> cu = get_bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True)
     >>> len(cu)
     4
     """
@@ -46,7 +47,7 @@ def get_bulk(
     return equil_struct
 
 
-@pwf.as_function_node("surface_slab")
+@pwf.atomic("surface_slab")
 def create_surface_slab(
     bulk_structure: Atoms,
     miller_indices: tuple[int, int, int] | tuple[int, int, int, int] = (1, 1, 1),
@@ -58,8 +59,8 @@ def create_surface_slab(
 
     Examples
     --------
-    >>> cu = get_bulk.node_function("Cu", crystalstructure="fcc", a=3.6, cubic=True)
-    >>> slab = create_surface_slab.node_function(cu, miller_indices=(1, 1, 1), layers=3)
+    >>> cu = get_bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True)
+    >>> slab = create_surface_slab(cu, miller_indices=(1, 1, 1), layers=3)
     >>> bool(slab.pbc.all())
     True
     """

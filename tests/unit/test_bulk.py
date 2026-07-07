@@ -29,12 +29,13 @@ class TestBulkFunctions(unittest.TestCase):
         num_points = 5
         expected_strains = np.linspace(strain_range[0], strain_range[1], num_points)
 
-        structures = bulk_module.generate_structures(
+        out = bulk_module.generate_structures.pwf.run(
             base_structure=self.test_atoms,
             axes=["iso"],
             strain_range=strain_range,
             num_points=num_points,
-        ).run()
+        )
+        structures = out.outputs["structure_list"].value
 
         # Count check
         self.assertEqual(len(structures), num_points)
@@ -69,12 +70,12 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_a(self):
         """Test generating structures with strain along axis a."""
-        structures = bulk_module.generate_structures(
+        structures = bulk_module.generate_structures.pwf.run(
             base_structure=self.test_atoms,
             axes=["a"],
             strain_range=(-0.1, 0.1),
             num_points=4,  # Really important this never lands on 0.0
-        ).run()
+        ).outputs["structure_list"].value
 
         self.assertEqual(len(structures), 4)
 
@@ -92,12 +93,12 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_b(self):
         """Test generating structures with strain along axis b."""
-        structures = bulk_module.generate_structures(
+        structures = bulk_module.generate_structures.pwf.run(
             base_structure=self.test_atoms,
             axes=["b"],
             strain_range=(-0.05, 0.05),
             num_points=4,
-        ).run()
+        ).outputs["structure_list"].value
 
         self.assertEqual(len(structures), 4)
 
@@ -114,12 +115,12 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_c(self):
         """Test generating structures with strain along axis c."""
-        structures = bulk_module.generate_structures(
+        structures = bulk_module.generate_structures.pwf.run(
             base_structure=self.test_atoms,
             axes=["c"],
             strain_range=(-0.05, 0.05),
             num_points=4,
-        ).run()
+        ).outputs["structure_list"].value
 
         self.assertEqual(len(structures), 4)
 
@@ -136,12 +137,12 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_multiple_axes(self):
         """Test generating structures with strain along multiple axes."""
-        structures = bulk_module.generate_structures(
+        structures = bulk_module.generate_structures.pwf.run(
             base_structure=self.test_atoms,
             axes=["a", "b"],
             strain_range=(-0.1, 0.1),
             num_points=4,
-        ).run()
+        ).outputs["structure_list"].value
 
         self.assertEqual(len(structures), 4)
 
@@ -164,12 +165,12 @@ class TestBulkFunctions(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            structures = bulk_module.generate_structures(
+            structures = bulk_module.generate_structures.pwf.run(
                 base_structure=self.test_atoms,
                 axes=["a", "unknown", "b"],
                 strain_range=strain_range,
                 num_points=num_points,
-            ).run()
+            ).outputs["structure_list"].value
 
         # One warning per generated structure for the unknown axis
         unknown_msgs = [
@@ -201,7 +202,7 @@ class TestBulkFunctions(unittest.TestCase):
 
         e0, v0, B = bulk_module.equation_of_state(
             energies, volumes, eos_type="sj"
-        ).run()
+        )
 
         # Check that results are reasonable
         self.assertIsInstance(e0, float)
@@ -221,7 +222,7 @@ class TestBulkFunctions(unittest.TestCase):
 
         e0, v0, B = bulk_module.equation_of_state(
             energies, volumes, eos_type="birchmurnaghan"
-        ).run()
+        )
 
         # Check that results are reasonable
         self.assertIsInstance(e0, float)
@@ -233,21 +234,21 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_get_bulk_structure_basic(self):
         """Test getting basic bulk structure."""
-        struct = get_bulk(name="Al").run()
+        struct = get_bulk(name="Al")
 
         self.assertIsInstance(struct, Atoms)
         self.assertGreater(len(struct), 0)
 
     def test_get_bulk_structure_with_parameters(self):
         """Test getting bulk structure with specific parameters."""
-        struct = get_bulk(name="Al", crystalstructure="fcc", a=4.0, cubic=True).run()
+        struct = get_bulk(name="Al", crystalstructure="fcc", a=4.0, cubic=True)
 
         self.assertIsInstance(struct, Atoms)
         self.assertAlmostEqual(np.linalg.norm(struct.get_cell()[0]), 4.0, places=2)
 
     def test_get_bulk_structure_cubic(self):
         """Test getting cubic bulk structure."""
-        struct = get_bulk(name="Al", cubic=True, a=4.0).run()
+        struct = get_bulk(name="Al", cubic=True, a=4.0)
 
         self.assertIsInstance(struct, Atoms)
         cell = struct.get_cell()
@@ -260,7 +261,7 @@ class TestBulkFunctions(unittest.TestCase):
         """Test rattling structure with specified displacement."""
         original_positions = self.test_atoms.get_positions().copy()
 
-        rattled = rattle(self.test_atoms, rattle=0.1).run()
+        rattled = rattle(self.test_atoms, rattle=0.1)
 
         # Check that positions have changed
         new_positions = rattled.get_positions()
@@ -278,7 +279,7 @@ class TestBulkFunctions(unittest.TestCase):
         """Test rattling structure with no displacement."""
         original_positions = self.test_atoms.get_positions().copy()
 
-        rattled = rattle(self.test_atoms, rattle=None).run()
+        rattled = rattle(self.test_atoms, rattle=None)
 
         # Positions should be identical (just a copy)
         new_positions = rattled.get_positions()
@@ -288,7 +289,7 @@ class TestBulkFunctions(unittest.TestCase):
         """Test getting cubic equilibrium lattice parameter."""
         v0 = 64.0  # Volume for 4x4x4 cube
 
-        a0 = bulk_module.get_cubic_equil_lat_param(v0).run()
+        a0 = bulk_module.get_cubic_equil_lat_param(v0)
 
         expected = 4.0  # 4^3 = 64
         self.assertAlmostEqual(a0, expected, places=2)

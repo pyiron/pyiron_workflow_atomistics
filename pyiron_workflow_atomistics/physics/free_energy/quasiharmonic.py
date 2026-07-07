@@ -268,7 +268,8 @@ def quasiharmonic_free_energy(
         working_directory=working_directory,
         subdir=subdir,
     )
-    wf.strained_structures = generate_structures(
+    wf.strained_structures = pwf.function_node(
+        generate_structures,
         base_structure=structure,
         axes=["iso"],
         strain_range=strain_range,

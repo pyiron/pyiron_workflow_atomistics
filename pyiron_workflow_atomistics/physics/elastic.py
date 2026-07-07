@@ -325,7 +325,8 @@ def calculate_elastic_constants(
         ref_structure, norm_strains=norm_strains, shear_strains=shear_strains
     )
     wf.deform_engine = with_calc_input_node(engine, wf.fixed_cell_input)
-    wf.evals = evaluate_structures(
+    wf.evals = pwf.function_node(
+        evaluate_structures,
         structures=wf.deform.outputs.deformed_structures,
         engine=wf.deform_engine,
     )
