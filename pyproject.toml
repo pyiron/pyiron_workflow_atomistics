@@ -28,7 +28,7 @@ dependencies = [
     "matplotlib==3.11.0",
     "ase==3.29.0",
     "scipy==1.17.1",
-    "pyiron-workflow==0.15.6",
+    "pyiron-workflow==0.17.0",
     "pymatgen==2026.5.4",
     "pyiron_snippets==1.4.0",
     "scikit-learn==1.9.0",
