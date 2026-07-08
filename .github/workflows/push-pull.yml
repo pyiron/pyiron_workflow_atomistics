@@ -9,7 +9,7 @@ on:
 
 jobs:
   pyiron:
-    uses: pyiron/actions/.github/workflows/push-pull.yml@actions-4.0.1
+    uses: pyiron/actions/.github/workflows/push-pull.yml@actions-4.2.1
     with:
       runner: 'ubuntu-22.04' # with ubuntu > 22.04, pip is broken
       python-version-alt3: 'exclude'  # No python 3.9
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pyiron/actions/cached-miniforge@actions-4.1.0
+      - uses: pyiron/actions/cached-miniforge@actions-4.2.1
         with:
           python-version: '3.12'
           env-files: .ci_support/environment.yml
