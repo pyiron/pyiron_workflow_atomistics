@@ -1328,7 +1328,8 @@ def pure_gb_study(
     )
     from pyiron_workflow_atomistics.structure.transform import add_vacuum
 
-    wf.gb_with_vacuum = add_vacuum(
+    wf.gb_with_vacuum = pwf.function_node(
+        add_vacuum,
         wf.gb_length_optimiser.outputs.gb_structure_final,
         vacuum_length=vacuum_length,
         axis=gb_normal_axis,
@@ -1343,7 +1344,8 @@ def pure_gb_study(
         create_supercell_with_min_dimensions,
     )
 
-    wf.gb_seg_supercell = create_supercell_with_min_dimensions(
+    wf.gb_seg_supercell = pwf.function_node(
+        create_supercell_with_min_dimensions,
         wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
         min_dimensions=min_inplane_cell_lengths,
     )

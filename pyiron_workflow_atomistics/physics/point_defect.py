@@ -65,8 +65,8 @@ def get_vacancy_formation_energy(
     """
     if min_dimensions is None:
         min_dimensions = [12, 12, 12]
-    wf.structure_supercell = create_supercell_with_min_dimensions(
-        structure, min_dimensions=min_dimensions
+    wf.structure_supercell = pwf.function_node(
+        create_supercell_with_min_dimensions, structure, min_dimensions=min_dimensions
     )
     wf.structure_with_vacancy = pwf.function_node(
         create_vacancy, wf.structure_supercell, remove_atom_index=remove_atom_index
@@ -116,8 +116,8 @@ def get_substitutional_formation_energy(
     """
     if min_dimensions is None:
         min_dimensions = [12, 12, 12]
-    wf.structure_supercell = create_supercell_with_min_dimensions(
-        structure, min_dimensions=min_dimensions
+    wf.structure_supercell = pwf.function_node(
+        create_supercell_with_min_dimensions, structure, min_dimensions=min_dimensions
     )
     wf.structure_with_substitute = pwf.function_node(
         substitutional_swap,

@@ -185,7 +185,7 @@ def _construct_structure_for_entry(args):
     supercell = create_supercell_with_min_dimensions(
         final_structure,
         min_dimensions=[min_inplane_gb_length, min_inplane_gb_length, None],
-    )()
+    )
     # print(type(fn))
     return supercell
 

@@ -61,7 +61,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
 
             # Rattle the gb structure using rattle in ASE to perturb symmetry
             # gb.rattle()
-            gb_pmg = add_vacuum(gb, vacuum_slab).run()
+            gb_pmg = add_vacuum(gb, vacuum_slab)
         self.test_atoms = gb_pmg
 
     def test_find_viable_cleavage_planes_around_plane_cartesian(self):

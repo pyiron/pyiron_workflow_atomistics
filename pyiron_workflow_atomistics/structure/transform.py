@@ -1,10 +1,9 @@
 import numpy as np
-import pyiron_workflow as pwf_legacy
 import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
 
-@pwf_legacy.as_function_node
+@pwf.atomic
 def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     """
     Add vacuum padding to an ASE Atoms object along a specified axis.
@@ -44,14 +43,14 @@ def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     return new_atoms
 
 
-@pwf_legacy.as_function_node("supercell")
+@pwf.atomic("supercell")
 def create_supercell(base_structure: Atoms, supercell_repeats: tuple) -> Atoms:
     # Create the supercell
     supercell = base_structure.repeat(supercell_repeats)
     return supercell
 
 
-@pwf_legacy.as_function_node("supercell")
+@pwf.atomic("supercell")
 def create_supercell_with_min_dimensions(
     base_structure: Atoms, min_dimensions=None
 ) -> Atoms:
@@ -114,7 +113,7 @@ def rattle(structure: Atoms, rattle: float | None = None) -> Atoms:
 
 
 # Because it is really fucking annoying to have to access the data from the dataframe when all I want is a list.
-@pwf_legacy.as_function_node
+@pwf.atomic
 def forloop_function(function, kwarg_to_iterate, kwarg_values, other_kwargs=None):
     """
     Applies `function` repeatedly changing a single keyword argument over given values,
