@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
 
@@ -108,7 +108,7 @@ class EngineOutput:
         return asdict(self)
 
 
-@pwf.as_function_node("subengine")
+@pwf.atomic("subengine")
 def subengine(engine: Engine, subdir: str) -> Engine:
     """Function-node wrapper around :meth:`Engine.with_working_directory`.
 
@@ -122,7 +122,7 @@ def subengine(engine: Engine, subdir: str) -> Engine:
     return subengine
 
 
-@pwf.as_function_node("path")
+@pwf.atomic("path")
 def subdir_path(engine: Engine, subdir: str) -> str:
     """Function-node returning ``os.path.join(engine.working_directory, subdir)``.
 
@@ -135,7 +135,7 @@ def subdir_path(engine: Engine, subdir: str) -> str:
     return path
 
 
-@pwf.as_function_node("engine_output")
+@pwf.atomic("engine_output")
 def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     """Execute ``engine`` on ``structure``.
 
@@ -151,7 +151,8 @@ def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     ...     calculator=EMT(),
     ...     working_directory="./_demo",
     ... )
-    >>> out = calculate.node_function(bulk("Cu", "fcc", a=3.6, cubic=True), engine)  # doctest: +SKIP
+    >>> out = calculate(bulk("Cu", "fcc", a=3.6, cubic=True), engine)  # doctest: +SKIP
     """
     fn, kwargs = engine.get_calculate_fn(structure)
-    return fn(structure=structure, **kwargs)
+    engine_output = fn(structure=structure, **kwargs)
+    return engine_output

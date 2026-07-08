@@ -313,7 +313,9 @@ def calculate_elastic_constants(
             max_iterations=max_iterations,
         )
         wf.relax_engine = with_calc_input_node(engine, wf.full_relax_input)
-        wf.relax = calculate(structure=structure, engine=wf.relax_engine)
+        wf.relax = pwf.function_node(
+            calculate, structure=structure, engine=wf.relax_engine
+        )
         ref_structure = wf.relax.outputs.engine_output.final_structure
         wf.eq_stress = _reference_stress_gpa(wf.relax.outputs.engine_output)
         eq_stress = wf.eq_stress

@@ -115,7 +115,7 @@ def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine
     volumes: list[float] = []
     for i, s in enumerate(strained_structures):
         sub_engine = engine.with_working_directory(f"vol_E_{i:03d}")
-        out = calculate.node_function(structure=s, engine=sub_engine)
+        out = calculate(structure=s, engine=sub_engine)
         if not out.converged:
             raise RuntimeError(
                 f"Static-energy calc failed for strained cell {i} "

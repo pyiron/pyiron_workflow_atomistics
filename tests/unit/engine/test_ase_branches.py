@@ -90,7 +90,7 @@ def test_ase_engine_relax_cell_uses_ExpCellFilter(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=structure, engine=engine)
+    out = calculate(structure=structure, engine=engine)
     assert out.converged is True
     # Cell should have moved toward EMT equilibrium (~3.6 Å for Cu).
     new_a = out.final_structure.cell[0, 0]
@@ -118,7 +118,7 @@ def test_ase_calc_structure_minimize_with_write_to_disk_emits_artifacts(tmp_path
         working_directory=str(tmp_path),
         write_to_disk=True,
     )
-    out = calculate.node_function(structure=structure, engine=engine)
+    out = calculate(structure=structure, engine=engine)
     assert out.converged is True
     for name in (
         "initial_structure.xyz",

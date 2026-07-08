@@ -43,7 +43,7 @@ def _heated_solid(
     )
     tag = f"{subdir}_{int(round(temperature))}"
     eng = replace(engine, EngineInput=md).with_working_directory(tag)
-    return calculate.node_function(structure, engine=eng).final_structure
+    return calculate(structure, engine=eng).final_structure
 
 
 @pwf.as_function_node("t_guess", "structure")

@@ -20,7 +20,7 @@ def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     otherwise the per-atom energy will reflect surface/geometry artefacts.
     """
     if mu_bulk is None:
-        output = calculate.node_function(bulk_structure, engine=engine)
+        output = calculate(bulk_structure, engine=engine)
         mu_bulk_out = output.final_energy / len(bulk_structure)
     else:
         mu_bulk_out = mu_bulk
@@ -88,8 +88,10 @@ def calculate_surface_energy(
         vacuum=vacuum,
         periodic=periodic,
     )
-    wf.calc_slab = calculate(wf.slab_vac, engine=engine, label="calc_slab")
-    wf.bulk_ref_engine = subengine(engine=engine, subdir="bulk_ref")
+    wf.calc_slab = pwf.function_node(
+        calculate, wf.slab_vac, engine=engine, label="calc_slab"
+    )
+    wf.bulk_ref_engine = pwf.function_node(subengine, engine=engine, subdir="bulk_ref")
     wf.mu_bulk_out = _bulk_per_atom_energy(
         bulk_structure=bulk_structure,
         engine=wf.bulk_ref_engine,

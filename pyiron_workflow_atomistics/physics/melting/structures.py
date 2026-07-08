@@ -31,7 +31,7 @@ def estimate_lattice_constant(element, engine, crystalstructure):
     relax_engine = replace(
         engine, EngineInput=CalcInputMinimize(relax_cell=True)
     ).with_working_directory("a_ref")
-    relaxed = calculate.node_function(ref, engine=relax_engine).final_structure
+    relaxed = calculate(ref, engine=relax_engine).final_structure
     v_atom = relaxed.get_volume() / len(relaxed)
     cs = (crystalstructure or "fcc").lower()
     if cs == "hcp":

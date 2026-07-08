@@ -148,9 +148,7 @@ def _evaluate_supercells(
     engine_outputs: list[EngineOutput] = []
     for i, supercell in enumerate(supercells):
         sub_engine = engine.with_working_directory(f"{prefix}{i:04d}")
-        engine_outputs.append(
-            calculate.node_function(structure=supercell, engine=sub_engine)
-        )
+        engine_outputs.append(calculate(structure=supercell, engine=sub_engine))
     return engine_outputs
 
 

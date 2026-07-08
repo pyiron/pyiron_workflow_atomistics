@@ -37,7 +37,7 @@ def test_ase_engine_static_run_returns_engine_output(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=structure, engine=engine)
+    out = calculate(structure=structure, engine=engine)
 
     assert isinstance(out, EngineOutput)
     assert out.converged is True
@@ -64,7 +64,7 @@ def test_ase_engine_minimize_run_reduces_force(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=structure, engine=engine)
+    out = calculate(structure=structure, engine=engine)
 
     # All forces are below the tolerance the optimiser reported converged on,
     # OR optimiser hit max steps with reduced forces — either way forces dropped.

@@ -76,7 +76,7 @@ def screen_phase(
     relax_engine = replace(
         engine, EngineInput=CalcInputMinimize(relax_cell=True)
     ).with_working_directory(f"{subdir}_min")
-    relaxed = calculate.node_function(structure, engine=relax_engine).final_structure
+    relaxed = calculate(structure, engine=relax_engine).final_structure
     observed_phase, _, distribution_half = analyse_reference_structure.node_function(
         relaxed
     )

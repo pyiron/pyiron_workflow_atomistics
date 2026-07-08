@@ -70,9 +70,7 @@ def evaluate_structures(
     engine_output_lst = []
     for i, struct in enumerate(structures):
         sub_engine = engine.with_working_directory(f"strain_{i:03d}")
-        engine_output_lst.append(
-            calculate.node_function(structure=struct, engine=sub_engine)
-        )
+        engine_output_lst.append(calculate(structure=struct, engine=sub_engine))
     return engine_output_lst
 
 

@@ -285,7 +285,7 @@ def gco_search(
                 f"iter_{i:05d}/md"
             )
             try:
-                out_md = calculate.node_function(structure=atoms, engine=iter_md)
+                out_md = calculate(structure=atoms, engine=iter_md)
             except Exception as exc:
                 logger.warning("iter %d MD failed: %s; skipping.", i, exc)
                 continue
@@ -294,7 +294,7 @@ def gco_search(
         # ---- minimize --------------------------------------------------
         iter_min = minimize_engine.with_working_directory(f"iter_{i:05d}/min")
         try:
-            out = calculate.node_function(structure=atoms, engine=iter_min)
+            out = calculate(structure=atoms, engine=iter_min)
         except Exception as exc:
             logger.warning("iter %d minimize failed: %s; skipping.", i, exc)
             continue

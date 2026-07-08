@@ -53,7 +53,7 @@ def npt_relax_solid(
         seed=seed,
         compressibility=1e-6,
     )
-    out = calculate.node_function(structure, engine=_engine_with(engine, md, subdir))
+    out = calculate(structure, engine=_engine_with(engine, md, subdir))
     return out.final_structure, out
 
 
@@ -80,7 +80,7 @@ def build_solid_liquid_interface(
         initial_temperature=2.0 * t_liquid,
         seed=seed,
     )
-    melted = calculate.node_function(
+    melted = calculate(
         frozen, engine=_engine_with(engine, melt_md, f"{subdir}_melt")
     ).final_structure
     cool_md = CalcInputMD(
@@ -93,7 +93,7 @@ def build_solid_liquid_interface(
         initial_temperature=2.0 * t_solid,
         seed=seed,
     )
-    cooled = calculate.node_function(
+    cooled = calculate(
         melted, engine=_engine_with(engine, cool_md, f"{subdir}_cool")
     ).final_structure
     interface_structure = unfreeze.node_function(cooled)
@@ -128,7 +128,7 @@ def strain_scan_nvt_nve(
             initial_temperature=2.0 * temperature,
             seed=seed,
         )
-        equil = calculate.node_function(
+        equil = calculate(
             strained, engine=_engine_with(engine, nvt_md, f"{subdir}_nvt_{i:03d}")
         ).final_structure
         # The NVE input `equil` is already NVT-equilibrated at `temperature`
@@ -145,7 +145,7 @@ def strain_scan_nvt_nve(
             initial_temperature=temperature,
             seed=seed,
         )
-        nve_out = calculate.node_function(
+        nve_out = calculate(
             equil, engine=_engine_with(engine, nve_md, f"{subdir}_nve_{i:03d}")
         )
         vmax, vmean = voronoi_max_mean.node_function(nve_out.final_structure)

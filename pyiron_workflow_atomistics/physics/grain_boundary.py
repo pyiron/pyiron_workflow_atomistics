@@ -172,7 +172,7 @@ def gb_length_optimiser(
     )
     # 2. Compute energies/volumes for extended structures
     wf.extended_GBs_calcs = for_node(
-        calculate,
+        pwf.to_function_node("calculate_node", calculate),
         zip_on=("structure", "engine"),
         structure=wf.extended_GBs.outputs.extended_structure_list,
         engine=wf.engines_per_calc,
@@ -254,10 +254,10 @@ def full_gb_length_optimization(
     interpolate_min_n_points=5,
     gb_normal_axis="c",
 ):
-    wf.stage1_engine = subengine(engine=engine, subdir="stage1")
-    wf.stage2_engine = subengine(engine=engine, subdir="stage2")
-    wf.stage1_path = subdir_path(engine=engine, subdir="stage1")
-    wf.stage2_path = subdir_path(engine=engine, subdir="stage2")
+    wf.stage1_engine = pwf.function_node(subengine, engine=engine, subdir="stage1")
+    wf.stage2_engine = pwf.function_node(subengine, engine=engine, subdir="stage2")
+    wf.stage1_path = pwf.function_node(subdir_path, engine=engine, subdir="stage1")
+    wf.stage2_path = pwf.function_node(subdir_path, engine=engine, subdir="stage2")
 
     # 1. First length-scan + optimise
     wf.stage1_opt = gb_length_optimiser(
@@ -1063,7 +1063,7 @@ def calc_cleavage_GB(
         subdirnames=wf.cleave_structure_foldernames,
     )
     wf.calculate_cleaved = pwf.api.for_node(
-        calculate,
+        pwf.to_function_node("calculate_node", calculate),
         zip_on=("structure", "engine"),
         structure=wf.cleave_setup.outputs.cleaved_structures,
         engine=wf.engines_per_plane,
@@ -1101,8 +1101,12 @@ def rigid_and_relaxed_cleavage_study(
     wf.CleaveGBStructureInput = modify_dataclass(
         CleaveGBStructure_Input, "cleavage_target_coord", gb_plane_cart_loc
     )
-    wf.rigid_engine = subengine(engine=static_engine, subdir="cleavage_rigid")
-    wf.relax_engine = subengine(engine=engine, subdir="cleavage_relax")
+    wf.rigid_engine = pwf.function_node(
+        subengine, engine=static_engine, subdir="cleavage_rigid"
+    )
+    wf.relax_engine = pwf.function_node(
+        subengine, engine=engine, subdir="cleavage_relax"
+    )
     wf.calc_cleavage_rigid = calc_cleavage_GB(
         structure=gb_structure,
         energy=gb_structure_energy,
@@ -1234,7 +1238,7 @@ def calculate_substitutional_segregation_GB(
         output_dirs=wf.gb_seg_structure_dirs,
     )
     wf.gb_seg_calcs = for_node(
-        calculate,
+        pwf.to_function_node("calculate_node", calculate),
         zip_on=("structure", "engine"),
         structure=wf.gb_seg_structure_list,
         engine=wf.gb_seg_engines,
@@ -1310,11 +1314,21 @@ def pure_gb_study(
 ):
     if min_inplane_cell_lengths is None:
         min_inplane_cell_lengths = [6, 6, None]
-    wf.length_engine = subengine(engine=engine, subdir="gb_length_optimiser")
-    wf.gb_vacuum_engine = subengine(engine=engine, subdir="gb_with_vacuum_rel")
-    wf.gb_seg_engine = subengine(engine=engine, subdir="gb_seg_supercell")
-    wf.cleavage_engine = subengine(engine=engine, subdir="cleavage_study")
-    wf.cleavage_static_engine = subengine(engine=static_engine, subdir="cleavage_study")
+    wf.length_engine = pwf.function_node(
+        subengine, engine=engine, subdir="gb_length_optimiser"
+    )
+    wf.gb_vacuum_engine = pwf.function_node(
+        subengine, engine=engine, subdir="gb_with_vacuum_rel"
+    )
+    wf.gb_seg_engine = pwf.function_node(
+        subengine, engine=engine, subdir="gb_seg_supercell"
+    )
+    wf.cleavage_engine = pwf.function_node(
+        subengine, engine=engine, subdir="cleavage_study"
+    )
+    wf.cleavage_static_engine = pwf.function_node(
+        subengine, engine=static_engine, subdir="cleavage_study"
+    )
 
     wf.gb_length_optimiser = full_gb_length_optimization(
         gb_structure=gb_structure,
@@ -1335,7 +1349,8 @@ def pure_gb_study(
         axis=gb_normal_axis,
     )
 
-    wf.gb_with_vacuum_rel = calculate(
+    wf.gb_with_vacuum_rel = pwf.function_node(
+        calculate,
         structure=wf.gb_with_vacuum,
         engine=wf.gb_vacuum_engine,
         label="gb_with_vacuum_rel_run",
@@ -1350,7 +1365,8 @@ def pure_gb_study(
         min_dimensions=min_inplane_cell_lengths,
     )
 
-    wf.gb_seg_supercell_rel = calculate(
+    wf.gb_seg_supercell_rel = pwf.function_node(
+        calculate,
         structure=wf.gb_seg_supercell,
         engine=wf.gb_seg_engine,
         label="gb_seg_supercell_rel_run",

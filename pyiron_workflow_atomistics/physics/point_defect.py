@@ -71,13 +71,23 @@ def get_vacancy_formation_energy(
     wf.structure_with_vacancy = pwf.function_node(
         create_vacancy, wf.structure_supercell, remove_atom_index=remove_atom_index
     )
-    wf.supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
-    wf.vacancy_engine = subengine(engine=engine, subdir=vacancy_subdir)
-    wf.supercell_calc = calculate(
-        wf.structure_supercell, engine=wf.supercell_engine, label="supercell_calc"
+    wf.supercell_engine = pwf.function_node(
+        subengine, engine=engine, subdir=supercell_subdir
     )
-    wf.vacancy_calc = calculate(
-        wf.structure_with_vacancy, engine=wf.vacancy_engine, label="vacancy_calc"
+    wf.vacancy_engine = pwf.function_node(
+        subengine, engine=engine, subdir=vacancy_subdir
+    )
+    wf.supercell_calc = pwf.function_node(
+        calculate,
+        wf.structure_supercell,
+        engine=wf.supercell_engine,
+        label="supercell_calc",
+    )
+    wf.vacancy_calc = pwf.function_node(
+        calculate,
+        wf.structure_with_vacancy,
+        engine=wf.vacancy_engine,
+        label="vacancy_calc",
     )
     wf.n_atoms_supercell = _count_atoms(wf.structure_supercell)
     wf.vacancy_formation_energy = calculate_vacancy_formation_energy(
@@ -125,12 +135,20 @@ def get_substitutional_formation_energy(
         defect_site=defect_site,
         new_symbol=new_symbol,
     )
-    wf.supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
-    wf.substitutional_engine = subengine(engine=engine, subdir=sub_subdir)
-    wf.supercell_calc = calculate(
-        wf.structure_supercell, engine=wf.supercell_engine, label="supercell_calc"
+    wf.supercell_engine = pwf.function_node(
+        subengine, engine=engine, subdir=supercell_subdir
     )
-    wf.substitutional_calc = calculate(
+    wf.substitutional_engine = pwf.function_node(
+        subengine, engine=engine, subdir=sub_subdir
+    )
+    wf.supercell_calc = pwf.function_node(
+        calculate,
+        wf.structure_supercell,
+        engine=wf.supercell_engine,
+        label="supercell_calc",
+    )
+    wf.substitutional_calc = pwf.function_node(
+        calculate,
         wf.structure_with_substitute,
         engine=wf.substitutional_engine,
         label="substitutional_calc",
