@@ -68,8 +68,8 @@ def get_vacancy_formation_energy(
     wf.structure_supercell = create_supercell_with_min_dimensions(
         structure, min_dimensions=min_dimensions
     )
-    wf.structure_with_vacancy = create_vacancy(
-        wf.structure_supercell, remove_atom_index=remove_atom_index
+    wf.structure_with_vacancy = pwf.function_node(
+        create_vacancy, wf.structure_supercell, remove_atom_index=remove_atom_index
     )
     wf.supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
     wf.vacancy_engine = subengine(engine=engine, subdir=vacancy_subdir)
@@ -119,8 +119,11 @@ def get_substitutional_formation_energy(
     wf.structure_supercell = create_supercell_with_min_dimensions(
         structure, min_dimensions=min_dimensions
     )
-    wf.structure_with_substitute = substitutional_swap(
-        wf.structure_supercell, defect_site=defect_site, new_symbol=new_symbol
+    wf.structure_with_substitute = pwf.function_node(
+        substitutional_swap,
+        wf.structure_supercell,
+        defect_site=defect_site,
+        new_symbol=new_symbol,
     )
     wf.supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
     wf.substitutional_engine = subengine(engine=engine, subdir=sub_subdir)

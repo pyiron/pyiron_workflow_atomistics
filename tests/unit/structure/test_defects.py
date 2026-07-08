@@ -23,7 +23,7 @@ def test_create_vacancy_removes_one_atom():
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
     n0 = len(cu)
-    vac = create_vacancy.node_function(cu, remove_atom_index=0)
+    vac = create_vacancy(cu, remove_atom_index=0)
     assert len(vac) == n0 - 1
     # input not mutated
     assert len(cu) == n0
@@ -34,7 +34,7 @@ def test_create_vacancy_removes_specified_index():
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
     target = cu.positions[5].copy()
-    vac = create_vacancy.node_function(cu, remove_atom_index=5)
+    vac = create_vacancy(cu, remove_atom_index=5)
     # Position 5 from the original must no longer appear in the vacancy cell.
     assert not np.any(np.all(np.isclose(vac.positions, target), axis=1))
 
@@ -48,7 +48,7 @@ def test_substitutional_swap_changes_one_symbol():
     from pyiron_workflow_atomistics.structure.defects import substitutional_swap
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
-    out = substitutional_swap.node_function(cu, defect_site=0, new_symbol="Ni")
+    out = substitutional_swap(cu, defect_site=0, new_symbol="Ni")
     syms = out.get_chemical_symbols()
     assert syms[0] == "Ni"
     assert all(s == "Cu" for s in syms[1:])
@@ -60,7 +60,7 @@ def test_substitutional_swap_with_explicit_index():
     from pyiron_workflow_atomistics.structure.defects import substitutional_swap
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
-    out = substitutional_swap.node_function(cu, defect_site=7, new_symbol="Fe")
+    out = substitutional_swap(cu, defect_site=7, new_symbol="Fe")
     assert out.get_chemical_symbols()[7] == "Fe"
     assert out.get_chemical_symbols()[0] == "Cu"
 
