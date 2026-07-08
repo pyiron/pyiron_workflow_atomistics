@@ -3,7 +3,7 @@ channels:
 
 dependencies:
   # Core Python version
-  - python>=3.9,<3.13
+  - python>=3.11,<3.14
 
   # Conda-forge packages
   - numpy =2.4.6
