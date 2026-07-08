@@ -165,7 +165,7 @@ def _construct_structure_for_entry(args):
         grain_length_axis,
         min_inplane_gb_length,
     ) = args
-    fn = construct_GB_from_GBCode(
+    _, final_structure = construct_GB_from_GBCode(
         axis=entry["Axis"],
         basis=basis,
         lattice_param=lattice_param,
@@ -176,13 +176,13 @@ def _construct_structure_for_entry(args):
         req_length_grain=req_length_grain,
         equil_volume=equil_volume_per_atom,
         grain_length_axis=grain_length_axis,
-    )()
+    )
     from pyiron_workflow_atomistics.structure.transform import (
         create_supercell_with_min_dimensions,
     )
 
     supercell = create_supercell_with_min_dimensions(
-        fn["final_structure"],
+        final_structure,
         min_dimensions=[min_inplane_gb_length, min_inplane_gb_length, None],
     )()
     # print(type(fn))

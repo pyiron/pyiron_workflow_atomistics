@@ -67,7 +67,7 @@ class TestGBCode(unittest.TestCase):
             element="Al",
             req_length_grain=req_length_grain,
             grain_length_axis=2,
-        ).run()
+        )
 
         self.assertGreater(len(structure), 0)
         self.assertEqual({str(site.specie) for site in structure}, {"Al"})
@@ -94,7 +94,7 @@ class TestGBCode(unittest.TestCase):
                 GB1=[0, 3, 1],
                 element="Al",
                 grain_length_axis=4,
-            ).run()
+            )
 
 
 if __name__ == "__main__":

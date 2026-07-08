@@ -61,7 +61,7 @@ def test_wrap_and_sort_structure_orders_by_axis():
     )
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
-    out = wrap_and_sort_structure.node_function(cu, axis=2)
+    out = wrap_and_sort_structure(cu, axis=2)
     z = out.get_positions()[:, 2]
     assert np.all(np.diff(z) >= -1e-9)
 
@@ -72,7 +72,7 @@ def test_wrap_and_sort_structure_with_axis_x():
     )
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
-    out = wrap_and_sort_structure.node_function(cu, axis=0)
+    out = wrap_and_sort_structure(cu, axis=0)
     x = out.get_positions()[:, 0]
     assert np.all(np.diff(x) >= -1e-9)
 
@@ -179,9 +179,9 @@ def test_convert_structure_ase_to_pymatgen_and_back():
     )
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True)
-    pmg = convert_structure.node_function(cu, target="pmg")
+    pmg = convert_structure(cu, target="pmg")
     assert isinstance(pmg, Structure)
-    ase_again = convert_structure.node_function(pmg, target="ase")
+    ase_again = convert_structure(pmg, target="ase")
     np.testing.assert_allclose(ase_again.get_positions(), cu.get_positions(), atol=1e-9)
 
 
@@ -191,7 +191,7 @@ def test_convert_structure_pymatgen_alias_works():
     )
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True)
-    pmg = convert_structure.node_function(cu, target="pymatgen")
+    pmg = convert_structure(cu, target="pymatgen")
     assert isinstance(pmg, Structure)
 
 
@@ -202,7 +202,7 @@ def test_convert_structure_invalid_target_raises():
 
     cu = bulk("Cu", "fcc", a=3.6, cubic=True)
     with pytest.raises(ValueError, match="Not a valid conversion target"):
-        convert_structure.node_function(cu, target="nope")
+        convert_structure(cu, target="nope")
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ def test_get_expected_equilibrium_c_struct_scales_chosen_axis():
 
     s = Structure(Lattice.cubic(3.5), ["Fe", "Fe"], [[0, 0, 0], [0.5, 0.5, 0.5]])
     v0 = 11.5  # target volume per atom in Å³
-    new_struct, new_axis_length = get_expected_equilibrium_c_struct.node_function(
+    new_struct, new_axis_length = get_expected_equilibrium_c_struct(
         s, v0_per_atom=v0, axis=2
     )
     # V = V0 * N_atoms; orthogonal lattice with a*b=12.25 → c = N*v0 / (a*b)
@@ -244,9 +244,7 @@ def test_merge_structure_sites_collapses_near_duplicates():
         ["Fe", "Fe"],
         [[0.0, 0.0, 0.0], [0.001, 0.001, 0.001]],
     )
-    merged = merge_structure_sites.node_function(
-        s, merge_dist_tolerance=0.5, merge_mode="average"
-    )
+    merged = merge_structure_sites(s, merge_dist_tolerance=0.5, merge_mode="average")
     assert len(merged) == 1
 
 
@@ -260,9 +258,7 @@ def test_merge_structure_sites_keeps_distinct_sites():
         ["Fe", "Cu"],
         [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]],
     )
-    merged = merge_structure_sites.node_function(
-        s, merge_dist_tolerance=0.5, merge_mode="average"
-    )
+    merged = merge_structure_sites(s, merge_dist_tolerance=0.5, merge_mode="average")
     assert len(merged) == 2
 
 
@@ -281,7 +277,7 @@ def test_get_realigned_structure_runs_with_default_options():
         ["Fe"],
         [[0.0, 0.0, 0.0]],
     )
-    out = get_realigned_structure.node_function(s)
+    out = get_realigned_structure(s)
     assert isinstance(out, Structure)
     M = np.asarray(out.lattice.matrix)
     off_diag = M - np.diag(np.diag(M))
@@ -300,7 +296,7 @@ def test_get_realigned_structure_with_equivalence_check():
         ["Fe", "Fe"],
         [[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]],
     )
-    out = get_realigned_structure.node_function(s, perform_equiv_check=True)
+    out = get_realigned_structure(s, perform_equiv_check=True)
     assert isinstance(out, Structure)
 
 
@@ -310,5 +306,5 @@ def test_get_realigned_structure_no_ab_reorder():
     )
 
     s = Structure(Lattice.cubic(3.5), ["Fe"], [[0.0, 0.0, 0.0]])
-    out = get_realigned_structure.node_function(s, arrange_ab_by_length=False)
+    out = get_realigned_structure(s, arrange_ab_by_length=False)
     assert isinstance(out, Structure)
