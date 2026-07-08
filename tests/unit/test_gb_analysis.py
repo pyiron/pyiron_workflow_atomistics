@@ -31,7 +31,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
 
     def test_get_middle_atom_z_axis(self):
         """Test getting middle atom along z-axis."""
-        result = gb_analysis_module.get_middle_atom(self.test_atoms, axis=2).run()
+        result = gb_analysis_module.get_middle_atom(self.test_atoms, axis=2)
 
         # Should return an Atom object
         self.assertIsInstance(result, Atom)
@@ -42,13 +42,13 @@ class TestGBAnalysisFunctions(unittest.TestCase):
 
     def test_get_middle_atom_string_axis(self):
         """Test getting middle atom with string axis."""
-        result = gb_analysis_module.get_middle_atom(self.test_atoms, axis="z").run()
+        result = gb_analysis_module.get_middle_atom(self.test_atoms, axis="z")
 
         self.assertIsInstance(result, Atom)
 
     def test_get_middle_atom_string_axis_uppercase(self):
         """Test getting middle atom with uppercase string axis."""
-        result = gb_analysis_module.get_middle_atom(self.test_atoms, axis="Z").run()
+        result = gb_analysis_module.get_middle_atom(self.test_atoms, axis="Z")
 
         self.assertIsInstance(result, Atom)
 
@@ -56,7 +56,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
         """Test basic GB plane finding."""
         result = gb_analysis_module.find_gb_plane(
             atoms=self.test_atoms, featuriser=voronoi_site_featuriser, axis="c"
-        ).run()
+        )
 
         # Check that result is a dictionary with expected keys
         expected_keys = [
@@ -88,7 +88,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
             featuriser=voronoi_site_featuriser,
             axis="c",
             approx_frac=0.5,
-        ).run()
+        )
 
         # Should work without errors
         self.assertIn("gb_frac", result)
@@ -101,7 +101,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
             featuriser=self.mock_featuriser,
             axis="c",
             featuriser_kwargs={"param": "value"},
-        ).run()
+        )
 
         # Should work without errors
         self.assertIn("gb_frac", result)
@@ -118,7 +118,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
             target_coord=2.0,
             tol=0.1,
             use_fractional=False,
-        ).run()
+        )
 
         self.assertIsInstance(result, list)
         # Should find atoms at z=2
@@ -137,7 +137,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
             target_coord=1.0 / 3.0,  # z=2 in fractional coordinates
             tol=0.1,
             use_fractional=True,
-        ).run()
+        )
 
         self.assertIsInstance(result, list)
         # Should find atoms at z=2
@@ -152,7 +152,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
             target_coord=10.0,
             tol=0.1,
             use_fractional=False,
-        ).run()
+        )
 
         self.assertEqual(len(result), 24)
 
@@ -173,7 +173,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
 
         fig, ax = gb_analysis_module.plot_gb_plane(
             atoms=self.test_atoms, res=mock_result, projection=(0, 2), axis=2
-        ).run()
+        )
 
         # Should return figure and axes
         self.assertIsNotNone(fig)
@@ -201,7 +201,7 @@ class TestGBAnalysisFunctions(unittest.TestCase):
                 axis=2,
                 save_filename="test_plot.png",
                 working_directory=tmpdir,
-            ).run()
+            )
 
             # Check that file was created
             self.assertTrue(os.path.exists(os.path.join(tmpdir, "test_plot.png")))

@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 from ase.atoms import Atom
 from pyiron_snippets.logger import logger
@@ -13,7 +13,7 @@ from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import 
 )
 
 
-@pwf.as_function_node("atom")
+@pwf.atomic("atom")
 def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
     Return the index of the atom whose coordinate along the given axis
@@ -41,10 +41,11 @@ def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     target = 0.5
     # find atom nearest to that plane
     idx = int(np.argmin(np.abs(scaled - target)))
-    return atoms[idx]
+    atom = atoms[idx]
+    return atom
 
 
-@pwf.as_function_node("gb_plane_analysis_dict")
+@pwf.atomic("gb_plane_analysis_dict")
 def find_gb_plane(
     atoms: Atoms,
     featuriser: callable,
@@ -262,7 +263,7 @@ def find_gb_plane(
     else:
         extended_sel_indices = sel_indices.tolist()
 
-    return {
+    gb_plane_analysis_dict = {
         "gb_frac": mid_frac,
         "gb_cart": mid_cart,
         "mid_index": mid_index,
@@ -274,9 +275,10 @@ def find_gb_plane(
         "region_end_frac": end_frac,
         "extended_sel_indices": extended_sel_indices,
     }
+    return gb_plane_analysis_dict
 
 
-@pwf.as_function_node
+@pwf.atomic
 def plot_gb_plane(
     atoms: Atoms,
     res: dict,
@@ -479,7 +481,7 @@ def plot_gb_plane(
     return fig, ax
 
 
-@pwf.as_function_node
+@pwf.atomic
 def get_sites_on_plane(
     atoms: Atoms,
     axis: str,

@@ -898,7 +898,7 @@ def cleave_gb_structure(
     ax = axis_to_index(axis_to_cleave)
     # print("trying to find get_sites_on_plane")
     # 2) Identify which atom index sits “on/near” the GB plane.
-    mid_site_indices = get_sites_on_plane.node_function(
+    mid_site_indices = get_sites_on_plane(
         atoms=base_structure,
         axis=axis_to_cleave,
         target_coord=target_coord,
@@ -1384,7 +1384,8 @@ def pure_gb_study(
         plot_gb_plane,
     )
 
-    wf.gb_plane_extractor = find_gb_plane(
+    wf.gb_plane_extractor = pwf.function_node(
+        find_gb_plane,
         atoms=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
         featuriser=featuriser,
         axis=gb_normal_axis,
@@ -1395,7 +1396,8 @@ def pure_gb_study(
         n_bulk=n_bulk,
         threshold_frac=threshold_frac,
     )
-    wf.gb_plane_extractor_plot = plot_gb_plane(
+    wf.gb_plane_extractor_plot = pwf.function_node(
+        plot_gb_plane,
         atoms=wf.gb_with_vacuum_rel.outputs.engine_output.final_structure,
         res=wf.gb_plane_extractor.outputs.gb_plane_analysis_dict,
         projection=(0, 2),
