@@ -115,7 +115,7 @@ def coexistence_iteration(
         sel_index = [strains.index(s) for s in sel_s]
         vmax = [records[i]["voronoi_max"] for i in sel_index]
         vmean = [records[i]["voronoi_mean"] for i in sel_index]
-        keep = holes_mask.node_function(vmax, vmean, factor=2.0)
+        keep = holes_mask(vmax, vmean, factor=2.0)
         sel_s = [s for s, k in zip(sel_s, keep) if k]
         sel_p = [p for p, k in zip(sel_p, keep) if k]
         sel_t = [t for t, k in zip(sel_t, keep) if k]

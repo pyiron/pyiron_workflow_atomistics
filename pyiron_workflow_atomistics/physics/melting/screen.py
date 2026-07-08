@@ -77,9 +77,7 @@ def screen_phase(
         engine, EngineInput=CalcInputMinimize(relax_cell=True)
     ).with_working_directory(f"{subdir}_min")
     relaxed = calculate(structure, engine=relax_engine).final_structure
-    observed_phase, _, distribution_half = analyse_reference_structure.node_function(
-        relaxed
-    )
+    observed_phase, _, distribution_half = analyse_reference_structure(relaxed)
     t_guess, struct_at_guess = estimate_melting_temperature.node_function(
         relaxed,
         engine,

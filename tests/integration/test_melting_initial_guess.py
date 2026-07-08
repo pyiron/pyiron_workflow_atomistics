@@ -16,7 +16,7 @@ from pyiron_workflow_atomistics.physics.melting.initial_guess import (
 @pytest.mark.slow
 def test_initial_guess_brackets_a_temperature(tmp_path):
     s = bulk("Al", "fcc", a=4.05, cubic=True).repeat((3, 3, 3))
-    key_max, _, half = analyse_reference_structure.node_function(s)
+    key_max, _, half = analyse_reference_structure(s)
     eng = ASEEngine(
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )

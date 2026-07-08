@@ -99,7 +99,7 @@ def run(
     structure = create_coexistence_supercell.node_function(
         element, crystalstructure, a=a, n_atoms=n_atoms
     )
-    key_max, _, half = analyse_reference_structure.node_function(structure)
+    key_max, _, half = analyse_reference_structure(structure)
     t_guess, _ = estimate_melting_temperature.node_function(
         structure,
         engine,

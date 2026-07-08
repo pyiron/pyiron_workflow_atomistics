@@ -148,7 +148,7 @@ def strain_scan_nvt_nve(
         nve_out = calculate(
             equil, engine=_engine_with(engine, nve_md, f"{subdir}_nve_{i:03d}")
         )
-        vmax, vmean = voronoi_max_mean.node_function(nve_out.final_structure)
+        vmax, vmean = voronoi_max_mean(nve_out.final_structure)
         records.append(
             {
                 "strain": strain,

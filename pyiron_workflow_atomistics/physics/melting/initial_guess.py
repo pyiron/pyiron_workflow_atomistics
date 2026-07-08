@@ -10,7 +10,7 @@ from pyiron_workflow_atomistics.engine import CalcInputMD, calculate
 
 def _fraction(structure, key_max):
     """Population fraction of the dominant crystalline phase ``key_max``."""
-    counts = cna_fractions.node_function(structure)
+    counts = cna_fractions(structure)
     return counts.get(key_max, 0) / len(structure)
 
 

@@ -5,23 +5,24 @@ from __future__ import annotations
 import operator
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from structuretoolkit.analyse import (
     get_adaptive_cna_descriptors,
     get_voronoi_volumes,
 )
 
 
-@pwf.as_function_node("counts")
+@pwf.atomic("counts")
 def cna_fractions(structure) -> dict:
     """Adaptive CNA counts, lowercase keys {'fcc','bcc','hcp','ico','others'}."""
-    counts = get_adaptive_cna_descriptors(
+    counts_obj = get_adaptive_cna_descriptors(
         structure=structure, mode="total", ovito_compatibility=False
     )
-    return dict(counts)
+    counts = dict(counts_obj)
+    return counts
 
 
-@pwf.as_function_node("key_max", "n_atoms", "distribution_half")
+@pwf.atomic("key_max", "n_atoms", "distribution_half")
 def analyse_reference_structure(structure):
     """Dominant CNA phase, atom count, and half its population fraction.
 
@@ -37,25 +38,29 @@ def analyse_reference_structure(structure):
     return key_max, n_atoms, distribution_half
 
 
-@pwf.as_function_node("is_solid")
+@pwf.atomic("is_solid")
 def classify_solid(structure, key_max: str, distribution_half: float) -> bool:
     """True if the dominant-phase fraction exceeds ``distribution_half``."""
     counts = get_adaptive_cna_descriptors(
         structure=structure, mode="total", ovito_compatibility=False
     )
     fraction = counts.get(key_max, 0) / len(structure)
-    return bool(fraction > distribution_half)
+    is_solid = bool(fraction > distribution_half)
+    return is_solid
 
 
-@pwf.as_function_node("max_volume", "mean_volume")
+@pwf.atomic("max_volume", "mean_volume")
 def voronoi_max_mean(structure):
     """Max and mean per-atom Voronoi volume (A^3)."""
     volumes = get_voronoi_volumes(structure)
-    return float(np.max(volumes)), float(np.mean(volumes))
+    max_volume = float(np.max(volumes))
+    mean_volume = float(np.mean(volumes))
+    return max_volume, mean_volume
 
 
-@pwf.as_function_node("keep_mask")
+@pwf.atomic("keep_mask")
 def holes_mask(max_volumes, mean_volumes, factor: float = 2.0) -> list:
     """Per-entry True where no cavity: max_volume < factor * mean(mean_volumes)."""
     threshold = factor * float(np.mean(mean_volumes))
-    return [bool(m < threshold) for m in max_volumes]
+    keep_mask = [bool(m < threshold) for m in max_volumes]
+    return keep_mask
