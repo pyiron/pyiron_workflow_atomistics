@@ -63,7 +63,7 @@ def test_make_minimize_input_returns_concrete_floats():
     from pyiron_workflow_atomistics.engine import CalcInputMinimize
     from pyiron_workflow_atomistics.physics.elastic import make_minimize_input
 
-    ci = make_minimize_input.node_function(
+    ci = make_minimize_input(
         relax_cell=True, force_convergence_tolerance=1e-3, max_iterations=42
     )
     assert isinstance(ci, CalcInputMinimize)
@@ -106,7 +106,7 @@ def test_generate_mp_deformations_count_and_pairing():
 
     atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
     # multi-output node_function returns a tuple in output order (pyiron_workflow 0.15.6)
-    structs, strains = generate_mp_deformations.node_function(atoms)
+    structs, strains = generate_mp_deformations(atoms)
     # 6 strain modes x 4 magnitudes = 24
     assert len(structs) == 24
     assert len(strains) == 24
@@ -128,7 +128,7 @@ def test_extract_stresses_gpa_from_engine_outputs():
 
     o1 = SimpleNamespace(final_stress_voigt=np.array([1.0, 0, 0, 0, 0, 0]))
     o2 = SimpleNamespace(final_stress_voigt=np.array([0, 0, 0, 0, 0, 0.5]))
-    out = extract_stresses_gpa.node_function([o1, o2])
+    out = extract_stresses_gpa([o1, o2])
     stresses = out  # node returns single output "stresses"
     assert len(stresses) == 2
     np.testing.assert_allclose(stresses[0][0, 0], 1.0 * EV_PER_A3_TO_GPA)
@@ -145,7 +145,7 @@ def test_extract_stresses_gpa_raises_on_none():
     o1 = SimpleNamespace(final_stress_voigt=np.array([1.0, 0, 0, 0, 0, 0]))
     o2 = SimpleNamespace(final_stress_voigt=None)
     with pytest.raises(ValueError):
-        extract_stresses_gpa.node_function([o1, o2])
+        extract_stresses_gpa([o1, o2])
 
 
 def test_fit_elastic_tensor_recovers_known_cubic():
@@ -177,9 +177,7 @@ def test_fit_elastic_tensor_recovers_known_cubic():
     # synthesize stresses (GPa) from the known tensor for each strain
     stresses = [np.asarray(C_true.calculate_stress(s)) for s in strains]
 
-    out = fit_elastic_tensor.node_function(
-        strains=strains, stresses=stresses, structure=atoms
-    )
+    out = fit_elastic_tensor(strains=strains, stresses=stresses, structure=atoms)
     C_fit = out  # single output "elastic_tensor"
     np.testing.assert_allclose(C_fit.voigt, voigt, atol=1.0)  # within 1 GPa
 
@@ -203,7 +201,7 @@ def test_elastic_constants_summary_known_cubic():
     )
     et = ElasticTensor.from_voigt(voigt)
     atoms = bulk("Cu", "fcc", a=3.6, cubic=True)
-    d = elastic_constants_summary.node_function(et, atoms)
+    d = elastic_constants_summary(et, atoms)
 
     # Cubic Voigt bulk modulus K_V = (C11 + 2 C12)/3
     np.testing.assert_allclose(d["K_VRH"], (C11 + 2 * C12) / 3.0, rtol=1e-6)

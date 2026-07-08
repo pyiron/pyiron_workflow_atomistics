@@ -86,11 +86,11 @@ def grace_elastic(structure, workdir):
         calculator=calc,
         working_directory=os.path.abspath(workdir),
     )
-    wf = calculate_elastic_constants(
+    out = calculate_elastic_constants.pwf.run(
         structure=structure, engine=engine, relax_initial=True
     )
-    out = wf.run()
-    return out["elastic_constants"]
+    elastic_constants = out.outputs["elastic_constants"].value
+    return elastic_constants
 
 
 def _vrh(x):

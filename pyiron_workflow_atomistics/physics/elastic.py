@@ -11,7 +11,7 @@ from __future__ import annotations
 import dataclasses
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
 EV_PER_A3_TO_GPA = 160.21766208
@@ -44,7 +44,7 @@ def with_calc_input(engine, calc_input):
     return dataclasses.replace(engine, EngineInput=calc_input)
 
 
-@pwf.as_function_node("deformed_structures", "strains")
+@pwf.atomic("deformed_structures", "strains")
 def generate_mp_deformations(
     structure: Atoms,
     norm_strains: tuple[float, ...] = (-0.01, -0.005, 0.005, 0.01),
@@ -71,7 +71,7 @@ def generate_mp_deformations(
     return deformed_structures, strains
 
 
-@pwf.as_function_node("stresses")
+@pwf.atomic("stresses")
 def extract_stresses_gpa(engine_outputs):
     """3x3 stress tensors in GPa from a list of EngineOutput (input order)."""
     stresses = []
@@ -85,7 +85,7 @@ def extract_stresses_gpa(engine_outputs):
     return stresses
 
 
-@pwf.as_function_node("elastic_tensor")
+@pwf.atomic("elastic_tensor")
 def fit_elastic_tensor(strains, stresses, structure: Atoms, eq_stress=None):
     """Least-squares fit of the 6x6 stiffness tensor (GPa), MP convention.
 
@@ -105,10 +105,11 @@ def fit_elastic_tensor(strains, stresses, structure: Atoms, eq_stress=None):
     et = ElasticTensor.from_independent_strains(
         pmg_strains, pmg_stresses, eq_stress=eq, vasp=False
     )
-    return ElasticTensor(et.voigt_symmetrized)
+    elastic_tensor = ElasticTensor(et.voigt_symmetrized)
+    return elastic_tensor
 
 
-@pwf.as_function_node("elastic_constants")
+@pwf.atomic("elastic_constants")
 def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     """Every elastic constant in the MP elasticity methodology, as a flat dict.
 
@@ -166,7 +167,7 @@ def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     G_vrh = float(et.g_vrh)
     youngs = 9.0 * K_vrh * G_vrh / (3.0 * K_vrh + G_vrh)
 
-    d = {
+    elastic_constants = {
         "K_Voigt": float(et.k_voigt),
         "K_Reuss": float(et.k_reuss),
         "K_VRH": K_vrh,
@@ -182,10 +183,10 @@ def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
         "elastic_tensor_ieee": np.asarray(et_ieee.voigt).tolist(),
         "compliance_tensor_voigt": np.asarray(et.compliance_tensor.voigt).tolist(),
     }
-    return d
+    return elastic_constants
 
 
-@pwf.as_function_node("calc_input")
+@pwf.atomic("calc_input")
 def make_minimize_input(
     relax_cell: bool = False,
     force_convergence_tolerance: float = 1e-3,
@@ -209,32 +210,38 @@ def make_minimize_input(
     """
     from pyiron_workflow_atomistics.engine import CalcInputMinimize
 
-    return CalcInputMinimize(
+    calc_input = CalcInputMinimize(
         relax_cell=relax_cell,
         force_convergence_tolerance=force_convergence_tolerance,
         max_iterations=max_iterations,
     )
+    return calc_input
 
 
-@pwf.as_function_node("engine")
+@pwf.atomic("engine")
 def with_calc_input_node(engine, calc_input):
     """Node wrapper around :func:`with_calc_input` for use inside the macro graph."""
-    return with_calc_input(engine, calc_input)
+    engine = with_calc_input(engine, calc_input)
+    return engine
 
 
-@pwf.as_function_node("eq_stress")
+@pwf.atomic("eq_stress")
 def _reference_stress_gpa(engine_output):
     """Reference (relaxed) stress in GPa as a 3x3 tensor, for eq_stress."""
-    return voigt_stress_to_gpa(engine_output.final_stress_voigt)
+    eq_stress = voigt_stress_to_gpa(engine_output.final_stress_voigt)
+    return eq_stress
 
 
-@pwf.as_macro_node(
+def _identity(x):
+    return x
+
+
+@pwf.workflow(
     "relaxed_structure",
     "elastic_tensor",
     "elastic_constants",
 )
 def calculate_elastic_constants(
-    wf,
     structure: Atoms,
     engine,
     relax_initial: bool = True,
@@ -242,6 +249,8 @@ def calculate_elastic_constants(
     shear_strains: tuple[float, ...] = (-0.06, -0.03, 0.03, 0.06),
     fmax: float = 1e-3,
     max_iterations: int = 300,
+    _relax_fixed_cell: bool = False,
+    _unrelaxed_eq_stress: None = None,
 ):
     """Full MP-style elastic-constants workflow.
 
@@ -291,7 +300,7 @@ def calculate_elastic_constants(
     - Stress sign convention is ASE/pymatgen: tension-positive Cauchy stress.
     - Deformations are parameterized by the Green-Lagrange strain tensor.
     """
-    from pyiron_workflow_atomistics.engine import calculate
+    from pyiron_workflow_atomistics.engine import calculate, unpack_engine_output
     from pyiron_workflow_atomistics.physics.bulk import evaluate_structures
 
     # Build the CalcInputMinimize objects through function nodes rather than
@@ -300,45 +309,43 @@ def calculate_elastic_constants(
     # ``CalcInputMinimize(force_convergence_tolerance=fmax, ...)`` would store a
     # channel object in the dataclass and silently break relaxation (see
     # :func:`make_minimize_input`). The node resolves the inputs at run time.
-    wf.fixed_cell_input = make_minimize_input(
-        relax_cell=False,
+    fixed_cell_input = make_minimize_input(
+        relax_cell=_relax_fixed_cell,
         force_convergence_tolerance=fmax,
         max_iterations=max_iterations,
     )
 
-    if relax_initial:
-        wf.full_relax_input = make_minimize_input(
-            relax_cell=True,
+    if _identity(relax_initial):
+        full_relax_input = make_minimize_input(
+            relax_cell=relax_initial,
             force_convergence_tolerance=fmax,
             max_iterations=max_iterations,
         )
-        wf.relax_engine = with_calc_input_node(engine, wf.full_relax_input)
-        wf.relax = pwf.function_node(
-            calculate, structure=structure, engine=wf.relax_engine
+        relax_engine = with_calc_input(engine, full_relax_input)
+        relaxed_output = calculate(structure=structure, engine=relax_engine)
+        ref_structure, _, _, _, _, _, _, _, _, _, _, _, _ = (
+            unpack_engine_output.flowrep_recipe(relaxed_output)
         )
-        ref_structure = wf.relax.outputs.engine_output.final_structure
-        wf.eq_stress = _reference_stress_gpa(wf.relax.outputs.engine_output)
-        eq_stress = wf.eq_stress
+        eq_stress = _reference_stress_gpa(relaxed_output)
     else:
-        ref_structure = structure
-        eq_stress = None
+        ref_structure = _identity(structure)
+        eq_stress = _identity(_unrelaxed_eq_stress)
 
-    wf.deform = generate_mp_deformations(
+    deformed_structures, strains = generate_mp_deformations(
         ref_structure, norm_strains=norm_strains, shear_strains=shear_strains
     )
-    wf.deform_engine = with_calc_input_node(engine, wf.fixed_cell_input)
-    wf.evals = pwf.function_node(
-        evaluate_structures,
-        structures=wf.deform.outputs.deformed_structures,
-        engine=wf.deform_engine,
+    deform_engine = with_calc_input_node(engine, fixed_cell_input)
+    evals = evaluate_structures(
+        structures=deformed_structures,
+        engine=deform_engine,
     )
-    wf.stresses = extract_stresses_gpa(wf.evals.outputs.engine_output_lst)
-    wf.fit = fit_elastic_tensor(
-        strains=wf.deform.outputs.strains,
-        stresses=wf.stresses,
+    stresses = extract_stresses_gpa(evals)
+    fit = fit_elastic_tensor(
+        strains=strains,
+        stresses=stresses,
         structure=ref_structure,
         eq_stress=eq_stress,
     )
-    wf.summary = elastic_constants_summary(wf.fit, ref_structure)
+    summary = elastic_constants_summary(fit, ref_structure)
 
-    return ref_structure, wf.fit, wf.summary
+    return ref_structure, fit, summary
