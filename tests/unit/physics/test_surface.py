@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pyiron_workflow._wfms.api as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -20,15 +21,15 @@ def test_calculate_surface_energy_runs(tmp_path):
         working_directory=str(tmp_path),
     )
     cu_bulk = bulk("Cu", "fcc", a=3.6, cubic=True)
-    out = calculate_surface_energy(
+    out = calculate_surface_energy.pwf.run(
+        pwf.RunConfig(dag_layers_multithreaded=False),
         bulk_structure=cu_bulk,
         engine=engine,
         miller_indices=(1, 1, 1),
         layers=3,
         vacuum=8.0,
     )
-    out.run()
-    se = out.outputs.surface_energy.value
+    se = out.outputs["surface_energy"].value
     # EMT Cu(111) is ~1.0 J/m^2; DFT reports ~1.5. Bracket generously but
     # keep the lower bound positive so the slab_novac-as-bulk-reference
     # regression (which produced a sign-flipped result) cannot recur.
@@ -55,7 +56,7 @@ def test_calculate_surface_energy_accepts_explicit_mu_bulk(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate_surface_energy(
+    out = calculate_surface_energy.pwf.run(
         bulk_structure=cu_bulk,
         engine=engine,
         miller_indices=(1, 1, 1),
@@ -63,6 +64,5 @@ def test_calculate_surface_energy_accepts_explicit_mu_bulk(tmp_path):
         vacuum=8.0,
         mu_bulk=mu_bulk_from_emt,
     )
-    out.run()
-    se = out.outputs.surface_energy.value
+    se = out.outputs["surface_energy"].value
     assert 0.3 < se < 3.0

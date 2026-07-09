@@ -3,14 +3,19 @@
 from typing import Optional, Union
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
-from pyiron_workflow_atomistics.engine import Engine, calculate, subengine
+from pyiron_workflow_atomistics.engine import (
+    Engine,
+    calculate,
+    subengine,
+    unpack_engine_output,
+)
 from pyiron_workflow_atomistics.structure.build import create_surface_slab
 
 
-@pwf.as_function_node("mu_bulk_out")
+@pwf.atomic
 def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     """Return the bulk per-atom chemical potential.
 
@@ -27,27 +32,27 @@ def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     return mu_bulk_out
 
 
-@pwf.as_function_node("surface_energy")
+@pwf.atomic("surface_energy")
 def get_surface_energy(E_slab, E_bulk_per_atom, N_slab, area_one_side):
     gamma_fs = (E_slab - N_slab * E_bulk_per_atom) / (2.0 * area_one_side)
     gamma_J_per_m2 = gamma_fs * 16.021766208
     return gamma_J_per_m2
 
 
-@pwf.as_function_node("area_one_side")
+@pwf.atomic
 def area_one_side(slab):
     cell = slab.cell
-    area = np.linalg.norm(np.cross(cell[0], cell[1]))
-    return area
+    area_one_side = np.linalg.norm(np.cross(cell[0], cell[1]))
+    return area_one_side
 
 
-@pwf.as_function_node("n_atoms")
+@pwf.atomic
 def get_n_atoms(atoms):
-    n = len(atoms)
-    return n
+    n_atoms = len(atoms)
+    return n_atoms
 
 
-@pwf.as_macro_node(
+@pwf.workflow(
     "unrelaxed_surface",
     "relaxed_surface",
     "relaxed_surface_calc_output",
@@ -55,7 +60,6 @@ def get_n_atoms(atoms):
     "surface_energy",
 )
 def calculate_surface_energy(
-    wf,
     bulk_structure: Atoms,
     engine: Engine,
     miller_indices: Union[tuple[int, int, int], tuple[int, int, int, int]] = (1, 1, 1),
@@ -63,6 +67,7 @@ def calculate_surface_energy(
     vacuum: float = 10.0,
     periodic: bool = True,
     mu_bulk: Optional[float] = None,
+    _bulk_subdir: str = "bulk_ref",
 ):
     """Calculate the surface energy (J/m^2) of a slab cut from ``bulk_structure``.
 
@@ -80,35 +85,35 @@ def calculate_surface_energy(
     no-vacuum slab, which gave physically wrong (often negative) surface
     energies because a slab with ``vacuum=0`` is not equivalent to bulk.
     """
-    wf.slab_vac = pwf.function_node(
-        create_surface_slab,
+    unrelaxed_surface = create_surface_slab(
         bulk_structure=bulk_structure,
         miller_indices=miller_indices,
         layers=layers,
         vacuum=vacuum,
         periodic=periodic,
     )
-    wf.calc_slab = pwf.function_node(
-        calculate, wf.slab_vac, engine=engine, label="calc_slab"
+    relaxed_surface_calc_output = calculate(unrelaxed_surface, engine=engine)
+    relaxed_surface, relaxed_surface_system_energy, _, _, _, _, _, _, _, _, _, _, _ = (
+        unpack_engine_output.flowrep_recipe(relaxed_surface_calc_output)
     )
-    wf.bulk_ref_engine = pwf.function_node(subengine, engine=engine, subdir="bulk_ref")
-    wf.mu_bulk_out = _bulk_per_atom_energy(
+    bulk_ref_engine = subengine(engine=engine, subdir=_bulk_subdir)
+    mu_bulk_out = _bulk_per_atom_energy(
         bulk_structure=bulk_structure,
-        engine=wf.bulk_ref_engine,
+        engine=bulk_ref_engine,
         mu_bulk=mu_bulk,
     )
-    wf.n_atoms_slab = get_n_atoms(wf.slab_vac)
-    wf.area_one_side = area_one_side(wf.slab_vac)
-    wf.surface_energy = get_surface_energy(
-        E_slab=wf.calc_slab.outputs.engine_output.final_energy,
-        E_bulk_per_atom=wf.mu_bulk_out,
-        N_slab=wf.n_atoms_slab,
-        area_one_side=wf.area_one_side,
+    n_atoms_slab = get_n_atoms(unrelaxed_surface)
+    area = area_one_side(unrelaxed_surface)
+    surface_energy = get_surface_energy(
+        E_slab=relaxed_surface_system_energy,
+        E_bulk_per_atom=mu_bulk_out,
+        N_slab=n_atoms_slab,
+        area_one_side=area,
     )
     return (
-        wf.slab_vac,
-        wf.calc_slab.outputs.engine_output.final_structure,
-        wf.calc_slab,
-        wf.mu_bulk_out,
-        wf.surface_energy,
+        unrelaxed_surface,
+        relaxed_surface,
+        relaxed_surface_calc_output,
+        mu_bulk_out,
+        surface_energy,
     )
