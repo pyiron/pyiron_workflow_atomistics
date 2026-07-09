@@ -24,6 +24,7 @@ from __future__ import annotations
 import pathlib
 
 import numpy as np
+import pyiron_workflow._wfms.api as pwf
 import pytest
 
 EAM_PATH = pathlib.Path(__file__).resolve().parents[3] / "notebooks" / "Al-Fe.eam.fs"
@@ -107,8 +108,10 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
         calculator=EAM(potential=str(EAM_PATH)),
         working_directory=str(tmp_path),
     )
-
-    wf = pure_gb_study(
+    result = pure_gb_study.pwf.run(
+        pwf.RunConfig(dag_layers_multithreaded=False),
+        # With multithreading, ase complains
+        # AttributeError: 'PrimitiveNeighborList' object has no attribute 'neighbors'. Did you mean: 'get_neighbors'?
         gb_structure=gb,
         equil_bulk_volume=v0,
         equil_bulk_energy=e0,
@@ -127,24 +130,24 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
         ),
         PlotCleave_Input=PlotCleaveInput(),
     )
-    out = wf.run()
+    out = result.outputs
 
     # --- final length-optimised structure ---
-    final_struct = out["final_pure_grain_boundary_structure"]
-    final_energy = out["final_pure_grain_boundary_structure_energy"]
+    final_struct = out["final_pure_grain_boundary_structure"].value
+    final_energy = out["final_pure_grain_boundary_structure_energy"].value
     assert len(final_struct) == len(gb)
     assert np.isfinite(final_energy)
 
     # results_df is a concat of the two stage dataframes (3 + 3 rows)
-    assert len(out["grain_boundary_length_optimisation_df"]) == 6
+    assert len(out["grain_boundary_length_optimisation_df"].value) == 6
 
     # GB energy and excess volume from length opt (interpolated, J/m^2 and A^3/A^2).
-    assert np.isfinite(out["grain_boundary_energy"])
-    assert np.isfinite(out["grain_boundary_excess_volume"])
+    assert np.isfinite(out["grain_boundary_energy"].value)
+    assert np.isfinite(out["grain_boundary_excess_volume"].value)
 
     # --- vacuum-relaxed structure (used for surface and cleavage) ---
-    vac_struct = out["pure_grain_boundary_structure_vacuum"]
-    vac_energy = out["pure_grain_boundary_structure_vacuum_energy"]
+    vac_struct = out["pure_grain_boundary_structure_vacuum"].value
+    vac_energy = out["pure_grain_boundary_structure_vacuum_energy"].value
     assert len(vac_struct) == len(gb)
     assert (
         vac_struct.cell[2, 2] > final_struct.cell[2, 2]
@@ -152,10 +155,10 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     assert np.isfinite(vac_energy)
 
     # Surface energy from rigid cleavage of the vacuum slab (J/m^2)
-    assert np.isfinite(out["surface_energy"])
+    assert np.isfinite(out["surface_energy"].value)
 
     # --- GB plane analyser must return a viable dict with a Cartesian coord ---
-    gb_dict = out["gb_plane_analysis_dict"]
+    gb_dict = out["gb_plane_analysis_dict"].value
     assert isinstance(gb_dict, dict)
     assert "gb_cart" in gb_dict and np.isfinite(gb_dict["gb_cart"])
     assert "gb_frac" in gb_dict and 0.0 <= gb_dict["gb_frac"] <= 1.0
@@ -164,8 +167,8 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     ), "bulk-template sampling found zero atoms — slab_thickness too thin?"
 
     # --- cleavage stage: both rigid and relaxed dfs are populated ---
-    rigid_df = out["work_of_separation_rigid_df"]
-    relax_df = out["work_of_separation_relaxed_df"]
+    rigid_df = out["work_of_separation_rigid_df"].value
+    relax_df = out["work_of_separation_relaxed_df"].value
     assert len(rigid_df) >= 1, "no cleavage planes were evaluated rigidly"
     assert len(relax_df) >= 1
     assert len(rigid_df) == len(
@@ -173,8 +176,8 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     ), "rigid and relax must process the same planes"
 
     # Minimum cleavage energies are finite scalars
-    assert np.isfinite(out["work_of_separation_rigid"])
-    assert np.isfinite(out["work_of_separation_relaxed"])
+    assert np.isfinite(out["work_of_separation_rigid"].value)
+    assert np.isfinite(out["work_of_separation_relaxed"].value)
 
 
 @pytest.mark.skipif(not EAM_PATH.exists(), reason=f"EAM file missing: {EAM_PATH}")
@@ -182,46 +185,12 @@ def test_pure_gb_study_constructs_graph_without_running():
     """Graph construction alone catches type-hint and channel-shape regressions
     without paying for any EAM relaxation. Runs in milliseconds.
     """
-    from ase.calculators.eam import EAM
-
-    from pyiron_workflow_atomistics.engine import (
-        ASEEngine,
-        CalcInputMinimize,
-        CalcInputStatic,
-    )
-    from pyiron_workflow_atomistics.physics._grain_boundary_helpers.dataclass_storage import (
-        CleaveGBStructureInput,
-        PlotCleaveInput,
-    )
     from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
 
-    gb, lc = _build_s3_ra110_bcc_fe_bicrystal(size_z=2)
-
-    eng_min = ASEEngine(
-        EngineInput=CalcInputMinimize(
-            force_convergence_tolerance=0.5, max_iterations=5
-        ),
-        calculator=EAM(potential=str(EAM_PATH)),
-        working_directory=".",
-    )
-    eng_static = ASEEngine(
-        EngineInput=CalcInputStatic(),
-        calculator=EAM(potential=str(EAM_PATH)),
-        working_directory=".",
-    )
-
-    # Graph construction wires up every channel; passes only if every type hint
-    # and channel-shape contract along the path is honoured.
-    wf = pure_gb_study(
-        gb_structure=gb,
-        equil_bulk_volume=11.0,
-        equil_bulk_energy=-4.0,
-        extensions_stage1=[-0.05, 0.0, 0.05],
-        extensions_stage2=[-0.02, 0.0, 0.02],
-        engine=eng_min,
-        static_engine=eng_static,
-        CleaveGBStructure_Input=CleaveGBStructureInput(axis_to_cleave="c"),
-        PlotCleave_Input=PlotCleaveInput(),
-    )
+    node = pure_gb_study.pwf.node()
     # Don't run — just check the macro was assembled.
-    assert wf is not None
+    assert node is not None
+
+    # Validate type checking on all the edges
+    validation_report = pwf.tools.validate_plan(node, do_ontology=False)
+    assert validation_report.valid

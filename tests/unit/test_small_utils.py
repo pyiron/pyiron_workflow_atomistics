@@ -72,7 +72,7 @@ def test_modify_dataclass_returns_a_new_instance_with_the_field_replaced():
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     src = _Thing(a=1, b="x", c=0.0)
-    out = modify_dataclass.node_function(src, "b", "y")
+    out = modify_dataclass(src, "b", "y")
     assert isinstance(out, _Thing)
     assert out.b == "y"
     # Other fields untouched
@@ -86,7 +86,7 @@ def test_modify_dataclass_raises_on_unknown_field():
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     with pytest.raises(KeyError, match="Unknown field"):
-        modify_dataclass.node_function(_Thing(), "does_not_exist", 0)
+        modify_dataclass(_Thing(), "does_not_exist", 0)
 
 
 def test_modify_dataclass_multi_replaces_each_field_in_turn():
