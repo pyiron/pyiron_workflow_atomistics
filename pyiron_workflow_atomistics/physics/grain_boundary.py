@@ -36,7 +36,7 @@ def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
 
 
 @pwf.atomic
-def get_min_energy_structure_from_forloop_df(engine_outputs):
+def get_min_energy_structure_from_outputs(engine_outputs):
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=engine_outputs,
         keys=["final_energy", "final_structure", "final_volume"],
@@ -89,7 +89,7 @@ def fit_polynomial_extremum(x_vals, y_vals, degree=2, num_points=None, extremum=
 
 
 @pwf.atomic
-def get_interp_min_energy_structure_from_forloop_df(
+def get_interp_min_energy_structure_from_outputs(
     engine_outputs,
     axis="c",
     check_orthorhombic=False,
@@ -188,12 +188,12 @@ def gb_length_optimiser(
         engine_outputs.append(output)
 
     # 4. Fit and extract minimum-energy structure
-    min_energy_structure, min_energy = get_min_energy_structure_from_forloop_df(
+    min_energy_structure, min_energy = get_min_energy_structure_from_outputs(
         engine_outputs
     )
     # 5. Interpolate the min-energy GB from the datapoints
     interpolated_structure, interpolated_energy = (
-        get_interp_min_energy_structure_from_forloop_df(engine_outputs)
+        get_interp_min_energy_structure_from_outputs(engine_outputs)
     )
     # 6. Compute GB excess volume per area
     exc_volume = get_GB_exc_volume(
