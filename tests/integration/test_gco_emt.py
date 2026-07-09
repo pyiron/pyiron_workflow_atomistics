@@ -31,7 +31,7 @@ from pyiron_workflow_atomistics.physics.grand_canonical_gb import (  # noqa: E40
 
 @pytest.mark.slow
 def test_gco_search_emt_minimize_only(tmp_path):
-    lower, upper, dlat = build_bicrystal_slabs.node_function(
+    lower, upper, dlat = build_bicrystal_slabs(
         crystal="fcc",
         symbol="Cu",
         a=3.6,
@@ -50,13 +50,13 @@ def test_gco_search_emt_minimize_only(tmp_path):
         write_to_disk=False,
     )
 
-    df, atoms_list = gco_search.node_function(
+    df, atoms_list = gco_search(
         minimize_engine=engine,
         lower_slab=lower,
         upper_slab=upper,
         dlat=dlat,
         e_cohesive=-3.59,
-        config=GCOConfig(
+        gco_config=GCOConfig(
             frac_min=0.7,
             frac_max=1.0,
             ngrid=10,
@@ -78,7 +78,7 @@ def test_gco_search_emt_minimize_only(tmp_path):
 
 @pytest.mark.slow
 def test_gco_search_emt_with_md(tmp_path):
-    lower, upper, dlat = build_bicrystal_slabs.node_function(
+    lower, upper, dlat = build_bicrystal_slabs(
         crystal="fcc",
         symbol="Cu",
         a=3.6,
@@ -110,14 +110,14 @@ def test_gco_search_emt_with_md(tmp_path):
         write_to_disk=False,
     )
 
-    df, atoms_list = gco_search.node_function(
+    df, atoms_list = gco_search(
         minimize_engine=minimize_engine,
         md_engine=md_engine,
         lower_slab=lower,
         upper_slab=upper,
         dlat=dlat,
         e_cohesive=-3.59,
-        config=GCOConfig(
+        gco_config=GCOConfig(
             frac_min=1.0,
             frac_max=1.0,
             ngrid=10,

@@ -103,16 +103,18 @@ def test_gco_search_returns_dataframe_and_atoms_list(cu_slabs, tmp_path):
         md_run_probability=0.0,
         dedup_every=0,
     )
-    df, atoms_list = gco_search.node_function(
+    out = gco_search.pwf.run(
         minimize_engine=engine,
         lower_slab=lower,
         upper_slab=upper,
         e_cohesive=-3.6,
-        config=cfg,
+        gco_config=cfg,
         n_iters=3,
         seed=0,
         dlat=1.8,
     )
+    df = out.outputs["results"].value
+    atoms_list = out.outputs["best_structures"].value
     assert isinstance(df, pd.DataFrame)
     assert isinstance(atoms_list, list)
     assert len(df) == len(atoms_list)
@@ -157,17 +159,18 @@ def test_gco_search_with_md_engine_invokes_both(cu_slabs, tmp_path):
         md_step_sampling="exact",
         dedup_every=0,
     )
-    df, _ = gco_search.node_function(
+    out = gco_search.pwf.run(
         minimize_engine=min_engine,
         md_engine=md_engine,
         lower_slab=lower,
         upper_slab=upper,
         e_cohesive=-3.6,
-        config=cfg,
+        gco_config=cfg,
         n_iters=2,
         seed=0,
         dlat=1.8,
     )
+    df = out.outputs["results"].value
     # MD should have run for every kept row (md_run_probability=1.0); rows
     # should exist (frac_min=frac_max=1.0 with a converged stub engine).
     assert not df.empty, "expected at least one kept row from MD path"
@@ -184,13 +187,13 @@ def test_gco_search_rejects_missing_md_engine_when_probability_positive(
     )
     cfg = GCOConfig(md_run_probability=0.5)
     with pytest.raises(ValueError, match="md_engine"):
-        gco_search.node_function(
+        gco_search.pwf.run(
             minimize_engine=engine,
             md_engine=None,
             lower_slab=lower,
             upper_slab=upper,
             e_cohesive=-3.6,
-            config=cfg,
+            gco_config=cfg,
             n_iters=1,
             seed=0,
             dlat=1.8,
@@ -204,12 +207,12 @@ def test_gco_search_rejects_wrong_minimize_engine_input_type(cu_slabs, tmp_path)
         working_directory=str(tmp_path),
     )
     with pytest.raises(ValueError, match="minimize_engine"):
-        gco_search.node_function(
+        gco_search.pwf.run(
             minimize_engine=engine,
             lower_slab=lower,
             upper_slab=upper,
             e_cohesive=-3.6,
-            config=GCOConfig(),
+            gco_config=GCOConfig(),
             n_iters=1,
             seed=0,
             dlat=1.8,
@@ -228,13 +231,13 @@ def test_gco_search_rejects_md_engine_with_wrong_input_type(cu_slabs, tmp_path):
     )
     cfg = GCOConfig(md_run_probability=1.0)
     with pytest.raises(ValueError, match="md_engine"):
-        gco_search.node_function(
+        gco_search.pwf.run(
             minimize_engine=min_engine,
             md_engine=md_engine,
             lower_slab=lower,
             upper_slab=upper,
             e_cohesive=-3.6,
-            config=cfg,
+            gco_config=cfg,
             n_iters=1,
             seed=0,
             dlat=1.8,
@@ -247,12 +250,12 @@ def test_gco_search_rejects_zero_iterations(cu_slabs, tmp_path):
         EngineInput=CalcInputMinimize(), working_directory=str(tmp_path)
     )
     with pytest.raises(ValueError, match="n_iters"):
-        gco_search.node_function(
+        gco_search.pwf.run(
             minimize_engine=engine,
             lower_slab=lower,
             upper_slab=upper,
             e_cohesive=-3.6,
-            config=GCOConfig(),
+            gco_config=GCOConfig(),
             n_iters=0,
             seed=0,
             dlat=1.8,
@@ -282,16 +285,16 @@ def test_gco_search_handles_failed_minimize(cu_slabs, tmp_path):
     engine = _RaisingEngine(
         EngineInput=CalcInputMinimize(), working_directory=str(tmp_path)
     )
-    df, atoms_list = gco_search.node_function(
+    out = gco_search.pwf.run(
         minimize_engine=engine,
         lower_slab=lower,
         upper_slab=upper,
         e_cohesive=-3.6,
-        config=GCOConfig(frac_min=1.0, frac_max=1.0, dedup_every=0),
+        gco_config=GCOConfig(frac_min=1.0, frac_max=1.0, dedup_every=0),
         n_iters=3,
         seed=0,
         dlat=1.8,
     )
     # All iterations failed; df is empty but workflow did not raise
-    assert df.empty
-    assert atoms_list == []
+    assert out.outputs["results"].value.empty
+    assert out.outputs["best_structures"].value == []
