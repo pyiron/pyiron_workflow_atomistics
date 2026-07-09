@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
-from pyiron_workflow_atomistics.engine import Engine, calculate, subengine
+from pyiron_workflow_atomistics.engine import (
+    Engine,
+    calculate,
+    subengine,
+    unpack_engine_output,
+)
 from pyiron_workflow_atomistics.structure.defects import (
     create_vacancy,
     substitutional_swap,
@@ -15,13 +20,13 @@ from pyiron_workflow_atomistics.structure.transform import (
 )
 
 
-@pwf.as_function_node("n_atoms")
+@pwf.atomic
 def _count_atoms(structure: Atoms) -> int:
     n_atoms = len(structure)
     return n_atoms
 
 
-@pwf.as_function_node("formation_energy")
+@pwf.atomic
 def calculate_vacancy_formation_energy(
     vacancy_energy: float,
     supercell_energy: float,
@@ -47,13 +52,12 @@ def calculate_vacancy_formation_energy(
     return formation_energy
 
 
-@pwf.as_macro_node("supercell_calc", "vacancy_calc", "vacancy_formation_energy")
+@pwf.workflow
 def get_vacancy_formation_energy(
-    wf,
     structure: Atoms,
     engine: Engine,
     remove_atom_index: int = 0,
-    min_dimensions: list | None = None,
+    min_dimensions: list | tuple = (12, 12, 12),
     vacancy_subdir: str = "vacancy",
     supercell_subdir: str = "supercell",
 ):
@@ -63,104 +67,84 @@ def get_vacancy_formation_energy(
     --------
     See ``notebooks/vacancy_formation_energy.ipynb``.
     """
-    if min_dimensions is None:
-        min_dimensions = [12, 12, 12]
-    wf.structure_supercell = pwf.function_node(
-        create_supercell_with_min_dimensions, structure, min_dimensions=min_dimensions
+    structure_supercell = create_supercell_with_min_dimensions(
+        structure, min_dimensions=min_dimensions
     )
-    wf.structure_with_vacancy = pwf.function_node(
-        create_vacancy, wf.structure_supercell, remove_atom_index=remove_atom_index
+    structure_with_vacancy = create_vacancy(
+        structure_supercell, remove_atom_index=remove_atom_index
     )
-    wf.supercell_engine = pwf.function_node(
-        subengine, engine=engine, subdir=supercell_subdir
+    supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
+    vacancy_engine = subengine(engine=engine, subdir=vacancy_subdir)
+    supercell_calc = calculate(structure_supercell, engine=supercell_engine)
+    vacancy_calc = calculate(structure_with_vacancy, engine=vacancy_engine)
+    n_atoms_supercell = _count_atoms(structure_supercell)
+
+    _, supercell_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
+        unpack_engine_output.flowrep_recipe(supercell_calc)
     )
-    wf.vacancy_engine = pwf.function_node(
-        subengine, engine=engine, subdir=vacancy_subdir
+    _, vacancy_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
+        unpack_engine_output.flowrep_recipe(vacancy_calc)
     )
-    wf.supercell_calc = pwf.function_node(
-        calculate,
-        wf.structure_supercell,
-        engine=wf.supercell_engine,
-        label="supercell_calc",
+
+    vacancy_formation_energy = calculate_vacancy_formation_energy(
+        vacancy_energy=vacancy_final_energy,
+        supercell_energy=supercell_final_energy,
+        n_atoms_supercell=n_atoms_supercell,
     )
-    wf.vacancy_calc = pwf.function_node(
-        calculate,
-        wf.structure_with_vacancy,
-        engine=wf.vacancy_engine,
-        label="vacancy_calc",
-    )
-    wf.n_atoms_supercell = _count_atoms(wf.structure_supercell)
-    wf.vacancy_formation_energy = calculate_vacancy_formation_energy(
-        vacancy_energy=wf.vacancy_calc.outputs.engine_output.final_energy,
-        supercell_energy=wf.supercell_calc.outputs.engine_output.final_energy,
-        n_atoms_supercell=wf.n_atoms_supercell,
-    )
-    return wf.supercell_calc, wf.vacancy_calc, wf.vacancy_formation_energy
+    return supercell_calc, vacancy_calc, vacancy_formation_energy
 
 
-@pwf.as_function_node("E_f")
+@pwf.atomic
 def _substitutional_formation_energy(E_sub, E_bulk, mu_solute, mu_host):
     E_f = E_sub - E_bulk - mu_solute + mu_host
     return E_f
 
 
-@pwf.as_macro_node(
-    "supercell_calc",
-    "substitutional_calc",
-    "substitutional_formation_energy",
-)
+@pwf.workflow
 def get_substitutional_formation_energy(
-    wf,
     structure: Atoms,
     engine: Engine,
     defect_site: int = 0,
     new_symbol: str = "Ni",
     mu_solute: float = 0.0,
     mu_host: float = 0.0,
-    min_dimensions: list | None = None,
+    min_dimensions: list | tuple = (12, 12, 12),
     sub_subdir: str = "substitutional",
     supercell_subdir: str = "supercell",
 ):
     """Dilute substitutional formation energy:
     ``E_f = E_sub - E_supercell - mu_solute + mu_host``.
     """
-    if min_dimensions is None:
-        min_dimensions = [12, 12, 12]
-    wf.structure_supercell = pwf.function_node(
-        create_supercell_with_min_dimensions, structure, min_dimensions=min_dimensions
+    structure_supercell = create_supercell_with_min_dimensions(
+        structure, min_dimensions=min_dimensions
     )
-    wf.structure_with_substitute = pwf.function_node(
-        substitutional_swap,
-        wf.structure_supercell,
+    structure_with_substitute = substitutional_swap(
+        structure_supercell,
         defect_site=defect_site,
         new_symbol=new_symbol,
     )
-    wf.supercell_engine = pwf.function_node(
-        subengine, engine=engine, subdir=supercell_subdir
+    supercell_engine = subengine(engine=engine, subdir=supercell_subdir)
+    substitutional_engine = subengine(engine=engine, subdir=sub_subdir)
+    supercell_calc = calculate(structure_supercell, engine=supercell_engine)
+    substitutional_calc = calculate(
+        structure_with_substitute, engine=substitutional_engine
     )
-    wf.substitutional_engine = pwf.function_node(
-        subengine, engine=engine, subdir=sub_subdir
+
+    _, supercell_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
+        unpack_engine_output.flowrep_recipe(supercell_calc)
     )
-    wf.supercell_calc = pwf.function_node(
-        calculate,
-        wf.structure_supercell,
-        engine=wf.supercell_engine,
-        label="supercell_calc",
+    _, substitutional_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
+        unpack_engine_output.flowrep_recipe(substitutional_calc)
     )
-    wf.substitutional_calc = pwf.function_node(
-        calculate,
-        wf.structure_with_substitute,
-        engine=wf.substitutional_engine,
-        label="substitutional_calc",
-    )
-    wf.substitutional_formation_energy = _substitutional_formation_energy(
-        E_sub=wf.substitutional_calc.outputs.engine_output.final_energy,
-        E_bulk=wf.supercell_calc.outputs.engine_output.final_energy,
+
+    substitutional_formation_energy = _substitutional_formation_energy(
+        E_sub=substitutional_final_energy,
+        E_bulk=supercell_final_energy,
         mu_solute=mu_solute,
         mu_host=mu_host,
     )
     return (
-        wf.supercell_calc,
-        wf.substitutional_calc,
-        wf.substitutional_formation_energy,
+        supercell_calc,
+        substitutional_calc,
+        substitutional_formation_energy,
     )

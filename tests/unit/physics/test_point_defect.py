@@ -21,13 +21,12 @@ def test_vacancy_formation_energy_runs(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    wf = get_vacancy_formation_energy(
+    out = get_vacancy_formation_energy.pwf.run(
         structure=bulk("Cu", "fcc", a=3.6, cubic=True),
         engine=engine,
         min_dimensions=[8, 8, 8],
     )
-    wf.run()
-    e_f = wf.outputs.vacancy_formation_energy.value
+    e_f = out.outputs["vacancy_formation_energy"].value
     assert 0.5 < e_f < 2.5  # EMT Cu vacancy ~ 0.9–1.3 eV
 
 
@@ -45,12 +44,11 @@ def test_substitutional_formation_energy_runs(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    wf = get_substitutional_formation_energy(
+    out = get_substitutional_formation_energy.pwf.run(
         structure=bulk("Cu", "fcc", a=3.6, cubic=True),
         engine=engine,
         new_symbol="Ni",
         min_dimensions=[8, 8, 8],
     )
-    wf.run()
-    e_f = wf.outputs.substitutional_formation_energy.value
+    e_f = out.outputs["substitutional_formation_energy"].value
     assert e_f is not None
