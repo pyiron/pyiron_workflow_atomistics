@@ -143,7 +143,7 @@ def test_get_df_col_as_list_extracts_column():
 def test__make_engines_from_dirs_returns_one_per_subdir(tmp_path):
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
     from pyiron_workflow_atomistics.physics.grain_boundary import (
-        _make_engines_from_dirs,
+        _make_engines_with_subdirs,
     )
 
     base = ASEEngine(
@@ -152,7 +152,7 @@ def test__make_engines_from_dirs_returns_one_per_subdir(tmp_path):
         working_directory=str(tmp_path),
     )
     dirs = [str(tmp_path / "a"), str(tmp_path / "b"), str(tmp_path / "c")]
-    engines = _make_engines_from_dirs(engine=base, output_dirs=dirs)
+    engines = _make_engines_with_subdirs(engine=base, subdirnames=dirs)
 
     assert len(engines) == 3
     assert [e.working_directory for e in engines] == dirs

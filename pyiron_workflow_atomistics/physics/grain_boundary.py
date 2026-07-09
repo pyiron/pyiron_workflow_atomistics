@@ -1177,18 +1177,6 @@ def get_df_col_as_list(df, col):
     return output_list
 
 
-@pwf.atomic("engines")
-def _make_engines_from_dirs(engine: Engine, output_dirs: list) -> list[Engine]:
-    """Return a list of engines, one per output directory path.
-
-    On POSIX, os.path.join(wd, absolute_path) == absolute_path, so passing
-    absolute paths to with_working_directory is safe and sets the directory
-    correctly.
-    """
-    engines = [engine.with_working_directory(d) for d in output_dirs]
-    return engines
-
-
 @pwf.atomic("df")
 def write_df(engine_outputs, unique_sites_df, file_name, parent_dir):
     df_outputs = pd.DataFrame([dataclasses.asdict(obj) for obj in engine_outputs])
@@ -1258,9 +1246,9 @@ def calculate_substitutional_segregation_GB(
         gb_seg_structure_list.append(seg_struct)
         gb_seg_structure_dirs.append(seg_dir)
 
-    gb_seg_engines = _make_engines_from_dirs(
+    gb_seg_engines = _make_engines_with_subdirs(
         engine=engine,
-        output_dirs=gb_seg_structure_dirs,
+        subdirnames=gb_seg_structure_dirs,
     )
 
     engine_outputs = []
