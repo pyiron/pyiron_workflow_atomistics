@@ -13,7 +13,7 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate
@@ -66,9 +66,7 @@ def _resolve_random_seed(
     return int(np.random.SeedSequence().entropy % (2**32))
 
 
-@pwf.as_function_node(
-    "fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out"
-)
+@pwf.atomic("fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out")
 def _resolve_defaults(
     fc2_supercell_matrix,
     fc3_supercell_matrix,
@@ -96,7 +94,7 @@ def _resolve_defaults(
     return fc3_supercell_matrix, fc_calculator, resolved_seed
 
 
-@pwf.as_function_node("fc3_supercells")
+@pwf.atomic
 def _generate_fc3_supercells(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -134,7 +132,7 @@ def _generate_fc3_supercells(
     return fc3_supercells
 
 
-@pwf.as_function_node("engine_outputs")
+@pwf.atomic
 def _evaluate_supercells(
     supercells: list[Atoms],
     engine: Engine,
@@ -196,7 +194,7 @@ def _kappa_voigt_to_tensor(kappa_voigt: np.ndarray) -> np.ndarray:
     return out
 
 
-@pwf.as_function_node("phonon_output")
+@pwf.atomic
 def _run_phono3py_thermal_conductivity(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -304,7 +302,7 @@ def _run_phono3py_thermal_conductivity(
         extras["fc3"] = np.asarray(ph3.fc3)
         extras["phono3py"] = ph3
 
-    return PhononOutput(
+    phonon_output = PhononOutput(
         structure=structure,
         fc2_supercell_matrix=_normalise_supercell_matrix(fc2_supercell_matrix),
         fc3_supercell_matrix=_normalise_supercell_matrix(fc3_supercell_matrix),
@@ -313,11 +311,11 @@ def _run_phono3py_thermal_conductivity(
         converged=converged,
         **extras,
     )
+    return phonon_output
 
 
-@pwf.api.as_macro_node("phonon_output")
+@pwf.workflow
 def calculate_phonon_thermal_conductivity(
-    wf,
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix,
@@ -338,6 +336,8 @@ def calculate_phonon_thermal_conductivity(
     # polar-material kwargs (v1: must be None)
     born_charges=None,
     epsilon_inf=None,
+    _prefix2: str = "fc2_disp_",
+    _prefix3: str = "fc3_disp_",
 ):
     """Compute lattice thermal conductivity κ(T) via phono3py.
 
@@ -350,7 +350,7 @@ def calculate_phonon_thermal_conductivity(
     # (Cannot call _check_polar_unsupported directly in the macro body because
     # the macro body runs during __init__ with proxy UserInput objects, not
     # real values. This node runs it at execution time.)
-    wf.defaults = _resolve_defaults(
+    default_fc3_supercell_matrix, default_calculator, default_seed = _resolve_defaults(
         fc2_supercell_matrix=fc2_supercell_matrix,
         fc3_supercell_matrix=fc3_supercell_matrix,
         number_of_snapshots=number_of_snapshots,
@@ -360,44 +360,44 @@ def calculate_phonon_thermal_conductivity(
         epsilon_inf=epsilon_inf,
     )
 
-    wf.fc2_supercells = _generate_fc2_supercells(
+    fc2_supercells = _generate_fc2_supercells(
         structure=structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
         displacement_distance=displacement_distance,
         is_plusminus=is_plusminus,
     )
-    wf.fc3_supercells = _generate_fc3_supercells(
+    fc3_supercells = _generate_fc3_supercells(
         structure=structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
-        fc3_supercell_matrix=wf.defaults.outputs.fc3_supercell_matrix_out,
-        displacement_distance=displacement_distance,
-        is_plusminus=is_plusminus,
-        cutoff_pair_distance=cutoff_pair_distance,
-        number_of_snapshots=number_of_snapshots,
-        random_seed=wf.defaults.outputs.random_seed_out,
-    )
-    wf.fc2_eval = _evaluate_supercells(
-        supercells=wf.fc2_supercells.outputs.fc2_supercells,
-        engine=engine,
-        prefix="fc2_disp_",
-    )
-    wf.fc3_eval = _evaluate_supercells(
-        supercells=wf.fc3_supercells.outputs.fc3_supercells,
-        engine=engine,
-        prefix="fc3_disp_",
-    )
-    wf.synthesis = _run_phono3py_thermal_conductivity(
-        structure=structure,
-        fc2_supercell_matrix=fc2_supercell_matrix,
-        fc3_supercell_matrix=wf.defaults.outputs.fc3_supercell_matrix_out,
+        fc3_supercell_matrix=default_fc3_supercell_matrix,
         displacement_distance=displacement_distance,
         is_plusminus=is_plusminus,
         cutoff_pair_distance=cutoff_pair_distance,
         number_of_snapshots=number_of_snapshots,
-        random_seed=wf.defaults.outputs.random_seed_out,
-        fc_calculator=wf.defaults.outputs.fc_calculator_out,
-        fc2_engine_outputs=wf.fc2_eval.outputs.engine_outputs,
-        fc3_engine_outputs=wf.fc3_eval.outputs.engine_outputs,
+        random_seed=default_seed,
+    )
+    fc2_eval = _evaluate_supercells(
+        supercells=fc2_supercells,
+        engine=engine,
+        prefix=_prefix2,
+    )
+    fc3_eval = _evaluate_supercells(
+        supercells=fc3_supercells,
+        engine=engine,
+        prefix=_prefix3,
+    )
+    phonon_output = _run_phono3py_thermal_conductivity(
+        structure=structure,
+        fc2_supercell_matrix=fc2_supercell_matrix,
+        fc3_supercell_matrix=default_fc3_supercell_matrix,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        cutoff_pair_distance=cutoff_pair_distance,
+        number_of_snapshots=number_of_snapshots,
+        random_seed=default_seed,
+        fc_calculator=default_calculator,
+        fc2_engine_outputs=fc2_eval,
+        fc3_engine_outputs=fc3_eval,
         temperatures=temperatures,
         q_mesh=q_mesh,
         mode_resolved=mode_resolved,
@@ -405,4 +405,4 @@ def calculate_phonon_thermal_conductivity(
         keep_handles=keep_handles,
     )
 
-    return wf.synthesis.outputs.phonon_output
+    return phonon_output

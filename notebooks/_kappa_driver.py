@@ -158,7 +158,7 @@ def main() -> int:
 
     # ---- 2) Phonon thermal conductivity on the relaxed lattice ------------
     t0 = time.time()
-    wf = calculate_phonon_thermal_conductivity(
+    result = calculate_phonon_thermal_conductivity.pwf.run(
         structure=structure_relaxed,
         engine=engine.with_working_directory("phonon"),
         fc2_supercell_matrix=fc2_sc,
@@ -172,8 +172,7 @@ def main() -> int:
         mode_resolved=True,
         harmonic_observables=True,
     )
-    wf.run()
-    out = wf.outputs.phonon_output.value
+    out = result.outputs["phonon_output"].value
     dt = time.time() - t0
 
     # Pickle only what the notebook plots — keep the dump small and

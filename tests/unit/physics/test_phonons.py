@@ -205,13 +205,13 @@ def test_fd_fc2_supercells_deterministic():
         _generate_fc2_supercells,
     )
 
-    a = _generate_fc2_supercells.node_function(
+    a = _generate_fc2_supercells(
         structure=_cu_fcc_primitive(),
         fc2_supercell_matrix=_two_by_two_by_two(),
         displacement_distance=0.03,
         is_plusminus="auto",
     )
-    b = _generate_fc2_supercells.node_function(
+    b = _generate_fc2_supercells(
         structure=_cu_fcc_primitive(),
         fc2_supercell_matrix=_two_by_two_by_two(),
         displacement_distance=0.03,
@@ -248,7 +248,7 @@ def test_evaluate_supercells_uses_with_working_directory(tmp_path):
     )
     cu = bulk("Cu", "fcc", a=3.6, cubic=True)
     supercells = [cu.copy(), cu.copy(), cu.copy()]
-    outs = _evaluate_supercells.node_function(
+    outs = _evaluate_supercells(
         supercells=supercells, engine=engine, prefix="fc2_disp_"
     )
     assert len(outs) == 3
@@ -275,8 +275,8 @@ def test_fd_fc3_supercells_deterministic():
         number_of_snapshots=None,
         random_seed=None,
     )
-    a = _generate_fc3_supercells.node_function(**kwargs)
-    b = _generate_fc3_supercells.node_function(**kwargs)
+    a = _generate_fc3_supercells(**kwargs)
+    b = _generate_fc3_supercells(**kwargs)
     assert len(a) == len(b) and len(a) > 0
     for x, y in zip(a, b):
         np.testing.assert_allclose(x.get_positions(), y.get_positions())
@@ -315,19 +315,17 @@ def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
 
-    fc2_supercells = _generate_fc2_supercells.node_function(
-        structure=cu, fc2_supercell_matrix=sc
-    )
-    fc3_supercells = _generate_fc3_supercells.node_function(
+    fc2_supercells = _generate_fc2_supercells(structure=cu, fc2_supercell_matrix=sc)
+    fc3_supercells = _generate_fc3_supercells(
         structure=cu, fc2_supercell_matrix=sc, fc3_supercell_matrix=sc
     )
-    fc2_outs = _evaluate_supercells.node_function(
+    fc2_outs = _evaluate_supercells(
         supercells=fc2_supercells, engine=engine, prefix="fc2_disp_"
     )
-    fc3_outs = _evaluate_supercells.node_function(
+    fc3_outs = _evaluate_supercells(
         supercells=fc3_supercells, engine=engine, prefix="fc3_disp_"
     )
-    out = _run_phono3py_thermal_conductivity.node_function(
+    result = _run_phono3py_thermal_conductivity.pwf.run(
         structure=cu,
         fc2_supercell_matrix=sc,
         fc3_supercell_matrix=sc,
@@ -345,6 +343,7 @@ def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
         harmonic_observables=False,
         keep_handles=False,
     )
+    out = result.outputs["phonon_output"].value
 
     assert out.converged is True
     assert out.kappa.shape == (1, 3, 3)
@@ -389,7 +388,7 @@ def test_synthesis_raises_when_force_calc_failed():
     fc3_outs = [_make_fake_engine_output(converged=True) for _ in range(2)]
 
     with pytest.raises(RuntimeError) as exc:
-        _run_phono3py_thermal_conductivity.node_function(
+        _run_phono3py_thermal_conductivity(
             structure=cu,
             fc2_supercell_matrix=sc,
             fc3_supercell_matrix=sc,
@@ -427,10 +426,8 @@ def test_synthesis_raises_on_supercell_force_mismatch():
     cu = bulk("Cu", "fcc", a=3.6)
     sc = (2 * np.eye(3)).astype(int)
 
-    fc2_supercells = _generate_fc2_supercells.node_function(
-        structure=cu, fc2_supercell_matrix=sc
-    )
-    fc3_supercells = _generate_fc3_supercells.node_function(
+    fc2_supercells = _generate_fc2_supercells(structure=cu, fc2_supercell_matrix=sc)
+    fc3_supercells = _generate_fc3_supercells(
         structure=cu, fc2_supercell_matrix=sc, fc3_supercell_matrix=sc
     )
     n_fc2 = len(fc2_supercells[0])
@@ -444,7 +441,7 @@ def test_synthesis_raises_on_supercell_force_mismatch():
     ]
 
     with pytest.raises(RuntimeError) as exc:
-        _run_phono3py_thermal_conductivity.node_function(
+        _run_phono3py_thermal_conductivity(
             structure=cu,
             fc2_supercell_matrix=sc,
             fc3_supercell_matrix=sc,
@@ -493,15 +490,15 @@ def test_calculate_phonon_thermal_conductivity_macro_emt(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    out = calculate_phonon_thermal_conductivity(
+    result = calculate_phonon_thermal_conductivity.pwf.run(
         structure=cu,
         engine=engine,
         fc2_supercell_matrix=sc,
         temperatures=[300.0],
         q_mesh=(5, 5, 5),
-    ).run()
+    )
 
-    out = out["phonon_output"] if isinstance(out, dict) else out
+    out = result.outputs["phonon_output"].value
     assert out.converged is True
     assert out.kappa.shape == (1, 3, 3)
     # Engine got the per-supercell subdirs
@@ -558,8 +555,8 @@ def test_random_fc3_supercells_deterministic_with_seed():
         number_of_snapshots=10,
         random_seed=42,
     )
-    a = _generate_fc3_supercells.node_function(**kwargs)
-    b = _generate_fc3_supercells.node_function(**kwargs)
+    a = _generate_fc3_supercells(**kwargs)
+    b = _generate_fc3_supercells(**kwargs)
     assert len(a) == len(b) == 10
     for x, y in zip(a, b):
         np.testing.assert_allclose(x.get_positions(), y.get_positions())
@@ -600,8 +597,7 @@ def test_random_displacement_macro_emt(tmp_path):
         q_mesh=(3, 3, 3),
         number_of_snapshots=10,
         random_seed=0,
-    ).run()
-    out = out["phonon_output"] if isinstance(out, dict) else out
+    )
     assert out.converged is True
     assert np.all(np.isfinite(out.kappa))
 
@@ -634,8 +630,7 @@ def test_mode_resolved_off_by_default(tmp_path):
         fc2_supercell_matrix=(2 * np.eye(3)).astype(int),
         temperatures=[300.0],
         q_mesh=(5, 5, 5),
-    ).run()
-    out = out["phonon_output"] if isinstance(out, dict) else out
+    )
     assert out.q_points is None
     assert out.frequencies is None
     assert out.group_velocities is None
@@ -667,8 +662,7 @@ def test_mode_resolved_on_populates_all_fields(tmp_path):
         temperatures=[300.0],
         q_mesh=(5, 5, 5),
         mode_resolved=True,
-    ).run()
-    out = out["phonon_output"] if isinstance(out, dict) else out
+    )
     assert out.q_points is not None and out.q_points.shape[1] == 3
     assert out.frequencies is not None and out.frequencies.ndim == 2
     assert out.group_velocities is not None and out.group_velocities.shape[-1] == 3
@@ -703,8 +697,7 @@ def test_harmonic_observables_populates_bands_dos_freeenergy(tmp_path):
         temperatures=[300.0, 500.0],
         q_mesh=(5, 5, 5),
         harmonic_observables=True,
-    ).run()
-    out = out["phonon_output"] if isinstance(out, dict) else out
+    )
 
     assert out.band_structure is not None
     assert "q" in out.band_structure and "frequencies" in out.band_structure
@@ -741,8 +734,7 @@ def test_keep_handles_returns_fc2_fc3_and_phono3py_handle(tmp_path):
         temperatures=[300.0],
         q_mesh=(5, 5, 5),
         keep_handles=True,
-    ).run()
-    out = out["phonon_output"] if isinstance(out, dict) else out
+    )
 
     assert out.fc2 is not None
     assert out.fc2.ndim == 4 and out.fc2.shape[-1] == 3
@@ -910,7 +902,7 @@ def test_resolve_md_defaults_requires_at_least_one_fc2_source():
 
     cu = bulk("Cu", "fcc", a=3.6)
     with pytest.raises(ValueError) as exc:
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=None,
             phono3py_output=None,
@@ -940,7 +932,7 @@ def test_resolve_md_defaults_rejects_mismatched_supercells():
     )
 
     with pytest.raises(ValueError) as exc:
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=3 * np.eye(3, dtype=int),  # MISMATCH
             phono3py_output=fake_phono3py_output,
@@ -970,7 +962,7 @@ def test_resolve_md_defaults_rejects_phono3py_output_without_fc2():
     )
 
     with pytest.raises(ValueError) as exc:
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=None,
             phono3py_output=output_without_handles,
@@ -995,7 +987,7 @@ def test_resolve_md_defaults_auto_derives_band_path_when_qpoints_none():
         resolved_seed,
         fc2_source_tag,
         fc2_array,
-    ) = _resolve_md_defaults.node_function(
+    ) = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
         phono3py_output=None,
@@ -1023,8 +1015,8 @@ def test_resolve_md_defaults_band_path_is_deterministic():
         band_npoints=30,
         seed=None,  # auto-fill — but the q-points path should still match across calls
     )
-    out_a = _resolve_md_defaults.node_function(**kwargs)
-    out_b = _resolve_md_defaults.node_function(**kwargs)
+    out_a = _resolve_md_defaults(**kwargs)
+    out_b = _resolve_md_defaults(**kwargs)
     np.testing.assert_allclose(out_a[1], out_b[1])  # resolved_q_points identical
 
 
@@ -1035,7 +1027,7 @@ def test_resolve_md_defaults_passes_through_explicit_qpoints():
 
     cu = bulk("Cu", "fcc", a=3.6)
     user_q = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
-    out = _resolve_md_defaults.node_function(
+    out = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
         phono3py_output=None,
@@ -1052,7 +1044,7 @@ def test_resolve_md_defaults_seed_auto_filled_when_none():
     )
 
     cu = bulk("Cu", "fcc", a=3.6)
-    out = _resolve_md_defaults.node_function(
+    out = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
         phono3py_output=None,
@@ -1130,7 +1122,7 @@ def test_compute_fc2_from_scratch_produces_correct_shape(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    fc2 = _compute_fc2_from_scratch.node_function(
+    fc2 = _compute_fc2_from_scratch(
         structure=cu,
         engine=engine,
         resolved_fc2_supercell=2 * np.eye(3, dtype=int),
@@ -1162,7 +1154,7 @@ def test_run_nvt_trajectory_returns_expected_pack_shape(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    pack = _run_nvt_trajectory.node_function(
+    pack = _run_nvt_trajectory(
         structure=cu,
         engine=engine,
         resolved_fc2_supercell=2 * np.eye(3, dtype=int),
@@ -1211,10 +1203,10 @@ def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    fc2_array = _compute_fc2_from_scratch.node_function(
+    fc2_array = _compute_fc2_from_scratch(
         structure=cu, engine=engine, resolved_fc2_supercell=fc2_supercell
     )
-    pack = _run_nvt_trajectory.node_function(
+    pack = _run_nvt_trajectory(
         structure=cu,
         engine=engine,
         resolved_fc2_supercell=fc2_supercell,
@@ -1226,7 +1218,7 @@ def test_project_with_dynaphopy_emt_gamma_smoke(tmp_path):
         seed=42,
     )
 
-    out = _project_with_dynaphopy.node_function(
+    out = _project_with_dynaphopy(
         structure=cu,
         fc2_array=fc2_array,
         resolved_fc2_supercell=fc2_supercell,
@@ -1311,12 +1303,12 @@ def test_project_with_dynaphopy_non_gamma_units_regression(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    fc2_array = _compute_fc2_from_scratch.node_function(
+    fc2_array = _compute_fc2_from_scratch(
         structure=cu,
         engine=engine,
         resolved_fc2_supercell=fc2_supercell,
     )
-    pack = _run_nvt_trajectory.node_function(
+    pack = _run_nvt_trajectory(
         structure=cu,
         engine=engine,
         resolved_fc2_supercell=fc2_supercell,
@@ -1329,7 +1321,7 @@ def test_project_with_dynaphopy_non_gamma_units_regression(tmp_path):
     )
 
     q_non_gamma = np.array([[0.25, 0.0, 0.0]])
-    out = _project_with_dynaphopy.node_function(
+    out = _project_with_dynaphopy(
         structure=cu,
         fc2_array=fc2_array,
         resolved_fc2_supercell=fc2_supercell,
@@ -1381,7 +1373,7 @@ def test_calculate_phonon_md_renormalisation_macro_emt(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    wf = calculate_phonon_md_renormalisation(
+    out = calculate_phonon_md_renormalisation(
         structure=cu,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -1392,8 +1384,6 @@ def test_calculate_phonon_md_renormalisation_macro_emt(tmp_path):
         q_points=[[0.0, 0.0, 0.0]],  # Gamma-only for runtime
         seed=42,
     )
-    wf.run()
-    out = wf.outputs.md_phonon_output.value
 
     assert out.converged is True
     assert out.renormalised_frequencies.shape == (1, 3)
@@ -1424,7 +1414,7 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "phono3py_run"),
     )
-    wf_phono3py = calculate_phonon_thermal_conductivity(
+    result_phono3py = calculate_phonon_thermal_conductivity.pwf.run(
         structure=cu,
         engine=engine_phono3py,
         fc2_supercell_matrix=sc,
@@ -1432,8 +1422,7 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         q_mesh=(3, 3, 3),
         keep_handles=True,
     )
-    wf_phono3py.run()
-    phono3py_out = wf_phono3py.outputs.phonon_output.value
+    phono3py_out = result_phono3py.outputs["phonon_output"].value
 
     # Step 2: run dynaphopy macro reusing the FC2.
     engine_md = ASEEngine(
@@ -1441,7 +1430,7 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "md_run"),
     )
-    wf_md = calculate_phonon_md_renormalisation(
+    result_md = calculate_phonon_md_renormalisation.pwf.run(
         structure=cu,
         engine=engine_md,
         # fc2_supercell_matrix deliberately NOT passed → must derive from
@@ -1454,8 +1443,7 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         seed=42,
         phono3py_output=phono3py_out,
     )
-    wf_md.run()
-    out = wf_md.outputs.md_phonon_output.value
+    out = result_md.outputs["md_phonon_output"].value
 
     # Reuse path → no fc2_disp_NNNN directories in the dynaphopy run's workdir.
     assert not (tmp_path / "md_run" / "fc2_disp_0000").exists()
@@ -1485,7 +1473,7 @@ def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
         working_directory=str(tmp_path),
     )
 
-    # Wrap _run_nvt_trajectory.node_function so the returned pack reports a
+    # Wrap _run_nvt_trajectory so the returned pack reports a
     # bogus ⟨T⟩ that triggers the drift check. functools.wraps preserves the
     # original signature so pyiron_workflow's preview-build introspection
     # doesn't see a generic (*args, **kwargs) wrapper, and the staticmethod()
@@ -1493,7 +1481,7 @@ def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
     # node doesn't pass itself as the first positional arg.
     import functools
 
-    original_node_function = md_renormalised._run_nvt_trajectory.node_function
+    original_node_function = md_renormalised._run_nvt_trajectory
 
     @functools.wraps(original_node_function)
     def drifted_node_function(*args, **kwargs):
@@ -1502,23 +1490,22 @@ def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
         return pack
 
     monkeypatch.setattr(
-        md_renormalised._run_nvt_trajectory,
-        "node_function",
+        md_renormalised,
+        "_run_nvt_trajectory",
         staticmethod(drifted_node_function),
     )
 
-    wf = calculate_phonon_md_renormalisation(
-        structure=cu,
-        engine=engine,
-        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
-        temperature=300.0,
-        equilibration_steps=200,
-        production_steps=2000,
-        q_points=[[0.0, 0.0, 0.0]],
-        seed=42,
-    )
     with pytest.warns(UserWarning, match=r"⟨T⟩ drift.*exceeds tolerance"):
-        wf.run()
+        calculate_phonon_md_renormalisation.pwf.run(
+            structure=cu,
+            engine=engine,
+            fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+            temperature=300.0,
+            equilibration_steps=200,
+            production_steps=2000,
+            q_points=[[0.0, 0.0, 0.0]],
+            seed=42,
+        )
 
 
 @pytest.mark.slow
@@ -1537,7 +1524,7 @@ def test_power_spectra_off_by_default(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    wf = calculate_phonon_md_renormalisation(
+    out = calculate_phonon_md_renormalisation(
         structure=cu,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -1547,8 +1534,6 @@ def test_power_spectra_off_by_default(tmp_path):
         q_points=[[0.0, 0.0, 0.0]],
         seed=42,
     )
-    wf.run()
-    out = wf.outputs.md_phonon_output.value
     assert out.power_spectra is None
     assert out.frequency_grid is None
 
@@ -1569,7 +1554,7 @@ def test_power_spectra_on_populates_arrays(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    wf = calculate_phonon_md_renormalisation(
+    out = calculate_phonon_md_renormalisation(
         structure=cu,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -1580,8 +1565,6 @@ def test_power_spectra_on_populates_arrays(tmp_path):
         seed=42,
         power_spectra=True,
     )
-    wf.run()
-    out = wf.outputs.md_phonon_output.value
     assert out.power_spectra is not None
     assert out.frequency_grid is not None
     # (n_q, n_band, n_freq_bins) — but n_band index ordering may differ
@@ -1606,7 +1589,7 @@ def test_keep_handles_returns_quasiparticle_dynamics_phonopy(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    wf = calculate_phonon_md_renormalisation(
+    out = calculate_phonon_md_renormalisation(
         structure=cu,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -1617,8 +1600,6 @@ def test_keep_handles_returns_quasiparticle_dynamics_phonopy(tmp_path):
         seed=42,
         keep_handles=True,
     )
-    wf.run()
-    out = wf.outputs.md_phonon_output.value
     assert out.quasiparticle is not None
     assert out.dynamics is not None
     assert out.phonopy is not None
@@ -1654,19 +1635,21 @@ def test_md_macro_seed_determinism(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "run_a"),
     )
-    wf_a = calculate_phonon_md_renormalisation(engine=engine_a, **common_kwargs)
-    wf_a.run()
+    out_a = calculate_phonon_md_renormalisation.pwf.run(
+        engine=engine_a, **common_kwargs
+    )
 
     engine_b = ASEEngine(
         EngineInput=CalcInputStatic(),
         calculator=EMT(),
         working_directory=str(tmp_path / "run_b"),
     )
-    wf_b = calculate_phonon_md_renormalisation(engine=engine_b, **common_kwargs)
-    wf_b.run()
+    out_b = calculate_phonon_md_renormalisation.pwf.run(
+        engine=engine_b, **common_kwargs
+    )
 
-    out_a = wf_a.outputs.md_phonon_output.value
-    out_b = wf_b.outputs.md_phonon_output.value
+    out_a = out_a.outputs["md_phonon_output"].value
+    out_b = out_b.outputs["md_phonon_output"].value
     np.testing.assert_allclose(
         out_a.renormalised_frequencies, out_b.renormalised_frequencies
     )

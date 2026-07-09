@@ -25,7 +25,7 @@ def test_harmonic_free_energy_emt_al_2x2x2(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    wf = harmonic_free_energy(
+    out = harmonic_free_energy(
         structure=structure,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -33,8 +33,6 @@ def test_harmonic_free_energy_emt_al_2x2x2(tmp_path):
         working_directory=str(tmp_path),
         subdir="harmonic",
     )
-    out = wf.run()
-    out = out["free_energy_output"] if isinstance(out, dict) else out
 
     assert out.mode == "harmonic"
     assert out.reference_phase == "solid"
