@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 from ase.data import atomic_numbers, reference_states
 
 from pyiron_workflow_atomistics.physics.melting.coexistence import refine_melting_point
@@ -14,7 +14,7 @@ def _default_crystalstructure(element):
     return reference_states[atomic_numbers[element]]["symmetry"]
 
 
-@pwf.as_function_node("result")
+@pwf.atomic("result")
 def calculate_melting_point(engine, melting_input):
     """Full interface-method melting point for ONE phase: screen -> refine.
 
@@ -26,10 +26,8 @@ def calculate_melting_point(engine, melting_input):
     crystalstructure = mi.crystalstructure or _default_crystalstructure(mi.element)
     a = mi.a
     if a is None and crystalstructure != _default_crystalstructure(mi.element):
-        a = estimate_lattice_constant.node_function(
-            mi.element, engine, crystalstructure
-        )
-    t_guess, struct_at_guess, observed = screen_phase.node_function(
+        a = estimate_lattice_constant(mi.element, engine, crystalstructure)
+    t_guess, struct_at_guess, observed = screen_phase(
         engine,
         mi.element,
         crystalstructure,
@@ -43,7 +41,7 @@ def calculate_melting_point(engine, melting_input):
         npt_thermostat=mi.npt_thermostat,
         subdir="single",
     )
-    result = refine_melting_point.node_function(
+    result = refine_melting_point(
         struct_at_guess,
         engine,
         t_guess=t_guess,

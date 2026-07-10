@@ -17,11 +17,11 @@ def _half_solid_half_liquid():
 
 def test_full_solid_ratio_near_one():
     s = bulk("Al", "fcc", a=4.05, cubic=True).repeat((4, 4, 8))
-    assert solid_fraction_kde.node_function(s, "fcc") > 0.9
+    assert solid_fraction_kde(s, "fcc") > 0.9
 
 
 def test_half_solid_ratio_near_half():
-    frac = solid_fraction_kde.node_function(_half_solid_half_liquid(), "fcc")
+    frac = solid_fraction_kde(_half_solid_half_liquid(), "fcc")
     assert 0.3 < frac < 0.7
 
 
@@ -29,4 +29,4 @@ def test_all_liquid_ratio_zero():
     s = bulk("Al", "fcc", a=4.05, cubic=True).repeat((4, 4, 8))
     rng = np.random.RandomState(1)
     s.set_positions(s.get_positions() + rng.standard_normal((len(s), 3)) * 2.0)
-    assert solid_fraction_kde.node_function(s, "fcc") == 0.0
+    assert solid_fraction_kde(s, "fcc") == 0.0

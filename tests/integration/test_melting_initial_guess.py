@@ -20,7 +20,7 @@ def test_initial_guess_brackets_a_temperature(tmp_path):
     eng = ASEEngine(
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
-    t_guess, struct = estimate_melting_temperature.node_function(
+    t_guess, struct = estimate_melting_temperature(
         s,
         eng,
         key_max=key_max,

@@ -66,7 +66,7 @@ def run(
             n_refine=n_refine,
             seed=seed,
         )
-        res = melting_point_scan.node_function(engine, mi).to_dict()
+        res = melting_point_scan(engine, mi).to_dict()
         print(
             f"Melting temperature: {res['melting_temperature']:.1f} K "
             f"(phase={res['selected_phase']}, runner-up={res['runner_up_phase']} "
@@ -89,18 +89,18 @@ def run(
             strain_run_steps=strain_run_steps,
             seed=seed,
         )
-        res = calculate_melting_point.node_function(engine, mi).to_dict()
+        res = calculate_melting_point(engine, mi).to_dict()
         print(
             f"Melting temperature: {res['melting_temperature']:.1f} K "
             f"(converged={res['converged']}, guess={res['initial_guess']:.0f} K)"
         )
         return res
 
-    structure = create_coexistence_supercell.node_function(
+    structure = create_coexistence_supercell(
         element, crystalstructure, a=a, n_atoms=n_atoms
     )
     key_max, _, half = analyse_reference_structure(structure)
-    t_guess, _ = estimate_melting_temperature.node_function(
+    t_guess, _ = estimate_melting_temperature(
         structure,
         engine,
         key_max=key_max,

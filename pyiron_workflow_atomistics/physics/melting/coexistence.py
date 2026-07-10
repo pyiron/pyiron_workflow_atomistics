@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import holes_mask
 from pyiron_workflow_atomistics.physics.melting.fitting import (
@@ -46,7 +46,7 @@ def _next_center(strains, pressures, fallback=1.0):
     return float(round(center, 4))
 
 
-@pwf.as_function_node("record")
+@pwf.atomic
 def coexistence_iteration(
     structure,
     engine,
@@ -72,7 +72,7 @@ def coexistence_iteration(
     fitted zero-pressure strain); the returned record carries the newly fitted
     ``center`` for the next iteration.
     """
-    solid, _ = npt_relax_solid.node_function(
+    solid, _ = npt_relax_solid(
         structure,
         engine,
         temperature=temperature,
@@ -82,7 +82,7 @@ def coexistence_iteration(
         npt_thermostat=npt_thermostat,
         subdir=f"{subdir}_npt",
     )
-    interface = build_solid_liquid_interface.node_function(
+    interface = build_solid_liquid_interface(
         solid,
         engine,
         t_solid=temperature,
@@ -93,7 +93,7 @@ def coexistence_iteration(
         subdir=f"{subdir}_iface",
     )
     strains = _strain_grid(center, fit_range, n_strain_points)
-    records = strain_scan_nvt_nve.node_function(
+    records = strain_scan_nvt_nve(
         interface,
         engine,
         temperature=temperature,
@@ -108,7 +108,7 @@ def coexistence_iteration(
     ratios = [r["solid_fraction"] for r in records]
     pressures = [r["mean_P"] for r in records]
     temps = [r["mean_T"] for r in records]
-    sel_s, sel_r, sel_p, sel_t, flag = ratio_selection.node_function(
+    sel_s, sel_r, sel_p, sel_t, flag = ratio_selection(
         strains, ratios, pressures, temps, ratio_boundary=ratio_boundary
     )
     if len(sel_s) > 2:
@@ -120,7 +120,7 @@ def coexistence_iteration(
         sel_p = [p for p, k in zip(sel_p, keep) if k]
         sel_t = [t for t, k in zip(sel_t, keep) if k]
     if len(sel_s) > 2:
-        t_next, _, _, _ = predict_melting_point.node_function(
+        t_next, _, _, _ = predict_melting_point(
             sel_s, sel_p, sel_t, boundary_value=boundary_value
         )
         next_center = _next_center(sel_s, sel_p, fallback=center)
@@ -140,7 +140,7 @@ def coexistence_iteration(
     return record
 
 
-@pwf.as_function_node("result")
+@pwf.atomic
 def refine_melting_point(structure, engine, t_guess, melting_input, crystalstructure):
     """Iterate coexistence steps until |dT| <= convergence_goal.
 
@@ -158,7 +158,7 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
     converged = False
     for step_idx in range(mi.max_coexistence_iterations):
         timestep, fit_range, nve_steps = schedules[min(step_idx, len(schedules) - 1)]
-        rec = coexistence_iteration.node_function(
+        rec = coexistence_iteration(
             structure,
             engine,
             temperature=temperature,

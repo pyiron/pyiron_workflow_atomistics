@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import numpy as np
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 
 
-@pwf.as_function_node("strains", "ratios", "pressures", "temperatures", "sl_flag")
+@pwf.atomic("strains", "ratios", "pressures", "temperatures", "sl_flag")
 def ratio_selection(
     strains, ratios, pressures, temperatures, ratio_boundary: float = 0.25
 ):
@@ -36,7 +36,7 @@ def ratio_selection(
     return sel_strains, sel_ratios, sel_pressures, sel_temperatures, flag
 
 
-@pwf.as_function_node("t_next", "t_mean", "t_left", "t_right")
+@pwf.atomic
 def predict_melting_point(
     strains, pressures, temperatures, boundary_value: float = 0.25
 ):

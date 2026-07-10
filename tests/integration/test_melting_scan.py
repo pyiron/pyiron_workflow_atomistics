@@ -32,7 +32,7 @@ def test_melting_point_scan_end_to_end(tmp_path):
     eng = ASEEngine(
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
-    res = melting_point_scan.node_function(eng, mi)
+    res = melting_point_scan(eng, mi)
     assert isinstance(res, MeltingScanResult)
     assert res.element == "Al"
     assert len(res.screened) == 2

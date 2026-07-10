@@ -12,7 +12,7 @@ def test_one_coexistence_iteration_runs(tmp_path):
     eng = ASEEngine(
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
-    rec = coexistence_iteration.node_function(
+    rec = coexistence_iteration(
         s,
         eng,
         temperature=900.0,
