@@ -112,10 +112,10 @@ class EngineOutput:
 def subengine(engine: Engine, subdir: str) -> Engine:
     """Function-node wrapper around :meth:`Engine.with_working_directory`.
 
-    Use this inside ``@pwf.as_macro_node`` graphs where the engine arrives
+    Use this inside ``@pwf.workflow`` graphs where the engine arrives
     as an input channel. Calling ``engine.with_working_directory(...)``
-    directly in a macro body dispatches the channel's ``__call__`` and
-    crashes with ``ReadinessError``; routing the same call through this
+    directly in a macro body would require parsing attribute calls and thus fails;
+    routing the same call through this
     node delays the resolution to graph-execution time.
     """
     subengine = engine.with_working_directory(subdir)

@@ -194,15 +194,9 @@ def make_minimize_input(
 ):
     """Build a concrete :class:`CalcInputMinimize` *at run time*.
 
-    Inside a ``@pwf.as_macro_node`` the macro arguments (``fmax``,
-    ``max_iterations``, ...) are pyiron_workflow input *channels*, not plain
-    Python scalars. Constructing a dataclass directly in the macro body would
-    therefore store those channel objects in the dataclass fields (e.g.
-    ``force_convergence_tolerance`` would hold a ``UserInput`` channel instead
-    of a float). That channel then leaks all the way into ASE's
-    ``BFGS.run(fmax=<channel>)``, where the convergence test
-    ``max_force < fmax`` against a non-numeric object is satisfied immediately,
-    so the relaxation "converges" at step 0 and the cell never moves.
+    Inside a ``@pwf.workflow``, we expect calls to be recipe-izable, and dataclasses
+    currently aren't. Thus, we can't call the dataclass to make a new instance and still
+    parse a macro.
 
     Routing the construction through this function node delays evaluation to
     graph-execution time, where the inputs are resolved to concrete scalars, so
