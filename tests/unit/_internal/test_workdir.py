@@ -8,7 +8,7 @@ import os
 def test_get_subdirpaths_joins_parent_and_subdirs():
     from pyiron_workflow_atomistics._internal.workdir import get_subdirpaths
 
-    out = get_subdirpaths.node_function(
+    out = get_subdirpaths(
         parent_dir="/tmp/parent",
         output_subdirs=["a", "b", "c"],
     )
@@ -22,14 +22,14 @@ def test_get_subdirpaths_joins_parent_and_subdirs():
 def test_get_subdirpaths_empty_subdirs():
     from pyiron_workflow_atomistics._internal.workdir import get_subdirpaths
 
-    assert get_subdirpaths.node_function(parent_dir="/tmp", output_subdirs=[]) == []
+    assert get_subdirpaths(parent_dir="/tmp", output_subdirs=[]) == []
 
 
 def test_get_working_subdir_kwargs_overrides_working_directory():
     from pyiron_workflow_atomistics._internal.workdir import get_working_subdir_kwargs
 
     original = {"working_directory": "/old", "force_tol": 0.01}
-    out = get_working_subdir_kwargs.node_function(
+    out = get_working_subdir_kwargs(
         calc_structure_fn_kwargs=original,
         base_working_directory="/base",
         new_working_directory="sub",
@@ -48,7 +48,7 @@ def test_get_working_subdir_kwargs_requires_working_directory_present():
     from pyiron_workflow_atomistics._internal.workdir import get_working_subdir_kwargs
 
     with pytest.raises(KeyError, match="working_directory"):
-        get_working_subdir_kwargs.node_function(
+        get_working_subdir_kwargs(
             calc_structure_fn_kwargs={},
             base_working_directory="/base",
             new_working_directory="run1",

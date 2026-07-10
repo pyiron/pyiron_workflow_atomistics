@@ -5,10 +5,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-import pyiron_workflow as pwf
+import pyiron_workflow._wfms.api as pwf
 
 
-@pwf.as_function_node("full_calc_kwargs2")
+@pwf.atomic("full_calc_kwargs2")
 def fillin_default_calckwargs(
     calc_kwargs: dict[str, Any],
     default_values: dict[str, Any] | None = None,
@@ -29,7 +29,7 @@ def fillin_default_calckwargs(
     return full
 
 
-@pwf.as_function_node("kwargs_variant")
+@pwf.atomic("kwargs_variant")
 def generate_kwargs_variant(
     base_kwargs: dict[str, Any], key: str, value: Any
 ) -> dict[str, Any]:
@@ -39,7 +39,7 @@ def generate_kwargs_variant(
     return out
 
 
-@pwf.as_function_node("kwargs_variants")
+@pwf.atomic("kwargs_variants")
 def generate_kwargs_variants(
     base_kwargs: dict[str, Any], key: str, values: list[Any]
 ) -> list[dict[str, Any]]:
