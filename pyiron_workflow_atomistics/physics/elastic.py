@@ -227,10 +227,6 @@ def _reference_stress_gpa(engine_output):
     return eq_stress
 
 
-def _identity(x):
-    return x
-
-
 @pwf.workflow(
     "relaxed_structure",
     "elastic_tensor",
@@ -308,7 +304,7 @@ def calculate_elastic_constants(
         max_iterations=max_iterations,
     )
 
-    if _identity(relax_initial):
+    if fr.std.identity(relax_initial):
         full_relax_input = make_minimize_input(
             relax_cell=relax_initial,
             force_convergence_tolerance=fmax,
@@ -319,8 +315,8 @@ def calculate_elastic_constants(
         ref_structure = fr.std.get_attr(relaxed_output, "final_structure")
         eq_stress = _reference_stress_gpa(relaxed_output)
     else:
-        ref_structure = _identity(structure)
-        eq_stress = _identity(None)
+        ref_structure = fr.std.identity(structure)
+        eq_stress = fr.std.identity(None)
 
     deformed_structures, strains = generate_mp_deformations(
         ref_structure, norm_strains=norm_strains, shear_strains=shear_strains
