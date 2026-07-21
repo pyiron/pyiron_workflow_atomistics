@@ -67,7 +67,6 @@ def calculate_surface_energy(
     vacuum: float = 10.0,
     periodic: bool = True,
     mu_bulk: Optional[float] = None,
-    _bulk_subdir: str = "bulk_ref",
 ):
     """Calculate the surface energy (J/m^2) of a slab cut from ``bulk_structure``.
 
@@ -97,7 +96,7 @@ def calculate_surface_energy(
     relaxed_surface_system_energy = fr.std.get_attr(
         relaxed_surface_calc_output, "final_energy"
     )
-    bulk_ref_engine = subengine(engine=engine, subdir=_bulk_subdir)
+    bulk_ref_engine = subengine(engine=engine, subdir="bulk_ref")
     mu_bulk_out = _bulk_per_atom_energy(
         bulk_structure=bulk_structure,
         engine=bulk_ref_engine,

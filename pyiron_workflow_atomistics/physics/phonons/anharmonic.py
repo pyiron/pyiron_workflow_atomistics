@@ -336,8 +336,6 @@ def calculate_phonon_thermal_conductivity(
     # polar-material kwargs (v1: must be None)
     born_charges=None,
     epsilon_inf=None,
-    _prefix2: str = "fc2_disp_",
-    _prefix3: str = "fc3_disp_",
 ):
     """Compute lattice thermal conductivity κ(T) via phono3py.
 
@@ -379,12 +377,12 @@ def calculate_phonon_thermal_conductivity(
     fc2_eval = _evaluate_supercells(
         supercells=fc2_supercells,
         engine=engine,
-        prefix=_prefix2,
+        prefix="fc2_disp_",
     )
     fc3_eval = _evaluate_supercells(
         supercells=fc3_supercells,
         engine=engine,
-        prefix=_prefix3,
+        prefix="fc3_disp_",
     )
     phonon_output = _run_phono3py_thermal_conductivity(
         structure=structure,

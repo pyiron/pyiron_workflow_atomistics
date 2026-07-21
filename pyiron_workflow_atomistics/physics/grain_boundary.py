@@ -365,16 +365,11 @@ def full_gb_length_optimization(
     engine: Engine,
     interpolate_min_n_points=5,
     gb_normal_axis="c",
-    _stage1_subdir: str = "stage1",
-    _stage2_subdir: str = "stage2",
-    _stage1_plot_name: str = "gb_optimiser_stage1.jpg",
-    _stage2_plot_name: str = "gb_optimiser_stage2.jpg",
-    _combined_plot_name: str = "gb_optimiser_combined.jpg",
 ):
-    stage1_engine = subengine(engine=engine, subdir=_stage1_subdir)
-    stage2_engine = subengine(engine=engine, subdir=_stage2_subdir)
-    stage1_path = subdir_path(engine=engine, subdir=_stage1_subdir)
-    stage2_path = subdir_path(engine=engine, subdir=_stage2_subdir)
+    stage1_engine = subengine(engine=engine, subdir="stage1")
+    stage2_engine = subengine(engine=engine, subdir="stage2")
+    stage1_path = subdir_path(engine=engine, subdir="stage1")
+    stage2_path = subdir_path(engine=engine, subdir="stage2")
 
     # 1. First length-scan + optimise
     (
@@ -418,14 +413,14 @@ def full_gb_length_optimization(
         engine_outputs=stage1_extended_GB_results,
         n_points=stage1_plot_len,
         working_directory=stage1_path,
-        save_filename=_stage1_plot_name,
+        save_filename="gb_optimiser_stage1.jpg",
     )
     stage2_plot_len = get_length(extensions_stage2)
     stage2_plot = get_gb_length_optimiser_plot(
         engine_outputs=stage2_extended_GB_results,
         n_points=stage2_plot_len,
         working_directory=stage2_path,
-        save_filename=_stage2_plot_name,
+        save_filename="gb_optimiser_stage2.jpg",
     )
 
     # 4. Concatenate results and re-plot combined
@@ -436,7 +431,7 @@ def full_gb_length_optimization(
         engine_outputs=all_outputs,
         n_points=interpolate_min_n_points,
         working_directory=engine_working_dir,
-        save_filename=_combined_plot_name,
+        save_filename="gb_optimiser_combined.jpg",
     )
 
     # 5. Return the key outputs
@@ -1126,17 +1121,14 @@ def rigid_and_relaxed_cleavage_study(
     static_engine: Engine,
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
-    _modification_key: str = "cleavage_target_coord",
-    _rigid_subdir: str = "cleavage_rigid",
-    _relax_subdir: str = "cleavage_relax",
 ):
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     CleaveGBStructureInput = modify_dataclass(
-        CleaveGBStructure_Input, _modification_key, gb_plane_cart_loc
+        CleaveGBStructure_Input, "cleavage_target_coord", gb_plane_cart_loc
     )
-    rigid_engine = subengine(engine=static_engine, subdir=_rigid_subdir)
-    relax_engine = subengine(engine=engine, subdir=_relax_subdir)
+    rigid_engine = subengine(engine=static_engine, subdir="cleavage_rigid")
+    relax_engine = subengine(engine=engine, subdir="cleavage_relax")
     _, _, _, _, rigid_df = calc_cleavage_GB(
         structure=gb_structure,
         energy=gb_structure_energy,
@@ -1334,20 +1326,12 @@ def pure_gb_study(
     threshold_frac=0.3,
     CleaveGBStructure_Input=None,
     PlotCleave_Input=None,
-    _length_dir: str = "gb_length_optimiser",
-    _vacuum_dir: str = "gb_with_vacuum_rel",
-    _seg_dir: str = "gb_seg_supercell",
-    _cleavage_dir: str = "cleavage_study",
-    _plot_reps: tuple[int, int] = (5, 1),
-    _plot_figsize: tuple[int, int] = (10, 8),
-    _plot_save_filename: str = "pureGB_plane_identifier.jpg",
-    _modify_key: str = "cleavage_target_coord",
 ):
-    length_engine = subengine(engine=engine, subdir=_length_dir)
-    gb_vacuum_engine = subengine(engine=engine, subdir=_vacuum_dir)
-    gb_seg_engine = subengine(engine=engine, subdir=_seg_dir)
-    cleavage_engine = subengine(engine=engine, subdir=_cleavage_dir)
-    cleavage_static_engine = subengine(engine=static_engine, subdir=_cleavage_dir)
+    length_engine = subengine(engine=engine, subdir="gb_length_optimiser")
+    gb_vacuum_engine = subengine(engine=engine, subdir="gb_with_vacuum_rel")
+    gb_seg_engine = subengine(engine=engine, subdir="gb_seg_supercell")
+    cleavage_engine = subengine(engine=engine, subdir="cleavage_study")
+    cleavage_static_engine = subengine(engine=static_engine, subdir="cleavage_study")
 
     (
         _,
@@ -1431,16 +1415,16 @@ def pure_gb_study(
     gb_plane_fig, gb_plane_ax = plot_gb_plane(
         atoms=vacuum_rel_final_structure,
         res=gb_plane_extractor,
-        reps=_plot_reps,
-        figsize=_plot_figsize,
+        reps=[5, 1],
+        figsize=[10, 8],
         working_directory=engine_working_dir,
-        save_filename=_plot_save_filename,
+        save_filename="pureGB_plane_identifier.jpg",
     )
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     CleaveGBStructureInput = modify_dataclass(
         CleaveGBStructure_Input,
-        _modify_key,
+        "cleavage_target_coord",
         gb_cart,
     )
 

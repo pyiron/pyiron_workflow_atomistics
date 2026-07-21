@@ -171,7 +171,6 @@ def harmonic_free_energy(
     working_directory: str = ".",
     subdir: str = "harmonic_free_energy",
     keep_handles: bool = False,
-    _fc2_prefix: str = "fc2_disp_",
 ):
     """Helmholtz free energy F(T), entropy S(T), heat capacity Cv(T) at fixed volume.
 
@@ -201,7 +200,7 @@ def harmonic_free_energy(
     fc2_eval = _evaluate_supercells(
         supercells=fc2_supercells,
         engine=sub_engine,
-        prefix=_fc2_prefix,
+        prefix="fc2_disp_",
     )
     fc2_view = _produce_fc2_view(
         structure=structure,

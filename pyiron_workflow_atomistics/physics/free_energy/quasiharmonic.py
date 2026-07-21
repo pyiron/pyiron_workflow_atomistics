@@ -249,7 +249,6 @@ def quasiharmonic_free_energy(
     working_directory: str = ".",
     subdir: str = "quasiharmonic_free_energy",
     keep_handles: bool = False,
-    _axes: tuple[str] = ("iso",),
 ):
     """Gibbs free energy G(T,P), V*(T,P), B(T,P), α(T,P) via phonopy.qha.QHA.
 
@@ -270,7 +269,7 @@ def quasiharmonic_free_energy(
     )
     strained_structures = generate_structures(
         base_structure=structure,
-        axes=_axes,
+        axes=["iso"],
         strain_range=strain_range,
         num_points=num_volumes,
     )

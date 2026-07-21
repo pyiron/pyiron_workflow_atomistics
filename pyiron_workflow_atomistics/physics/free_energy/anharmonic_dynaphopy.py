@@ -301,8 +301,6 @@ def anharmonic_free_energy_dynaphopy(
     working_directory: str = ".",
     subdir: str = "anharmonic_free_energy_dynaphopy",
     keep_handles: bool = False,
-    _power_spectra: bool = False,
-    _keep_handles: bool = False,
 ):
     """Anharmonic free energy at one T via dynaphopy MD projection + harmonic-formula sum.
 
@@ -354,8 +352,8 @@ def anharmonic_free_energy_dynaphopy(
         seed=seed,
         q_points=q_points,
         phono3py_output=phono3py_output,
-        power_spectra=_power_spectra,
-        keep_handles=_keep_handles,  # we need .phonopy / .quasiparticle handles to extract data
+        power_spectra=False,
+        keep_handles=False,  # we need .phonopy / .quasiparticle handles to extract data
     )
     harmonic_frequencies = fr.std.get_attr(md_phonon_output, "harmonic_frequencies")
     renormalised_frequencies = fr.std.get_attr(

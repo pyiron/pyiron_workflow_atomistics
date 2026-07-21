@@ -244,8 +244,6 @@ def calculate_elastic_constants(
     shear_strains: tuple[float, ...] = (-0.06, -0.03, 0.03, 0.06),
     fmax: float = 1e-3,
     max_iterations: int = 300,
-    _relax_fixed_cell: bool = False,
-    _unrelaxed_eq_stress: None = None,
 ):
     """Full MP-style elastic-constants workflow.
 
@@ -305,7 +303,7 @@ def calculate_elastic_constants(
     # channel object in the dataclass and silently break relaxation (see
     # :func:`make_minimize_input`). The node resolves the inputs at run time.
     fixed_cell_input = make_minimize_input(
-        relax_cell=_relax_fixed_cell,
+        relax_cell=False,
         force_convergence_tolerance=fmax,
         max_iterations=max_iterations,
     )
@@ -322,7 +320,7 @@ def calculate_elastic_constants(
         eq_stress = _reference_stress_gpa(relaxed_output)
     else:
         ref_structure = _identity(structure)
-        eq_stress = _identity(_unrelaxed_eq_stress)
+        eq_stress = _identity(None)
 
     deformed_structures, strains = generate_mp_deformations(
         ref_structure, norm_strains=norm_strains, shear_strains=shear_strains
