@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import flowrep as fr
 import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
@@ -9,7 +10,6 @@ from pyiron_workflow_atomistics.engine import (
     Engine,
     calculate,
     subengine,
-    unpack_engine_output,
 )
 from pyiron_workflow_atomistics.structure.defects import (
     create_vacancy,
@@ -79,12 +79,8 @@ def get_vacancy_formation_energy(
     vacancy_calc = calculate(structure_with_vacancy, engine=vacancy_engine)
     n_atoms_supercell = _count_atoms(structure_supercell)
 
-    _, supercell_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
-        unpack_engine_output.flowrep_recipe(supercell_calc)
-    )
-    _, vacancy_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
-        unpack_engine_output.flowrep_recipe(vacancy_calc)
-    )
+    supercell_final_energy = fr.std.get_attr(supercell_calc, "final_energy")
+    vacancy_final_energy = fr.std.get_attr(vacancy_calc, "final_energy")
 
     vacancy_formation_energy = calculate_vacancy_formation_energy(
         vacancy_energy=vacancy_final_energy,
@@ -130,12 +126,8 @@ def get_substitutional_formation_energy(
         structure_with_substitute, engine=substitutional_engine
     )
 
-    _, supercell_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
-        unpack_engine_output.flowrep_recipe(supercell_calc)
-    )
-    _, substitutional_final_energy, _, _, _, _, _, _, _, _, _, _, _ = (
-        unpack_engine_output.flowrep_recipe(substitutional_calc)
-    )
+    supercell_final_energy = fr.std.get_attr(supercell_calc, "final_energy")
+    substitutional_final_energy = fr.std.get_attr(substitutional_calc, "final_energy")
 
     substitutional_formation_energy = _substitutional_formation_energy(
         E_sub=substitutional_final_energy,

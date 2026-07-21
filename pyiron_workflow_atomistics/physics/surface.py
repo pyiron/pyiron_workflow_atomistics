@@ -2,6 +2,7 @@
 
 from typing import Optional, Union
 
+import flowrep as fr
 import numpy as np
 import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
@@ -10,7 +11,6 @@ from pyiron_workflow_atomistics.engine import (
     Engine,
     calculate,
     subengine,
-    unpack_engine_output,
 )
 from pyiron_workflow_atomistics.structure.build import create_surface_slab
 
@@ -93,8 +93,9 @@ def calculate_surface_energy(
         periodic=periodic,
     )
     relaxed_surface_calc_output = calculate(unrelaxed_surface, engine=engine)
-    relaxed_surface, relaxed_surface_system_energy, _, _, _, _, _, _, _, _, _, _, _ = (
-        unpack_engine_output.flowrep_recipe(relaxed_surface_calc_output)
+    relaxed_surface = fr.std.get_attr(relaxed_surface_calc_output, "final_structure")
+    relaxed_surface_system_energy = fr.std.get_attr(
+        relaxed_surface_calc_output, "final_energy"
     )
     bulk_ref_engine = subengine(engine=engine, subdir=_bulk_subdir)
     mu_bulk_out = _bulk_per_atom_energy(

@@ -156,12 +156,3 @@ def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     fn, kwargs = engine.get_calculate_fn(structure)
     engine_output = fn(structure=structure, **kwargs)
     return engine_output
-
-
-@pwf.atomic(unpack_mode="dataclass")
-def unpack_engine_output(engine_output: EngineOutput) -> EngineOutput:
-    """
-    An identity node for the engine output, decorated so recipe interpreters know to
-    unpack each dataclass field into an output port.
-    """
-    return engine_output

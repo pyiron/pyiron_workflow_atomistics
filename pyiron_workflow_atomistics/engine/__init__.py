@@ -16,7 +16,6 @@ from .protocol import (
     calculate,
     subdir_path,
     subengine,
-    unpack_engine_output,
 )
 
 __all__ = [
@@ -25,7 +24,6 @@ __all__ = [
     "calculate",
     "subengine",
     "subdir_path",
-    "unpack_engine_output",
     "CalcInputStatic",
     "CalcInputMinimize",
     "CalcInputMD",

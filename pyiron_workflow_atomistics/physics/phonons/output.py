@@ -148,12 +148,3 @@ class MdPhononOutput:
                     f"thermostat coupling may be wrong"
                 )
         return (not issues, issues)
-
-
-@pwf.atomic(unpack_mode="dataclass")
-def unpack_md_phonon_output(md_phonon_output: MdPhononOutput) -> MdPhononOutput:
-    """
-    An identity node for the engine output, decorated so recipe interpreters know to
-    unpack each dataclass field into an output port.
-    """
-    return md_phonon_output

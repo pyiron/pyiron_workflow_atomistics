@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import os
 
+import flowrep as fr
 import numpy as np
 import pandas as pd
 import pyiron_workflow._wfms.api as pwf
@@ -1384,23 +1385,8 @@ def pure_gb_study(
         engine=gb_vacuum_engine,
     )
 
-    from pyiron_workflow_atomistics.engine.protocol import unpack_engine_output
-
-    (
-        vacuum_rel_final_structure,
-        vacuum_rel_final_energy,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-    ) = unpack_engine_output.flowrep_recipe(gb_with_vacuum_rel)
+    vacuum_rel_final_structure = fr.std.get_attr(gb_with_vacuum_rel, "final_structure")
+    vacuum_rel_final_energy = fr.std.get_attr(gb_with_vacuum_rel, "final_energy")
 
     from pyiron_workflow_atomistics.structure.transform import (
         create_supercell_with_min_dimensions,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import flowrep as fr
 import numpy as np
 import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
@@ -16,7 +17,6 @@ from pyiron_workflow_atomistics.physics.phonons._compat import (
 from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
     calculate_phonon_md_renormalisation,
 )
-from pyiron_workflow_atomistics.physics.phonons.output import unpack_md_phonon_output
 
 
 @pwf.atomic
@@ -357,25 +357,10 @@ def anharmonic_free_energy_dynaphopy(
         power_spectra=_power_spectra,
         keep_handles=_keep_handles,  # we need .phonopy / .quasiparticle handles to extract data
     )
-    (
-        _,
-        _,
-        _,
-        _,
-        harmonic_frequencies,
-        renormalised_frequencies,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-        _,
-    ) = unpack_md_phonon_output.flowrep_recipe(md_phonon_output)
+    harmonic_frequencies = fr.std.get_attr(md_phonon_output, "harmonic_frequencies")
+    renormalised_frequencies = fr.std.get_attr(
+        md_phonon_output, "renormalised_frequencies"
+    )
     guarded_frequencies, n_guarded = _guard_unphysical_frequencies(
         renormalised_frequencies=renormalised_frequencies,
         harmonic_frequencies=harmonic_frequencies,

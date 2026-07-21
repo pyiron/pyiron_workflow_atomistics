@@ -44,24 +44,6 @@ def test_engine_output_is_dataclass_with_required_fields():
     assert output.final_stress_voigt is None
 
 
-def test_unpack_engine_output():
-    from pyiron_workflow_atomistics.engine.protocol import (
-        EngineOutput,
-        unpack_engine_output,
-    )
-
-    structure = bulk("Cu", "fcc", a=3.6, cubic=True)
-    output = EngineOutput(
-        final_structure=structure,
-        final_energy=-1.23,
-        converged=True,
-    )
-
-    unpacked_outputs = unpack_engine_output.pwf.run(engine_output=output).outputs
-    # Make sure each field has been unpacked to its own output port
-    assert len(unpacked_outputs.keys() - {f.name for f in fields(EngineOutput)}) == 0
-
-
 def test_engine_output_to_dict_round_trip():
     from pyiron_workflow_atomistics.engine.protocol import EngineOutput
 
