@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import dataclasses
 
-import numpy as np
 import flowrep as fr
+import numpy as np
 import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
@@ -293,7 +293,7 @@ def calculate_elastic_constants(
     - Stress sign convention is ASE/pymatgen: tension-positive Cauchy stress.
     - Deformations are parameterized by the Green-Lagrange strain tensor.
     """
-    from pyiron_workflow_atomistics.engine import calculate, EngineOutput
+    from pyiron_workflow_atomistics.engine import calculate
     from pyiron_workflow_atomistics.physics.bulk import evaluate_structures
 
     # Build the CalcInputMinimize objects through function nodes rather than

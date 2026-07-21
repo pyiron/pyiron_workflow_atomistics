@@ -6,7 +6,6 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
 from ase import Atoms
 
 
