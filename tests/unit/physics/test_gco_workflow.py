@@ -113,8 +113,8 @@ def test_gco_search_returns_dataframe_and_atoms_list(cu_slabs, tmp_path):
         seed=0,
         dlat=1.8,
     )
-    df = out.outputs["results"].value
-    atoms_list = out.outputs["best_structures"].value
+    df = out.outputs["results"]
+    atoms_list = out.outputs["best_structures"]
     assert isinstance(df, pd.DataFrame)
     assert isinstance(atoms_list, list)
     assert len(df) == len(atoms_list)
@@ -170,7 +170,7 @@ def test_gco_search_with_md_engine_invokes_both(cu_slabs, tmp_path):
         seed=0,
         dlat=1.8,
     )
-    df = out.outputs["results"].value
+    df = out.outputs["results"]
     # MD should have run for every kept row (md_run_probability=1.0); rows
     # should exist (frac_min=frac_max=1.0 with a converged stub engine).
     assert not df.empty, "expected at least one kept row from MD path"
@@ -296,5 +296,5 @@ def test_gco_search_handles_failed_minimize(cu_slabs, tmp_path):
         dlat=1.8,
     )
     # All iterations failed; df is empty but workflow did not raise
-    assert out.outputs["results"].value.empty
-    assert out.outputs["best_structures"].value == []
+    assert out.outputs["results"].empty
+    assert out.outputs["best_structures"] == []

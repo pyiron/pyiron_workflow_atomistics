@@ -133,21 +133,21 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     out = result.outputs
 
     # --- final length-optimised structure ---
-    final_struct = out["final_pure_grain_boundary_structure"].value
-    final_energy = out["final_pure_grain_boundary_structure_energy"].value
+    final_struct = out["final_pure_grain_boundary_structure"]
+    final_energy = out["final_pure_grain_boundary_structure_energy"]
     assert len(final_struct) == len(gb)
     assert np.isfinite(final_energy)
 
     # results_df is a concat of the two stage dataframes (3 + 3 rows)
-    assert len(out["grain_boundary_length_optimisation_df"].value) == 6
+    assert len(out["grain_boundary_length_optimisation_df"]) == 6
 
     # GB energy and excess volume from length opt (interpolated, J/m^2 and A^3/A^2).
-    assert np.isfinite(out["grain_boundary_energy"].value)
-    assert np.isfinite(out["grain_boundary_excess_volume"].value)
+    assert np.isfinite(out["grain_boundary_energy"])
+    assert np.isfinite(out["grain_boundary_excess_volume"])
 
     # --- vacuum-relaxed structure (used for surface and cleavage) ---
-    vac_struct = out["pure_grain_boundary_structure_vacuum"].value
-    vac_energy = out["pure_grain_boundary_structure_vacuum_energy"].value
+    vac_struct = out["pure_grain_boundary_structure_vacuum"]
+    vac_energy = out["pure_grain_boundary_structure_vacuum_energy"]
     assert len(vac_struct) == len(gb)
     assert (
         vac_struct.cell[2, 2] > final_struct.cell[2, 2]
@@ -155,10 +155,10 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     assert np.isfinite(vac_energy)
 
     # Surface energy from rigid cleavage of the vacuum slab (J/m^2)
-    assert np.isfinite(out["surface_energy"].value)
+    assert np.isfinite(out["surface_energy"])
 
     # --- GB plane analyser must return a viable dict with a Cartesian coord ---
-    gb_dict = out["gb_plane_analysis_dict"].value
+    gb_dict = out["gb_plane_analysis_dict"]
     assert isinstance(gb_dict, dict)
     assert "gb_cart" in gb_dict and np.isfinite(gb_dict["gb_cart"])
     assert "gb_frac" in gb_dict and 0.0 <= gb_dict["gb_frac"] <= 1.0
@@ -167,8 +167,8 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     ), "bulk-template sampling found zero atoms — slab_thickness too thin?"
 
     # --- cleavage stage: both rigid and relaxed dfs are populated ---
-    rigid_df = out["work_of_separation_rigid_df"].value
-    relax_df = out["work_of_separation_relaxed_df"].value
+    rigid_df = out["work_of_separation_rigid_df"]
+    relax_df = out["work_of_separation_relaxed_df"]
     assert len(rigid_df) >= 1, "no cleavage planes were evaluated rigidly"
     assert len(relax_df) >= 1
     assert len(rigid_df) == len(
@@ -176,8 +176,8 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
     ), "rigid and relax must process the same planes"
 
     # Minimum cleavage energies are finite scalars
-    assert np.isfinite(out["work_of_separation_rigid"].value)
-    assert np.isfinite(out["work_of_separation_relaxed"].value)
+    assert np.isfinite(out["work_of_separation_rigid"])
+    assert np.isfinite(out["work_of_separation_relaxed"])
 
 
 @pytest.mark.skipif(not EAM_PATH.exists(), reason=f"EAM file missing: {EAM_PATH}")

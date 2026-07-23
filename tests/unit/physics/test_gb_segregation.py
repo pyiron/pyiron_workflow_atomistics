@@ -58,7 +58,7 @@ def test_calculate_substitutional_segregation_GB_runs(tmp_path):
         parent_dir=str(tmp_path),
         df_filename="seg_df.pkl",
     )
-    df = result.outputs["gb_seg_calcs_df"].value
+    df = result.outputs["gb_seg_calcs_df"]
 
     assert isinstance(df, pd.DataFrame)
     # One row per defect site, columns from both the unique_sites_df concat
@@ -69,7 +69,7 @@ def test_calculate_substitutional_segregation_GB_runs(tmp_path):
     # Each site's structure was swapped to Ag and the relaxation produced an
     # engine_output with a finite final_energy.
     assert "final_energy" in df.columns
-    assert all(np.isfinite(e) for e in df["final_energy"].values)
+    assert all(np.isfinite(e) for e in df["final_energy"])
 
     # write_df pickled the result to parent_dir/df_filename.
     pickled = tmp_path / "seg_df.pkl"

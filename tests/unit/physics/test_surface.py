@@ -29,7 +29,7 @@ def test_calculate_surface_energy_runs(tmp_path):
         layers=3,
         vacuum=8.0,
     )
-    se = out.outputs["surface_energy"].value
+    se = out.outputs["surface_energy"]
     # EMT Cu(111) is ~1.0 J/m^2; DFT reports ~1.5. Bracket generously but
     # keep the lower bound positive so the slab_novac-as-bulk-reference
     # regression (which produced a sign-flipped result) cannot recur.
@@ -64,5 +64,5 @@ def test_calculate_surface_energy_accepts_explicit_mu_bulk(tmp_path):
         vacuum=8.0,
         mu_bulk=mu_bulk_from_emt,
     )
-    se = out.outputs["surface_energy"].value
+    se = out.outputs["surface_energy"]
     assert 0.3 < se < 3.0

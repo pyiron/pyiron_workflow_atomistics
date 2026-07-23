@@ -43,10 +43,10 @@ def test_optimise_cubic_lattice_parameter_runs_end_to_end(tmp_path):
         eos_type="birchmurnaghan",
     ).outputs
 
-    a0 = out["a0"].value
-    B = out["B"].value
-    e0_per_atom = out["equil_energy_per_atom"].value
-    v0_per_atom = out["equil_volume_per_atom"].value
+    a0 = out["a0"]
+    B = out["B"]
+    e0_per_atom = out["equil_energy_per_atom"]
+    v0_per_atom = out["equil_volume_per_atom"]
 
     # EMT-Cu equilibrium lattice parameter is in the 3.6 Å range.
     assert 3.4 < a0 < 3.8, f"a0={a0} out of EMT-Cu range"
@@ -57,9 +57,9 @@ def test_optimise_cubic_lattice_parameter_runs_end_to_end(tmp_path):
     assert v0_per_atom > 0
 
     # The macro also exposes the raw EOS samples.
-    assert len(out["energies"].value) == 5
-    assert len(out["volumes"].value) == 5
-    assert len(out["structures"].value) == 5
+    assert len(out["energies"]) == 5
+    assert len(out["volumes"]) == 5
+    assert len(out["structures"]) == 5
 
 
 def test_generate_structures_defaults_to_iso_axes():

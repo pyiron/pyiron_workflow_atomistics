@@ -343,7 +343,7 @@ def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
         harmonic_observables=False,
         keep_handles=False,
     )
-    out = result.outputs["phonon_output"].value
+    out = result.outputs["phonon_output"]
 
     assert out.converged is True
     assert out.kappa.shape == (1, 3, 3)
@@ -498,7 +498,7 @@ def test_calculate_phonon_thermal_conductivity_macro_emt(tmp_path):
         q_mesh=(5, 5, 5),
     )
 
-    out = result.outputs["phonon_output"].value
+    out = result.outputs["phonon_output"]
     assert out.converged is True
     assert out.kappa.shape == (1, 3, 3)
     # Engine got the per-supercell subdirs
@@ -1422,7 +1422,7 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         q_mesh=(3, 3, 3),
         keep_handles=True,
     )
-    phono3py_out = result_phono3py.outputs["phonon_output"].value
+    phono3py_out = result_phono3py.outputs["phonon_output"]
 
     # Step 2: run dynaphopy macro reusing the FC2.
     engine_md = ASEEngine(
@@ -1443,7 +1443,7 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         seed=42,
         phono3py_output=phono3py_out,
     )
-    out = result_md.outputs["md_phonon_output"].value
+    out = result_md.outputs["md_phonon_output"]
 
     # Reuse path → no fc2_disp_NNNN directories in the dynaphopy run's workdir.
     assert not (tmp_path / "md_run" / "fc2_disp_0000").exists()
@@ -1648,8 +1648,8 @@ def test_md_macro_seed_determinism(tmp_path):
         engine=engine_b, **common_kwargs
     )
 
-    out_a = out_a.outputs["md_phonon_output"].value
-    out_b = out_b.outputs["md_phonon_output"].value
+    out_a = out_a.outputs["md_phonon_output"]
+    out_b = out_b.outputs["md_phonon_output"]
     np.testing.assert_allclose(
         out_a.renormalised_frequencies, out_b.renormalised_frequencies
     )

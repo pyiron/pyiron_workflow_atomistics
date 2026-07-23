@@ -30,7 +30,7 @@ def test_calculate_melting_point_end_to_end(tmp_path):
     eng = ASEEngine(
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
-    out = calculate_melting_point.pwf.run(eng, mi)
+    out = calculate_melting_point.pwf.run(engine=eng, melting_input=mi)
     res = out.outputs["result"].value
     assert res.element == "Al"
     assert res.initial_guess >= 0

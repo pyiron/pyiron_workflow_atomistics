@@ -35,7 +35,7 @@ class TestBulkFunctions(unittest.TestCase):
             strain_range=strain_range,
             num_points=num_points,
         )
-        structures = out.outputs["structure_list"].value
+        structures = out.outputs["structure_list"]
 
         # Count check
         self.assertEqual(len(structures), num_points)
@@ -78,7 +78,7 @@ class TestBulkFunctions(unittest.TestCase):
                 num_points=4,  # Really important this never lands on 0.0
             )
             .outputs["structure_list"]
-            .value
+
         )
 
         self.assertEqual(len(structures), 4)
@@ -105,7 +105,7 @@ class TestBulkFunctions(unittest.TestCase):
                 num_points=4,
             )
             .outputs["structure_list"]
-            .value
+
         )
 
         self.assertEqual(len(structures), 4)
@@ -131,7 +131,7 @@ class TestBulkFunctions(unittest.TestCase):
                 num_points=4,
             )
             .outputs["structure_list"]
-            .value
+
         )
 
         self.assertEqual(len(structures), 4)
@@ -157,7 +157,7 @@ class TestBulkFunctions(unittest.TestCase):
                 num_points=4,
             )
             .outputs["structure_list"]
-            .value
+
         )
 
         self.assertEqual(len(structures), 4)
@@ -189,7 +189,7 @@ class TestBulkFunctions(unittest.TestCase):
                     num_points=num_points,
                 )
                 .outputs["structure_list"]
-                .value
+
             )
 
         # One warning per generated structure for the unknown axis

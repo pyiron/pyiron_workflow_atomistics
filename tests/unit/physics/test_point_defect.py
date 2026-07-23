@@ -26,7 +26,7 @@ def test_vacancy_formation_energy_runs(tmp_path):
         engine=engine,
         min_dimensions=[8, 8, 8],
     )
-    e_f = out.outputs["vacancy_formation_energy"].value
+    e_f = out.outputs["vacancy_formation_energy"]
     assert 0.5 < e_f < 2.5  # EMT Cu vacancy ~ 0.9–1.3 eV
 
 
@@ -50,5 +50,5 @@ def test_substitutional_formation_energy_runs(tmp_path):
         new_symbol="Ni",
         min_dimensions=[8, 8, 8],
     )
-    e_f = out.outputs["substitutional_formation_energy"].value
+    e_f = out.outputs["substitutional_formation_energy"]
     assert e_f is not None

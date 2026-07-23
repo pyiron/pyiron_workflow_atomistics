@@ -21,7 +21,7 @@ def test_calculate_elastic_constants_emt_cu(tmp_path):
         engine=engine,
         relax_initial=True,
     )
-    constants = out.outputs["elastic_constants"].value
+    constants = out.outputs["elastic_constants"]
     C = np.asarray(constants["elastic_tensor_voigt"])
     # Physically sane cubic metal: positive-definite, C11>C12, C44>0, sign correct
     assert (
@@ -64,8 +64,8 @@ def test_calculate_elastic_constants_cell_relaxes_input_independent(tmp_path):
         out = calculate_elastic_constants.pwf.run(
             structure=structure, engine=engine, relax_initial=True
         )
-        relaxed = out.outputs["relaxed_structure"].value
-        elastic_constants = out.outputs["elastic_constants"].value
+        relaxed = out.outputs["relaxed_structure"]
+        elastic_constants = out.outputs["elastic_constants"]
         relaxed_vol = relaxed.get_volume() / len(relaxed)
         return input_vol, relaxed_vol, elastic_constants
 
