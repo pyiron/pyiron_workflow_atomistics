@@ -31,7 +31,7 @@ def test_calculate_melting_point_end_to_end(tmp_path):
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
     out = calculate_melting_point.pwf.run(engine=eng, melting_input=mi)
-    res = out.outputs["result"].value
+    res = out.outputs["result"]
     assert res.element == "Al"
     assert res.initial_guess >= 0
     assert isinstance(res.melting_temperature, float)
