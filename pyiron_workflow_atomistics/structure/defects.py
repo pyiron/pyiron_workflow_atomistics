@@ -16,7 +16,7 @@ doi:10.1103/PhysRevMaterials.8.073601
 """
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms as ASEAtoms
 
 

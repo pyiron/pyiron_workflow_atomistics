@@ -4,7 +4,7 @@ from multiprocessing import Pool, cpu_count
 import gb_code.csl_generator as csl
 import numpy as np
 import pandas as pd
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from gb_code.csl_generator import get_theta_m_n_list
 from pyiron_snippets.logger import logger
 from tqdm import tqdm

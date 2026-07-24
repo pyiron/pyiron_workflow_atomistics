@@ -8,7 +8,7 @@ import os
 import flowrep as fr
 import numpy as np
 import pandas as pd
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 
 from pyiron_workflow_atomistics._internal.engine_output import (
     extract_outputs_from_EngineOutputs,

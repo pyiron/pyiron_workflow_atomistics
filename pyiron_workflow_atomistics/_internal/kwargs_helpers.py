@@ -5,7 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 
 
 @pwf.atomic("full_calc_kwargs2")

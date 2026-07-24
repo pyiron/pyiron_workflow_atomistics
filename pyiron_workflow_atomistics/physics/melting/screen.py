@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase.data import atomic_numbers, reference_states
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import (

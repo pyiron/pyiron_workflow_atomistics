@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase.data import atomic_numbers, reference_states
 
 from pyiron_workflow_atomistics.physics.melting.coexistence import refine_melting_point

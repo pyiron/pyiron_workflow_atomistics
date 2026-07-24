@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (

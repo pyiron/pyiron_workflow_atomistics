@@ -9,7 +9,7 @@ routes inputs/outputs through the pyiron_workflow Engine Protocol.
 from __future__ import annotations
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms
 from numpy.typing import ArrayLike
 

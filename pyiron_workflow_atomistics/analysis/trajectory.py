@@ -8,7 +8,7 @@ per-atom momenta (ASE engine; the velocity-patched LAMMPS engine) and whose
 from __future__ import annotations
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import units
 
 _EV_PER_A3_TO_GPA = 160.21766208

@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms
 from ase.atoms import Atom
 from pyiron_snippets.logger import logger

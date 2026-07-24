@@ -20,7 +20,7 @@ import pickle
 
 import numpy as np
 import pandas as pd
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT

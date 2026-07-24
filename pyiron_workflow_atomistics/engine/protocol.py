@@ -10,7 +10,7 @@ from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms
 
 

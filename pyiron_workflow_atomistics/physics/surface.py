@@ -4,7 +4,7 @@ from typing import Optional, Union
 
 import flowrep as fr
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import (

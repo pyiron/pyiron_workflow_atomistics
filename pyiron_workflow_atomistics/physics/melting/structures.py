@@ -4,7 +4,7 @@ import math
 from dataclasses import replace
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase.build import bulk
 from ase.constraints import FixAtoms
 

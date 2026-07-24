@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 
 from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dict
 

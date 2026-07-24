@@ -13,7 +13,7 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate

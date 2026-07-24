@@ -5,7 +5,7 @@ from __future__ import annotations
 import operator
 
 import numpy as np
-import pyiron_workflow._wfms.api as pwf
+import pyiron_workflow as pwf
 from structuretoolkit.analyse import (
     get_adaptive_cna_descriptors,
     get_voronoi_volumes,
