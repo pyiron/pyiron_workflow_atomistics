@@ -8,6 +8,7 @@ dependencies:
 - sphinx-rtd-theme
 - versioneer
 - python>=3.11,<3.14
+- flowrep =0.6.1
 - numpy =2.4.6
 - pandas>=1.3.0
 - matplotlib>=3.4.0
@@ -16,7 +17,7 @@ dependencies:
 - scikit-learn>=1.0.0
 - pip
 - pymatgen>=2024.8.8
-- pyiron_workflow =0.17.0
+- pyiron_workflow =0.18.0
 - pyiron_snippets
 - tqdm
 - pytest
