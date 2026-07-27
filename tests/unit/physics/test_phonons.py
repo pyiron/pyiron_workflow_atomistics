@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import fields, is_dataclass
 
 import numpy as np
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 
@@ -325,7 +326,8 @@ def test_run_phono3py_thermal_conductivity_emt_smoke(tmp_path):
     fc3_outs = _evaluate_supercells(
         supercells=fc3_supercells, engine=engine, prefix="fc3_disp_"
     )
-    result = _run_phono3py_thermal_conductivity.pwf.run(
+    result = pwf.run(
+        _run_phono3py_thermal_conductivity,
         structure=cu,
         fc2_supercell_matrix=sc,
         fc3_supercell_matrix=sc,
@@ -490,7 +492,8 @@ def test_calculate_phonon_thermal_conductivity_macro_emt(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    result = calculate_phonon_thermal_conductivity.pwf.run(
+    result = pwf.run(
+        calculate_phonon_thermal_conductivity,
         structure=cu,
         engine=engine,
         fc2_supercell_matrix=sc,
@@ -1414,7 +1417,8 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "phono3py_run"),
     )
-    result_phono3py = calculate_phonon_thermal_conductivity.pwf.run(
+    result_phono3py = pwf.run(
+        calculate_phonon_thermal_conductivity,
         structure=cu,
         engine=engine_phono3py,
         fc2_supercell_matrix=sc,
@@ -1430,7 +1434,8 @@ def test_md_macro_reuses_fc2_from_phono3py_output(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "md_run"),
     )
-    result_md = calculate_phonon_md_renormalisation.pwf.run(
+    result_md = pwf.run(
+        calculate_phonon_md_renormalisation,
         structure=cu,
         engine=engine_md,
         # fc2_supercell_matrix deliberately NOT passed → must derive from
@@ -1496,7 +1501,8 @@ def test_md_macro_warns_when_temperature_drifts(monkeypatch, tmp_path):
     )
 
     with pytest.warns(UserWarning, match=r"⟨T⟩ drift.*exceeds tolerance"):
-        calculate_phonon_md_renormalisation.pwf.run(
+        pwf.run(
+            calculate_phonon_md_renormalisation,
             structure=cu,
             engine=engine,
             fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -1635,8 +1641,8 @@ def test_md_macro_seed_determinism(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "run_a"),
     )
-    out_a = calculate_phonon_md_renormalisation.pwf.run(
-        engine=engine_a, **common_kwargs
+    out_a = pwf.run(
+        calculate_phonon_md_renormalisation, engine=engine_a, **common_kwargs
     )
 
     engine_b = ASEEngine(
@@ -1644,8 +1650,8 @@ def test_md_macro_seed_determinism(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path / "run_b"),
     )
-    out_b = calculate_phonon_md_renormalisation.pwf.run(
-        engine=engine_b, **common_kwargs
+    out_b = pwf.run(
+        calculate_phonon_md_renormalisation, engine=engine_b, **common_kwargs
     )
 
     out_a = out_a.outputs["md_phonon_output"]

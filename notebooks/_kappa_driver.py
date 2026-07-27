@@ -16,6 +16,8 @@ import sys
 import time
 from pathlib import Path
 
+import pyiron_workflow as pwf
+
 # Quiet TF (matters only for GRACE) and persist its PTX cache
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
@@ -158,7 +160,8 @@ def main() -> int:
 
     # ---- 2) Phonon thermal conductivity on the relaxed lattice ------------
     t0 = time.time()
-    result = calculate_phonon_thermal_conductivity.pwf.run(
+    result = pwf.run(
+        calculate_phonon_thermal_conductivity,
         structure=structure_relaxed,
         engine=engine.with_working_directory("phonon"),
         fc2_supercell_matrix=fc2_sc,

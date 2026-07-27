@@ -6,6 +6,7 @@ import unittest
 import warnings
 
 import numpy as np
+import pyiron_workflow as pwf
 from ase import Atoms
 from ase.build import bulk
 
@@ -29,7 +30,8 @@ class TestBulkFunctions(unittest.TestCase):
         num_points = 5
         expected_strains = np.linspace(strain_range[0], strain_range[1], num_points)
 
-        out = bulk_module.generate_structures.pwf.run(
+        out = pwf.run(
+            bulk_module.generate_structures,
             base_structure=self.test_atoms,
             axes=["iso"],
             strain_range=strain_range,
@@ -70,16 +72,13 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_a(self):
         """Test generating structures with strain along axis a."""
-        structures = (
-            bulk_module.generate_structures.pwf.run(
-                base_structure=self.test_atoms,
-                axes=["a"],
-                strain_range=(-0.1, 0.1),
-                num_points=4,  # Really important this never lands on 0.0
-            )
-            .outputs["structure_list"]
-
-        )
+        structures = pwf.run(
+            bulk_module.generate_structures,
+            base_structure=self.test_atoms,
+            axes=["a"],
+            strain_range=(-0.1, 0.1),
+            num_points=4,  # Really important this never lands on 0.0
+        ).outputs["structure_list"]
 
         self.assertEqual(len(structures), 4)
 
@@ -97,16 +96,13 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_b(self):
         """Test generating structures with strain along axis b."""
-        structures = (
-            bulk_module.generate_structures.pwf.run(
-                base_structure=self.test_atoms,
-                axes=["b"],
-                strain_range=(-0.05, 0.05),
-                num_points=4,
-            )
-            .outputs["structure_list"]
-
-        )
+        structures = pwf.run(
+            bulk_module.generate_structures,
+            base_structure=self.test_atoms,
+            axes=["b"],
+            strain_range=(-0.05, 0.05),
+            num_points=4,
+        ).outputs["structure_list"]
 
         self.assertEqual(len(structures), 4)
 
@@ -123,16 +119,13 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_axis_c(self):
         """Test generating structures with strain along axis c."""
-        structures = (
-            bulk_module.generate_structures.pwf.run(
-                base_structure=self.test_atoms,
-                axes=["c"],
-                strain_range=(-0.05, 0.05),
-                num_points=4,
-            )
-            .outputs["structure_list"]
-
-        )
+        structures = pwf.run(
+            bulk_module.generate_structures,
+            base_structure=self.test_atoms,
+            axes=["c"],
+            strain_range=(-0.05, 0.05),
+            num_points=4,
+        ).outputs["structure_list"]
 
         self.assertEqual(len(structures), 4)
 
@@ -149,16 +142,13 @@ class TestBulkFunctions(unittest.TestCase):
 
     def test_generate_structures_multiple_axes(self):
         """Test generating structures with strain along multiple axes."""
-        structures = (
-            bulk_module.generate_structures.pwf.run(
-                base_structure=self.test_atoms,
-                axes=["a", "b"],
-                strain_range=(-0.1, 0.1),
-                num_points=4,
-            )
-            .outputs["structure_list"]
-
-        )
+        structures = pwf.run(
+            bulk_module.generate_structures,
+            base_structure=self.test_atoms,
+            axes=["a", "b"],
+            strain_range=(-0.1, 0.1),
+            num_points=4,
+        ).outputs["structure_list"]
 
         self.assertEqual(len(structures), 4)
 
@@ -181,16 +171,13 @@ class TestBulkFunctions(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            structures = (
-                bulk_module.generate_structures.pwf.run(
-                    base_structure=self.test_atoms,
-                    axes=["a", "unknown", "b"],
-                    strain_range=strain_range,
-                    num_points=num_points,
-                )
-                .outputs["structure_list"]
-
-            )
+            structures = pwf.run(
+                bulk_module.generate_structures,
+                base_structure=self.test_atoms,
+                axes=["a", "unknown", "b"],
+                strain_range=strain_range,
+                num_points=num_points,
+            ).outputs["structure_list"]
 
         # One warning per generated structure for the unknown axis
         unknown_msgs = [

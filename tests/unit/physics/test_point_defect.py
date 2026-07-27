@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -21,7 +22,8 @@ def test_vacancy_formation_energy_runs(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = get_vacancy_formation_energy.pwf.run(
+    out = pwf.run(
+        get_vacancy_formation_energy,
         structure=bulk("Cu", "fcc", a=3.6, cubic=True),
         engine=engine,
         min_dimensions=[8, 8, 8],
@@ -44,7 +46,8 @@ def test_substitutional_formation_energy_runs(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = get_substitutional_formation_energy.pwf.run(
+    out = pwf.run(
+        get_substitutional_formation_energy,
         structure=bulk("Cu", "fcc", a=3.6, cubic=True),
         engine=engine,
         new_symbol="Ni",

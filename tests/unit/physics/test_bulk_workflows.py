@@ -12,6 +12,7 @@ module exercises:
 
 from __future__ import annotations
 
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -32,7 +33,8 @@ def test_optimise_cubic_lattice_parameter_runs_end_to_end(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    out = optimise_cubic_lattice_parameter.pwf.run(
+    out = pwf.run(
+        optimise_cubic_lattice_parameter,
         structure=structure,
         name="Cu",
         crystalstructure="fcc",

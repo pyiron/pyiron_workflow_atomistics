@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pyiron_workflow as pwf
 import pytest
 
 
@@ -94,7 +95,8 @@ def test_quasiharmonic_free_energy_emt_al(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    result = quasiharmonic_free_energy.pwf.run(
+    result = pwf.run(
+        quasiharmonic_free_energy,
         structure=structure,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),

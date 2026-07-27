@@ -1,4 +1,5 @@
 import numpy as np
+import pyiron_workflow as pwf
 import pytest
 
 
@@ -16,7 +17,8 @@ def test_calculate_elastic_constants_emt_cu(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate_elastic_constants.pwf.run(
+    out = pwf.run(
+        calculate_elastic_constants,
         structure=structure,
         engine=engine,
         relax_initial=True,
@@ -61,8 +63,11 @@ def test_calculate_elastic_constants_cell_relaxes_input_independent(tmp_path):
             calculator=EMT(),
             working_directory=str(tmp_path / subdir),
         )
-        out = calculate_elastic_constants.pwf.run(
-            structure=structure, engine=engine, relax_initial=True
+        out = pwf.run(
+            calculate_elastic_constants,
+            structure=structure,
+            engine=engine,
+            relax_initial=True,
         )
         relaxed = out.outputs["relaxed_structure"]
         elastic_constants = out.outputs["elastic_constants"]

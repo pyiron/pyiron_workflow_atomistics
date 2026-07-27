@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import flowrep as fr
 from copy import deepcopy
 from typing import Any
+
+import flowrep as fr
 
 
 @fr.atomic("full_calc_kwargs2")

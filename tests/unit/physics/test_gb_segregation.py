@@ -45,7 +45,8 @@ def test_calculate_substitutional_segregation_GB_runs(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    result = calculate_substitutional_segregation_GB.pwf.run(
+    result = pwf.run(
+        calculate_substitutional_segregation_GB,
         pwf.RunConfig(dag_layers_multithreaded=False),
         # With multithreading, ase complains
         # AttributeError: 'PrimitiveNeighborList' object has no attribute 'neighbors'. Did you mean: 'get_neighbors'?

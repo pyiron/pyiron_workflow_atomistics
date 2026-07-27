@@ -12,6 +12,7 @@ import os
 from dataclasses import dataclass
 
 import pandas as pd
+import pyiron_workflow as pwf
 import pytest
 from ase import Atoms
 from ase.lattice.cubic import FaceCenteredCubic
@@ -103,7 +104,8 @@ def test_gco_search_returns_dataframe_and_atoms_list(cu_slabs, tmp_path):
         md_run_probability=0.0,
         dedup_every=0,
     )
-    out = gco_search.pwf.run(
+    out = pwf.run(
+        gco_search,
         minimize_engine=engine,
         lower_slab=lower,
         upper_slab=upper,
@@ -159,7 +161,8 @@ def test_gco_search_with_md_engine_invokes_both(cu_slabs, tmp_path):
         md_step_sampling="exact",
         dedup_every=0,
     )
-    out = gco_search.pwf.run(
+    out = pwf.run(
+        gco_search,
         minimize_engine=min_engine,
         md_engine=md_engine,
         lower_slab=lower,
@@ -187,7 +190,8 @@ def test_gco_search_rejects_missing_md_engine_when_probability_positive(
     )
     cfg = GCOConfig(md_run_probability=0.5)
     with pytest.raises(ValueError, match="md_engine"):
-        gco_search.pwf.run(
+        pwf.run(
+            gco_search,
             minimize_engine=engine,
             md_engine=None,
             lower_slab=lower,
@@ -207,7 +211,8 @@ def test_gco_search_rejects_wrong_minimize_engine_input_type(cu_slabs, tmp_path)
         working_directory=str(tmp_path),
     )
     with pytest.raises(ValueError, match="minimize_engine"):
-        gco_search.pwf.run(
+        pwf.run(
+            gco_search,
             minimize_engine=engine,
             lower_slab=lower,
             upper_slab=upper,
@@ -231,7 +236,8 @@ def test_gco_search_rejects_md_engine_with_wrong_input_type(cu_slabs, tmp_path):
     )
     cfg = GCOConfig(md_run_probability=1.0)
     with pytest.raises(ValueError, match="md_engine"):
-        gco_search.pwf.run(
+        pwf.run(
+            gco_search,
             minimize_engine=min_engine,
             md_engine=md_engine,
             lower_slab=lower,
@@ -250,7 +256,8 @@ def test_gco_search_rejects_zero_iterations(cu_slabs, tmp_path):
         EngineInput=CalcInputMinimize(), working_directory=str(tmp_path)
     )
     with pytest.raises(ValueError, match="n_iters"):
-        gco_search.pwf.run(
+        pwf.run(
+            gco_search,
             minimize_engine=engine,
             lower_slab=lower,
             upper_slab=upper,
@@ -285,7 +292,8 @@ def test_gco_search_handles_failed_minimize(cu_slabs, tmp_path):
     engine = _RaisingEngine(
         EngineInput=CalcInputMinimize(), working_directory=str(tmp_path)
     )
-    out = gco_search.pwf.run(
+    out = pwf.run(
+        gco_search,
         minimize_engine=engine,
         lower_slab=lower,
         upper_slab=upper,

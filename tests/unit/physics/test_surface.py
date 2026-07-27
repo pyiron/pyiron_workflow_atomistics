@@ -21,7 +21,8 @@ def test_calculate_surface_energy_runs(tmp_path):
         working_directory=str(tmp_path),
     )
     cu_bulk = bulk("Cu", "fcc", a=3.6, cubic=True)
-    out = calculate_surface_energy.pwf.run(
+    out = pwf.run(
+        calculate_surface_energy,
         pwf.RunConfig(dag_layers_multithreaded=False),
         bulk_structure=cu_bulk,
         engine=engine,
@@ -56,7 +57,8 @@ def test_calculate_surface_energy_accepts_explicit_mu_bulk(tmp_path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate_surface_energy.pwf.run(
+    out = pwf.run(
+        calculate_surface_energy,
         bulk_structure=cu_bulk,
         engine=engine,
         miller_indices=(1, 1, 1),

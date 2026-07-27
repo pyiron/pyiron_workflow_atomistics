@@ -108,7 +108,8 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
         calculator=EAM(potential=str(EAM_PATH)),
         working_directory=str(tmp_path),
     )
-    result = pure_gb_study.pwf.run(
+    result = pwf.run(
+        pure_gb_study,
         pwf.RunConfig(dag_layers_multithreaded=False),
         # With multithreading, ase complains
         # AttributeError: 'PrimitiveNeighborList' object has no attribute 'neighbors'. Did you mean: 'get_neighbors'?
@@ -187,7 +188,7 @@ def test_pure_gb_study_constructs_graph_without_running():
     """
     from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
 
-    node = pure_gb_study.pwf.node()
+    node = pwf.node(pure_gb_study)
     # Don't run — just check the macro was assembled.
     assert node is not None
 
