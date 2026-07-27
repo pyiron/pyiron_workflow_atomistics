@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import pyiron_workflow as pwf
+import flowrep as fr
 from ase import Atoms
 from ase.build import bulk as ase_bulk
 from ase.build import surface as ase_surface
 
 
-@pwf.atomic("equil_struct")
+@fr.atomic("equil_struct")
 def get_bulk(
     name: str,
     crystalstructure: str | None = None,
@@ -46,7 +46,7 @@ def get_bulk(
     return equil_struct
 
 
-@pwf.atomic("surface_slab")
+@fr.atomic("surface_slab")
 def create_surface_slab(
     bulk_structure: Atoms,
     miller_indices: tuple[int, int, int] | tuple[int, int, int, int] = (1, 1, 1),

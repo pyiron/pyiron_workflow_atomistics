@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import pyiron_workflow as pwf
+import flowrep as fr
 from ase.data import atomic_numbers, reference_states
 
 from pyiron_workflow_atomistics.physics.melting.coexistence import refine_melting_point
@@ -14,7 +14,7 @@ def _default_crystalstructure(element):
     return reference_states[atomic_numbers[element]]["symmetry"]
 
 
-@pwf.atomic("result")
+@fr.atomic("result")
 def calculate_melting_point(engine, melting_input):
     """Full interface-method melting point for ONE phase: screen -> refine.
 

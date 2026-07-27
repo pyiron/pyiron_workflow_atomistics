@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow as pwf
+import flowrep as fr
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import voronoi_max_mean
 from pyiron_workflow_atomistics.analysis.trajectory import (
@@ -23,7 +23,7 @@ def _engine_with(engine, calc_input, subdir):
     return replace(engine, EngineInput=calc_input).with_working_directory(subdir)
 
 
-@pwf.atomic
+@fr.atomic
 def npt_relax_solid(
     structure,
     engine,
@@ -58,7 +58,7 @@ def npt_relax_solid(
     return relaxed_structure, engine_output
 
 
-@pwf.atomic
+@fr.atomic
 def build_solid_liquid_interface(
     structure,
     engine,
@@ -101,7 +101,7 @@ def build_solid_liquid_interface(
     return interface_structure
 
 
-@pwf.atomic
+@fr.atomic
 def strain_scan_nvt_nve(
     structure,
     engine,

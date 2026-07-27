@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
+import flowrep as fr
 from copy import deepcopy
 from dataclasses import asdict
 from typing import Any
 
-import pyiron_workflow as pwf
 
-
-@pwf.atomic
+@fr.atomic
 def modify_dataclass(dataclass_instance, entry_name: str, entry_value: Any):
     data = deepcopy(asdict(dataclass_instance))
     if entry_name not in data:
@@ -19,7 +18,7 @@ def modify_dataclass(dataclass_instance, entry_name: str, entry_value: Any):
     return modded_dataclass
 
 
-@pwf.atomic("modded_dataclass_multi")
+@fr.atomic("modded_dataclass_multi")
 def modify_dataclass_multi(dataclass_instance, entry_names, entry_values):
     if len(entry_names) != len(entry_values):
         raise ValueError("entry_names and entry_values must have the same length")
@@ -29,7 +28,7 @@ def modify_dataclass_multi(dataclass_instance, entry_names, entry_values):
     return ds
 
 
-@pwf.atomic("modded_dict")
+@fr.atomic("modded_dict")
 def modify_dict(dict_instance: dict, updates: dict) -> dict:
     new = deepcopy(dict_instance)
     invalid = set(updates) - set(new)

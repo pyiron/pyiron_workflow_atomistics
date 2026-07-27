@@ -14,9 +14,9 @@ from __future__ import annotations
 import dataclasses
 import logging
 
+import flowrep as fr
 import numpy as np
 import pandas as pd
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine.inputs import CalcInputMD, CalcInputMinimize
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-@pwf.atomic
+@fr.atomic
 def build_bicrystal_slabs(
     crystal: str,
     symbol: str,
@@ -166,7 +166,7 @@ def _validate_workflow_inputs(
 _DEFAULT_GCO_CONFIG = GCOConfig()
 
 
-@pwf.atomic
+@fr.atomic
 def gco_search(
     minimize_engine: Engine,
     lower_slab: Atoms,

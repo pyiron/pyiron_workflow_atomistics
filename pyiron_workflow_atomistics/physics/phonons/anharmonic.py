@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import warnings
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine, EngineOutput, calculate
@@ -66,7 +66,7 @@ def _resolve_random_seed(
     return int(np.random.SeedSequence().entropy % (2**32))
 
 
-@pwf.atomic("fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out")
+@fr.atomic("fc3_supercell_matrix_out", "fc_calculator_out", "random_seed_out")
 def _resolve_defaults(
     fc2_supercell_matrix,
     fc3_supercell_matrix,
@@ -94,7 +94,7 @@ def _resolve_defaults(
     return fc3_supercell_matrix, fc_calculator, resolved_seed
 
 
-@pwf.atomic
+@fr.atomic
 def _generate_fc3_supercells(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -132,7 +132,7 @@ def _generate_fc3_supercells(
     return fc3_supercells
 
 
-@pwf.atomic
+@fr.atomic
 def _evaluate_supercells(
     supercells: list[Atoms],
     engine: Engine,
@@ -194,7 +194,7 @@ def _kappa_voigt_to_tensor(kappa_voigt: np.ndarray) -> np.ndarray:
     return out
 
 
-@pwf.atomic
+@fr.atomic
 def _run_phono3py_thermal_conductivity(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -314,7 +314,7 @@ def _run_phono3py_thermal_conductivity(
     return phonon_output
 
 
-@pwf.workflow
+@fr.workflow
 def calculate_phonon_thermal_conductivity(
     structure: Atoms,
     engine: Engine,

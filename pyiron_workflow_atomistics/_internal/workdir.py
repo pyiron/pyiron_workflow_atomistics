@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import os
 
-import pyiron_workflow as pwf
+import flowrep as fr
 
 from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dict
 
 
-@pwf.atomic
+@fr.atomic
 def get_subdirpaths(parent_dir: str, output_subdirs: list[str]) -> list[str]:
     output_dirs = [os.path.join(parent_dir, sub) for sub in output_subdirs]
     return output_dirs
 
 
-@pwf.atomic
+@fr.atomic
 def get_working_subdir_kwargs(
     calc_structure_fn_kwargs: dict,
     base_working_directory: str,

@@ -1,10 +1,10 @@
 from math import degrees
 from multiprocessing import Pool, cpu_count
 
+import flowrep as fr
 import gb_code.csl_generator as csl
 import numpy as np
 import pandas as pd
-import pyiron_workflow as pwf
 from gb_code.csl_generator import get_theta_m_n_list
 from pyiron_snippets.logger import logger
 from tqdm import tqdm
@@ -457,7 +457,7 @@ def _get_gbcode_df_multiple_axes(
     return pd.concat(all_results, ignore_index=True)
 
 
-@pwf.atomic("gb_code_df")
+@fr.atomic("gb_code_df")
 def get_gb_code_df(
     axes_list: list[np.ndarray],
     basis: str = "fcc",
@@ -479,7 +479,7 @@ def get_gb_code_df(
     return gb_code_df
 
 
-@pwf.atomic("gb_code_df_with_structures")
+@fr.atomic("gb_code_df_with_structures")
 def get_gb_code_df_with_structures(
     gb_code_df: pd.DataFrame | None = None,
     axes_list: list[np.ndarray] | None = None,

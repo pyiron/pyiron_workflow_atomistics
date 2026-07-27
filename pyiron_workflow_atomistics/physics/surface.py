@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import (
@@ -15,7 +14,7 @@ from pyiron_workflow_atomistics.engine import (
 from pyiron_workflow_atomistics.structure.build import create_surface_slab
 
 
-@pwf.atomic
+@fr.atomic
 def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     """Return the bulk per-atom chemical potential.
 
@@ -32,27 +31,27 @@ def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     return mu_bulk_out
 
 
-@pwf.atomic("surface_energy")
+@fr.atomic("surface_energy")
 def get_surface_energy(E_slab, E_bulk_per_atom, N_slab, area_one_side):
     gamma_fs = (E_slab - N_slab * E_bulk_per_atom) / (2.0 * area_one_side)
     gamma_J_per_m2 = gamma_fs * 16.021766208
     return gamma_J_per_m2
 
 
-@pwf.atomic
+@fr.atomic
 def area_one_side(slab):
     cell = slab.cell
     area_one_side = np.linalg.norm(np.cross(cell[0], cell[1]))
     return area_one_side
 
 
-@pwf.atomic
+@fr.atomic
 def get_n_atoms(atoms):
     n_atoms = len(atoms)
     return n_atoms
 
 
-@pwf.workflow(
+@fr.workflow(
     "unrelaxed_surface",
     "relaxed_surface",
     "relaxed_surface_calc_output",

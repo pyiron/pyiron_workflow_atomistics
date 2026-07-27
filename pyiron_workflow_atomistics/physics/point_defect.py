@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import flowrep as fr
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import (
@@ -20,13 +19,13 @@ from pyiron_workflow_atomistics.structure.transform import (
 )
 
 
-@pwf.atomic
+@fr.atomic
 def _count_atoms(structure: Atoms) -> int:
     n_atoms = len(structure)
     return n_atoms
 
 
-@pwf.atomic
+@fr.atomic
 def calculate_vacancy_formation_energy(
     vacancy_energy: float,
     supercell_energy: float,
@@ -52,7 +51,7 @@ def calculate_vacancy_formation_energy(
     return formation_energy
 
 
-@pwf.workflow
+@fr.workflow
 def get_vacancy_formation_energy(
     structure: Atoms,
     engine: Engine,
@@ -90,13 +89,13 @@ def get_vacancy_formation_energy(
     return supercell_calc, vacancy_calc, vacancy_formation_energy
 
 
-@pwf.atomic
+@fr.atomic
 def _substitutional_formation_energy(E_sub, E_bulk, mu_solute, mu_host):
     E_f = E_sub - E_bulk - mu_solute + mu_host
     return E_f
 
 
-@pwf.workflow
+@fr.workflow
 def get_substitutional_formation_energy(
     structure: Atoms,
     engine: Engine,

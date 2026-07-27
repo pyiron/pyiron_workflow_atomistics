@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow as pwf
+import flowrep as fr
 from ase.data import atomic_numbers, reference_states
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import (
@@ -48,7 +48,7 @@ def _default_candidate_phases(element):
     return phases
 
 
-@pwf.atomic("t_guess", "structure", "observed_phase")
+@fr.atomic("t_guess", "structure", "observed_phase")
 def screen_phase(
     engine,
     element,
@@ -119,7 +119,7 @@ def _select_for_refinement(screened, n_refine):
     return pool[: max(1, n_refine)]
 
 
-@pwf.atomic
+@fr.atomic
 def melting_point_scan(engine, melting_input):
     """Discover the pre-melt phase and melting point across candidate polymorphs.
 

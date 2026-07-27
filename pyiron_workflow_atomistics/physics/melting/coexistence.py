@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import holes_mask
 from pyiron_workflow_atomistics.physics.melting.fitting import (
@@ -46,7 +46,7 @@ def _next_center(strains, pressures, fallback=1.0):
     return float(round(center, 4))
 
 
-@pwf.atomic
+@fr.atomic
 def coexistence_iteration(
     structure,
     engine,
@@ -140,7 +140,7 @@ def coexistence_iteration(
     return record
 
 
-@pwf.atomic
+@fr.atomic
 def refine_melting_point(structure, engine, t_guess, melting_input, crystalstructure):
     """Iterate coexistence steps until |dT| <= convergence_goal.
 

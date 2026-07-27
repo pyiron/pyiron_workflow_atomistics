@@ -1,5 +1,5 @@
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from gb_code.gb_generator import GB_character
 from pyiron_snippets.logger import logger
 from pymatgen.analysis.structure_matcher import StructureMatcher
@@ -43,7 +43,7 @@ def _build_gb_structure(
     ).to_pymatgen(element=element)
 
 
-@pwf.atomic("wrapped_sorted_structure")
+@fr.atomic("wrapped_sorted_structure")
 def wrap_and_sort_structure(structure, axis=2):
     treated_struct = structure.copy()
     treated_struct.wrap()
@@ -174,7 +174,7 @@ def align_lattice_to_axes(structure):
     )
 
 
-@pwf.atomic
+@fr.atomic
 def get_realigned_structure(
     struct, arrange_ab_by_length=True, perform_equiv_check=False
 ):
@@ -217,7 +217,7 @@ def get_realigned_structure(
     return reordered_struct
 
 
-@pwf.atomic
+@fr.atomic
 def get_gbstruct_from_gbcode(
     axis=None,
     basis="bcc",
@@ -252,7 +252,7 @@ def get_gbstruct_from_gbcode(
     return structure
 
 
-@pwf.atomic
+@fr.atomic
 def merge_structure_sites(structure, merge_dist_tolerance=1.3, merge_mode="average"):
     structure_merged = structure.copy()
     structure_merged.merge_sites(tol=merge_dist_tolerance, mode=merge_mode)
@@ -260,7 +260,7 @@ def merge_structure_sites(structure, merge_dist_tolerance=1.3, merge_mode="avera
     return structure_merged
 
 
-@pwf.atomic
+@fr.atomic
 def get_expected_equilibrium_c_struct(struct, v0_per_atom, axis=2):
     from pymatgen.core.lattice import Lattice
 
@@ -283,7 +283,7 @@ def get_expected_equilibrium_c_struct(struct, v0_per_atom, axis=2):
     return struct_eq, adj_axis_length
 
 
-@pwf.atomic
+@fr.atomic
 def convert_structure(struct, target="ase"):
     """
     Convert between ASE Atoms and Pymatgen Structure.
@@ -309,7 +309,7 @@ def convert_structure(struct, target="ase"):
     return converted_struct
 
 
-@pwf.workflow("original_GBcode_structure", "final_structure")
+@fr.workflow("original_GBcode_structure", "final_structure")
 def construct_GB_from_GBCode(
     axis,
     basis,

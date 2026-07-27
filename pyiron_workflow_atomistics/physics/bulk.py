@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import warnings
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.analysis.quantities import get_per_atom_quantity
@@ -12,7 +12,7 @@ from pyiron_workflow_atomistics.structure.build import get_bulk
 from pyiron_workflow_atomistics.structure.transform import rattle
 
 
-@pwf.atomic("structure_list")
+@fr.atomic("structure_list")
 def generate_structures(
     base_structure: Atoms,
     axes: list[str] | tuple[str] | None = None,
@@ -51,7 +51,7 @@ def generate_structures(
     return structure_list
 
 
-@pwf.atomic("e0", "v0", "B")
+@fr.atomic("e0", "v0", "B")
 def equation_of_state(energies, volumes, eos_type="sj"):
     from ase.eos import EquationOfState
 
@@ -61,7 +61,7 @@ def equation_of_state(energies, volumes, eos_type="sj"):
     return e0, v0, B_GPa  # eos_results
 
 
-@pwf.atomic("engine_output_lst")
+@fr.atomic("engine_output_lst")
 def evaluate_structures(
     structures: list[Atoms],
     engine: Engine,
@@ -74,28 +74,28 @@ def evaluate_structures(
     return engine_output_lst
 
 
-@pwf.atomic("energies")
+@fr.atomic("energies")
 def _extract_energies(engine_outputs):
     return [o.final_energy for o in engine_outputs]
 
 
-@pwf.atomic("volumes")
+@fr.atomic("volumes")
 def _extract_volumes(engine_outputs):
     return [o.final_volume for o in engine_outputs]
 
 
-@pwf.atomic("structures")
+@fr.atomic("structures")
 def _extract_structures(engine_outputs):
     return [o.final_structure for o in engine_outputs]
 
 
-@pwf.atomic("a0")
+@fr.atomic("a0")
 def get_cubic_equil_lat_param(eos_output):
     a0 = eos_output ** (1 / 3)
     return a0
 
 
-@pwf.workflow("v0", "e0", "B", "volumes", "structures", "energies")
+@fr.workflow("v0", "e0", "B", "volumes", "structures", "energies")
 def eos_volume_scan(
     base_structure,
     engine: Engine,
@@ -129,7 +129,7 @@ def eos_volume_scan(
     return v0, e0, B_GPa, volumes, structures, energies
 
 
-@pwf.workflow(
+@fr.workflow(
     "equil_struct",
     "a0",
     "B",

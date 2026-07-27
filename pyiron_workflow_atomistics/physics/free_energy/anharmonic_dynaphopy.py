@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine
@@ -19,7 +18,7 @@ from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
 )
 
 
-@pwf.atomic
+@fr.atomic
 def _free_energy_from_spectrum(
     frequencies: np.ndarray,  # (n_q, n_band) THz
     q_weights: np.ndarray,  # (n_q,), sums to 1
@@ -142,7 +141,7 @@ def _commensurate_q_points(structure: Atoms, q_mesh) -> tuple[np.ndarray, np.nda
     return q_points, weights
 
 
-@pwf.atomic
+@fr.atomic
 def _commensurate_q_points_node(structure: Atoms, q_mesh):
     """Function-node wrapper for `_commensurate_q_points`.
 
@@ -154,7 +153,7 @@ def _commensurate_q_points_node(structure: Atoms, q_mesh):
     return q_points, q_weights
 
 
-@pwf.atomic
+@fr.atomic
 def _n_atoms_node(structure: Atoms) -> int:
     """Return ``len(structure)`` at execution time.
 
@@ -164,7 +163,7 @@ def _n_atoms_node(structure: Atoms) -> int:
     return len(structure)
 
 
-@pwf.atomic
+@fr.atomic
 def _guard_unphysical_frequencies(
     renormalised_frequencies: np.ndarray,
     harmonic_frequencies: np.ndarray,
@@ -213,7 +212,7 @@ def _guard_unphysical_frequencies(
     return guarded_frequencies, n_guarded
 
 
-@pwf.atomic
+@fr.atomic
 def _pack_anharmonic_dynaphopy_output(
     structure: Atoms,
     md_phonon_output,
@@ -285,7 +284,7 @@ def _pack_anharmonic_dynaphopy_output(
     return free_energy_output
 
 
-@pwf.workflow("free_energy_output")
+@fr.workflow("free_energy_output")
 def anharmonic_free_energy_dynaphopy(
     structure: Atoms,
     engine: Engine,
@@ -387,7 +386,7 @@ def anharmonic_free_energy_dynaphopy(
     return free_energy_output
 
 
-@pwf.atomic
+@fr.atomic
 def _sweep_dynaphopy_over_T(
     structure: Atoms,
     engine: Engine,
@@ -429,7 +428,7 @@ def _sweep_dynaphopy_over_T(
     return per_T_outputs
 
 
-@pwf.atomic
+@fr.atomic
 def _stack_tdi_outputs(
     per_T_outputs: list,
     structure,
@@ -493,7 +492,7 @@ def _stack_tdi_outputs(
     return free_energy_output
 
 
-@pwf.workflow
+@fr.workflow
 def anharmonic_free_energy_dynaphopy_tdi(
     structure: Atoms,
     engine: Engine,

@@ -1,9 +1,9 @@
 import os
 
+import flowrep as fr
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pyiron_workflow as pwf
 from ase import Atoms
 from ase.atoms import Atom
 from pyiron_snippets.logger import logger
@@ -13,7 +13,7 @@ from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import 
 )
 
 
-@pwf.atomic("atom")
+@fr.atomic("atom")
 def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     """
     Return the index of the atom whose coordinate along the given axis
@@ -45,7 +45,7 @@ def get_middle_atom(atoms: Atoms, axis: int | str = 2) -> Atom:
     return atom
 
 
-@pwf.atomic("gb_plane_analysis_dict")
+@fr.atomic("gb_plane_analysis_dict")
 def find_gb_plane(
     atoms: Atoms,
     featuriser: callable,
@@ -278,7 +278,7 @@ def find_gb_plane(
     return gb_plane_analysis_dict
 
 
-@pwf.atomic
+@fr.atomic
 def plot_gb_plane(
     atoms: Atoms,
     res: dict,
@@ -481,7 +481,7 @@ def plot_gb_plane(
     return fig, ax
 
 
-@pwf.atomic
+@fr.atomic
 def get_sites_on_plane(
     atoms: Atoms,
     axis: str,

@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import warnings
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 from numpy.typing import ArrayLike
 
@@ -81,7 +81,7 @@ def _multiplier_to_cell_vectors(
     return P @ np.asarray(primitive_cell, dtype=float)
 
 
-@pwf.atomic
+@fr.atomic
 def _resolve_md_defaults(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -160,7 +160,7 @@ def _resolve_md_defaults(
     )
 
 
-@pwf.atomic
+@fr.atomic
 def _compute_fc2_from_scratch(
     structure: Atoms,
     engine: Engine,
@@ -216,7 +216,7 @@ def _compute_fc2_from_scratch(
     return fc2_array
 
 
-@pwf.atomic
+@fr.atomic
 def _run_nvt_trajectory(
     structure: Atoms,
     engine: Engine,
@@ -379,7 +379,7 @@ def _ase_to_dynaphopy_structure(structure: Atoms, fc2_array, fc2_supercell_matri
     return dyn_structure
 
 
-@pwf.atomic
+@fr.atomic
 def _project_with_dynaphopy(
     structure: Atoms,
     fc2_array: np.ndarray,
@@ -542,7 +542,7 @@ def _project_with_dynaphopy(
     return md_phonon_output
 
 
-@pwf.atomic
+@fr.atomic
 def _select_or_compute_fc2(
     structure: Atoms,
     engine: Engine,
@@ -573,7 +573,7 @@ def _select_or_compute_fc2(
     return fc2_array
 
 
-@pwf.workflow
+@fr.workflow
 def calculate_phonon_md_renormalisation(
     structure: Atoms,
     engine: Engine,

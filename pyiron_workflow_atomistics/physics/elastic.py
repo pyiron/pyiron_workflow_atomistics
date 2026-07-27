@@ -12,7 +12,6 @@ import dataclasses
 
 import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 EV_PER_A3_TO_GPA = 160.21766208
@@ -45,7 +44,7 @@ def with_calc_input(engine, calc_input):
     return dataclasses.replace(engine, EngineInput=calc_input)
 
 
-@pwf.atomic("deformed_structures", "strains")
+@fr.atomic("deformed_structures", "strains")
 def generate_mp_deformations(
     structure: Atoms,
     norm_strains: tuple[float, ...] = (-0.01, -0.005, 0.005, 0.01),
@@ -72,7 +71,7 @@ def generate_mp_deformations(
     return deformed_structures, strains
 
 
-@pwf.atomic("stresses")
+@fr.atomic("stresses")
 def extract_stresses_gpa(engine_outputs):
     """3x3 stress tensors in GPa from a list of EngineOutput (input order)."""
     stresses = []
@@ -86,7 +85,7 @@ def extract_stresses_gpa(engine_outputs):
     return stresses
 
 
-@pwf.atomic("elastic_tensor")
+@fr.atomic("elastic_tensor")
 def fit_elastic_tensor(strains, stresses, structure: Atoms, eq_stress=None):
     """Least-squares fit of the 6x6 stiffness tensor (GPa), MP convention.
 
@@ -110,7 +109,7 @@ def fit_elastic_tensor(strains, stresses, structure: Atoms, eq_stress=None):
     return elastic_tensor
 
 
-@pwf.atomic("elastic_constants")
+@fr.atomic("elastic_constants")
 def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     """Every elastic constant in the MP elasticity methodology, as a flat dict.
 
@@ -187,7 +186,7 @@ def elastic_constants_summary(elastic_tensor, structure: Atoms) -> dict:
     return elastic_constants
 
 
-@pwf.atomic("calc_input")
+@fr.atomic("calc_input")
 def make_minimize_input(
     relax_cell: bool = False,
     force_convergence_tolerance: float = 1e-3,
@@ -195,7 +194,7 @@ def make_minimize_input(
 ):
     """Build a concrete :class:`CalcInputMinimize` *at run time*.
 
-    Inside a ``@pwf.workflow``, we expect calls to be recipe-izable, and dataclasses
+    Inside a ``@fr.workflow``, we expect calls to be recipe-izable, and dataclasses
     currently aren't. Thus, we can't call the dataclass to make a new instance and still
     parse a macro.
 
@@ -213,21 +212,21 @@ def make_minimize_input(
     return calc_input
 
 
-@pwf.atomic("engine")
+@fr.atomic("engine")
 def with_calc_input_node(engine, calc_input):
     """Node wrapper around :func:`with_calc_input` for use inside the macro graph."""
     engine = with_calc_input(engine, calc_input)
     return engine
 
 
-@pwf.atomic("eq_stress")
+@fr.atomic("eq_stress")
 def _reference_stress_gpa(engine_output):
     """Reference (relaxed) stress in GPa as a 3x3 tensor, for eq_stress."""
     eq_stress = voigt_stress_to_gpa(engine_output.final_stress_voigt)
     return eq_stress
 
 
-@pwf.workflow(
+@fr.workflow(
     "relaxed_structure",
     "elastic_tensor",
     "elastic_constants",

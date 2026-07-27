@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow as pwf
+import flowrep as fr
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import cna_fractions
 from pyiron_workflow_atomistics.engine import CalcInputMD, calculate
@@ -46,7 +46,7 @@ def _heated_solid(
     return calculate(structure, engine=eng).final_structure
 
 
-@pwf.atomic("t_guess", "structure")
+@fr.atomic("t_guess", "structure")
 def estimate_melting_temperature(
     structure,
     engine,

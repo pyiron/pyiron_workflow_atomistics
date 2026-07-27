@@ -9,8 +9,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Protocol, runtime_checkable
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 
@@ -108,11 +108,11 @@ class EngineOutput:
         return asdict(self)
 
 
-@pwf.atomic("subengine")
+@fr.atomic("subengine")
 def subengine(engine: Engine, subdir: str) -> Engine:
     """Function-node wrapper around :meth:`Engine.with_working_directory`.
 
-    Use this inside ``@pwf.workflow`` graphs where the engine arrives
+    Use this inside ``@fr.workflow`` graphs where the engine arrives
     as an input channel. Calling ``engine.with_working_directory(...)``
     directly in a macro body would require parsing attribute calls and thus fails;
     routing the same call through this
@@ -122,7 +122,7 @@ def subengine(engine: Engine, subdir: str) -> Engine:
     return subengine
 
 
-@pwf.atomic("path")
+@fr.atomic("path")
 def subdir_path(engine: Engine, subdir: str) -> str:
     """Function-node returning ``os.path.join(engine.working_directory, subdir)``.
 
@@ -135,7 +135,7 @@ def subdir_path(engine: Engine, subdir: str) -> str:
     return path
 
 
-@pwf.atomic("engine_output")
+@fr.atomic("engine_output")
 def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     """Execute ``engine`` on ``structure``.
 

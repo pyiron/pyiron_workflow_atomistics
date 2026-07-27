@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import os
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine
@@ -29,7 +29,7 @@ from pyiron_workflow_atomistics.physics.phonons.harmonic import (
 )
 
 
-@pwf.atomic
+@fr.atomic
 def _resolve_simfolder(
     engine: Engine,
     working_directory: str,
@@ -52,7 +52,7 @@ def _resolve_simfolder(
     return simfolder, sub_engine
 
 
-@pwf.atomic
+@fr.atomic
 def _produce_fc2_view(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -86,7 +86,7 @@ def _produce_fc2_view(
     return phonopy_view
 
 
-@pwf.atomic
+@fr.atomic
 def _pack_harmonic_output(
     structure: Atoms,
     phonopy_view,
@@ -160,7 +160,7 @@ def _pack_harmonic_output(
     return free_energy_output
 
 
-@pwf.workflow
+@fr.workflow
 def harmonic_free_energy(
     structure: Atoms,
     engine: Engine,

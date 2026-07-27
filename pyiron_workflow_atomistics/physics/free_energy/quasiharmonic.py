@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import os
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine, calculate
@@ -39,7 +39,7 @@ def _check_qha_volume_range(
         )
 
 
-@pwf.atomic
+@fr.atomic
 def _fit_qha(
     energies,
     volumes,
@@ -109,7 +109,7 @@ def _fit_qha(
     return qha_results
 
 
-@pwf.atomic("energies_per_volume", "volumes")
+@fr.atomic("energies_per_volume", "volumes")
 def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine):
     """One-shot static energy per strained cell. Returns (energies, volumes/atom)."""
     energies: list[float] = []
@@ -127,7 +127,7 @@ def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine
     return np.asarray(energies), np.asarray(volumes)
 
 
-@pwf.atomic("free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V")
+@fr.atomic("free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V")
 def _harmonic_grid_over_volumes(
     strained_structures: list[Atoms],
     engine: Engine,
@@ -184,7 +184,7 @@ def _harmonic_grid_over_volumes(
     return F_TV, S_TV, Cv_TV
 
 
-@pwf.atomic
+@fr.atomic
 def _pack_qha_output(
     structure: Atoms,
     qha_results: dict,
@@ -234,7 +234,7 @@ def _pack_qha_output(
     return free_energy_output
 
 
-@pwf.workflow
+@fr.workflow
 def quasiharmonic_free_energy(
     structure: Atoms,
     engine: Engine,

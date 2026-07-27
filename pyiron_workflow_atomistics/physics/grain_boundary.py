@@ -8,7 +8,6 @@ import os
 import flowrep as fr
 import numpy as np
 import pandas as pd
-import pyiron_workflow as pwf
 
 from pyiron_workflow_atomistics._internal.engine_output import (
     extract_outputs_from_EngineOutputs,
@@ -23,7 +22,7 @@ from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import 
 )
 
 
-@pwf.atomic
+@fr.atomic
 def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
 
     base_structure = structure.copy()
@@ -36,7 +35,7 @@ def get_extended_struct_list(structure, extensions=np.linspace(-0.2, 0.8, 11)):
     return extended_structure_list, extensions
 
 
-@pwf.atomic
+@fr.atomic
 def get_min_energy_structure_from_outputs(engine_outputs):
     extracted_dict = extract_outputs_from_EngineOutputs(
         engine_outputs=engine_outputs,
@@ -51,14 +50,14 @@ def get_min_energy_structure_from_outputs(engine_outputs):
     return min_energy_structure, min_energy
 
 
-@pwf.atomic
+@fr.atomic
 def get_modified_cell_structure(structure, cell):
     modified_structure = structure.copy()
     modified_structure.set_cell(cell, scale_atoms=True)
     return modified_structure
 
 
-@pwf.atomic
+@fr.atomic
 def fit_polynomial_extremum(x_vals, y_vals, degree=2, num_points=None, extremum="min"):
     x = np.array(x_vals, float)
     y = np.array(y_vals, float)
@@ -89,7 +88,7 @@ def fit_polynomial_extremum(x_vals, y_vals, degree=2, num_points=None, extremum=
     return ext_val, coeffs
 
 
-@pwf.atomic
+@fr.atomic
 def get_interp_min_energy_structure_from_outputs(
     engine_outputs,
     axis="c",
@@ -121,7 +120,7 @@ def get_interp_min_energy_structure_from_outputs(
     return interpolated_structure, interpolated_energy
 
 
-@pwf.atomic("GB_energy")
+@fr.atomic("GB_energy")
 def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
     idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
@@ -132,7 +131,7 @@ def get_GB_energy(atoms, total_energy, e0_per_atom, gb_normal_axis="c"):
     return gamma_GB
 
 
-@pwf.atomic
+@fr.atomic
 def get_GB_exc_volume(atoms, bulk_vol_per_atom, gb_normal_axis="c"):
     idx = axis_to_index(gb_normal_axis)
     cell = np.array(atoms.get_cell())
@@ -143,7 +142,7 @@ def get_GB_exc_volume(atoms, bulk_vol_per_atom, gb_normal_axis="c"):
     return excess_volume
 
 
-@pwf.atomic("extended_dirnames")
+@fr.atomic("extended_dirnames")
 def get_extended_names(extensions):
     extended_names = []
     for extension in extensions:
@@ -151,14 +150,14 @@ def get_extended_names(extensions):
     return extended_names
 
 
-@pwf.atomic
+@fr.atomic
 def _make_engines_with_subdirs(engine: Engine, subdirnames: list) -> list[Engine]:
     """Return a list of engines, one per subdir name."""
     engines = [engine.with_working_directory(name) for name in subdirnames]
     return engines
 
 
-@pwf.workflow(
+@fr.workflow(
     "extended_GB_results",
     "min_energy_GB_struct",
     "min_energy_GB_energy",
@@ -220,7 +219,7 @@ def gb_length_optimiser(
     )
 
 
-@pwf.atomic
+@fr.atomic
 def get_concat_df(df_list):
     concat_df = pd.concat(df_list)
     return concat_df
@@ -229,12 +228,12 @@ def get_concat_df(df_list):
 from copy import deepcopy
 
 
-@pwf.atomic("generic_output")
+@fr.atomic("generic_output")
 def generate_deepcopy(input_obj):
     return deepcopy(input_obj)
 
 
-@pwf.atomic("length")
+@fr.atomic("length")
 def get_length(extensions):
     return len(extensions)
 
@@ -242,7 +241,7 @@ def get_length(extensions):
 import matplotlib.pyplot as plt
 
 
-@pwf.atomic
+@fr.atomic
 def get_gb_length_optimiser_plot(
     engine_outputs,
     plot_label="run",
@@ -342,7 +341,7 @@ def _get_working_dir(engine: Engine):
     return engine.working_directory
 
 
-@pwf.workflow(
+@fr.workflow(
     "stage1_opt_struct",
     "stage1_opt_excvol",
     "stage1_opt_GBEnergy",
@@ -462,7 +461,7 @@ def _frac_dist(a, b):
     return abs(((a - b + 0.5) % 1.0) - 0.5)
 
 
-@pwf.atomic
+@fr.atomic
 def find_viable_cleavage_planes_around_plane(
     structure: Atoms,
     axis: str,
@@ -522,7 +521,7 @@ def find_viable_cleavage_planes_around_plane(
     return viable_planes
 
 
-@pwf.atomic
+@fr.atomic
 def find_viable_cleavage_planes_around_site(
     structure: Atoms,
     axis: str,
@@ -622,7 +621,7 @@ def find_viable_cleavage_planes_around_site(
     return viable_planes
 
 
-@pwf.atomic
+@fr.atomic
 def cleave_axis_aligned(
     structure: Atoms,
     axis: str,
@@ -711,7 +710,7 @@ def cleave_axis_aligned(
     return new_structure
 
 
-@pwf.atomic
+@fr.atomic
 def plot_structure_with_cleavage(
     structure: Atoms,
     cleavage_planes: list[float],
@@ -879,7 +878,7 @@ def plot_structure_with_cleavage(
     return fig, ax
 
 
-@pwf.atomic
+@fr.atomic
 def cleave_gb_structure(
     base_structure: Atoms,
     input_cleave_gb_structure: CleaveGBStructureInput,
@@ -992,7 +991,7 @@ def cleave_gb_structure(
     return cleaved_structures, cleavage_plane_coords
 
 
-@pwf.atomic
+@fr.atomic
 def get_cleavage_calc_names(parent_dir, cleavage_planes):
     folder_name_list = []
     for plane in cleavage_planes:
@@ -1001,7 +1000,7 @@ def get_cleavage_calc_names(parent_dir, cleavage_planes):
     return folder_name_list
 
 
-@pwf.atomic("df")
+@fr.atomic("df")
 def get_results_df(
     engine_outputs,
     cleavage_coords,
@@ -1056,7 +1055,7 @@ def _get_axis_to_cleave(input_cleave_gb_structure: CleaveGBStructureInput):
     return input_cleave_gb_structure.axis_to_cleave
 
 
-@pwf.workflow(
+@fr.workflow(
     "cleaved_structure_list",
     "cleaved_plane_coords_list",
     "cleavage_plane_plot_fig",
@@ -1112,7 +1111,7 @@ def calc_cleavage_GB(
     )
 
 
-@pwf.workflow("cleavage_results_rigid", "cleavage_results_relax")
+@fr.workflow("cleavage_results_rigid", "cleavage_results_relax")
 def rigid_and_relaxed_cleavage_study(
     gb_structure,
     gb_structure_energy,
@@ -1146,7 +1145,7 @@ def rigid_and_relaxed_cleavage_study(
     return rigid_df, relax_df
 
 
-@pwf.atomic("structure", "output_dir")
+@fr.atomic("structure", "output_dir")
 def create_seg_structure_and_output_dir(
     structure: Atoms,
     defect_site: int,
@@ -1163,14 +1162,14 @@ def create_seg_structure_and_output_dir(
     return seg_structure, output_dir
 
 
-@pwf.atomic
+@fr.atomic
 def get_df_col_as_list(df, col):
     # print("In get_df_col_as_list")
     output_list = df[col].to_list()
     return output_list
 
 
-@pwf.atomic("df")
+@fr.atomic("df")
 def write_df(engine_outputs, unique_sites_df, file_name, parent_dir):
     df_outputs = pd.DataFrame([dataclasses.asdict(obj) for obj in engine_outputs])
     df_combined = pd.concat([unique_sites_df, df_outputs], axis=1)
@@ -1178,7 +1177,7 @@ def write_df(engine_outputs, unique_sites_df, file_name, parent_dir):
     return df_combined
 
 
-@pwf.atomic("unique_sites_list", "df")
+@fr.atomic("unique_sites_list", "df")
 def get_unique_sites_SOAP(
     structure: Atoms,
     defect_sites: list[int],
@@ -1215,7 +1214,7 @@ def get_unique_sites_SOAP(
     return df.rep.tolist(), df
 
 
-@pwf.workflow("gb_seg_calcs_df")
+@fr.workflow("gb_seg_calcs_df")
 def calculate_substitutional_segregation_GB(
     structure: Atoms,
     defect_sites: list[int],
@@ -1261,7 +1260,7 @@ def calculate_substitutional_segregation_GB(
 from pyiron_workflow_atomistics.analysis.featurisers import voronoi_site_featuriser
 
 
-@pwf.atomic
+@fr.atomic
 def _get_surface_energy(total_energy_gb_vac, total_energy_gb_novac, area):
     surface_energy = (
         (total_energy_gb_vac - total_energy_gb_novac) / area * 16.021766208 / 2
@@ -1269,7 +1268,7 @@ def _get_surface_energy(total_energy_gb_vac, total_energy_gb_novac, area):
     return surface_energy
 
 
-@pwf.atomic
+@fr.atomic
 def _get_area(gb_with_vacuum_rel, axis="c"):
     from pyiron_workflow_atomistics.physics._grain_boundary_helpers.geometry import (
         axis_to_index,
@@ -1284,13 +1283,13 @@ def _get_gb_cart(gb_plane_analysis_dict):
     return gb_plane_analysis_dict["gb_cart"]
 
 
-@pwf.atomic
+@fr.atomic
 def get_min_energy_from_cleavage_study(cleavage_study_df):
     min_energy = cleavage_study_df.cleavage_energy.min()
     return min_energy
 
 
-@pwf.workflow(
+@fr.workflow(
     "final_pure_grain_boundary_structure",
     "final_pure_grain_boundary_structure_energy",
     "grain_boundary_length_optimisation_df",

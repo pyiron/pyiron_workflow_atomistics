@@ -1,9 +1,9 @@
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 
-@pwf.atomic
+@fr.atomic
 def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     """
     Add vacuum padding to an ASE Atoms object along a specified axis.
@@ -43,14 +43,14 @@ def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     return new_atoms
 
 
-@pwf.atomic("supercell")
+@fr.atomic("supercell")
 def create_supercell(base_structure: Atoms, supercell_repeats: tuple) -> Atoms:
     # Create the supercell
     supercell = base_structure.repeat(supercell_repeats)
     return supercell
 
 
-@pwf.atomic("supercell")
+@fr.atomic("supercell")
 def create_supercell_with_min_dimensions(
     base_structure: Atoms, min_dimensions=None
 ) -> Atoms:
@@ -93,7 +93,7 @@ def create_supercell_with_min_dimensions(
     return supercell
 
 
-@pwf.atomic("rattled_structure")
+@fr.atomic("rattled_structure")
 def rattle(structure: Atoms, rattle: float | None = None) -> Atoms:
     """Return a copy of ``structure`` with atomic positions perturbed.
 

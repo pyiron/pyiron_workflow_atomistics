@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import operator
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from structuretoolkit.analyse import (
     get_adaptive_cna_descriptors,
     get_voronoi_volumes,
 )
 
 
-@pwf.atomic("counts")
+@fr.atomic("counts")
 def cna_fractions(structure) -> dict:
     """Adaptive CNA counts, lowercase keys {'fcc','bcc','hcp','ico','others'}."""
     counts_obj = get_adaptive_cna_descriptors(
@@ -22,7 +22,7 @@ def cna_fractions(structure) -> dict:
     return counts
 
 
-@pwf.atomic("key_max", "n_atoms", "distribution_half")
+@fr.atomic("key_max", "n_atoms", "distribution_half")
 def analyse_reference_structure(structure):
     """Dominant CNA phase, atom count, and half its population fraction.
 
@@ -38,7 +38,7 @@ def analyse_reference_structure(structure):
     return key_max, n_atoms, distribution_half
 
 
-@pwf.atomic("is_solid")
+@fr.atomic("is_solid")
 def classify_solid(structure, key_max: str, distribution_half: float) -> bool:
     """True if the dominant-phase fraction exceeds ``distribution_half``."""
     counts = get_adaptive_cna_descriptors(
@@ -49,7 +49,7 @@ def classify_solid(structure, key_max: str, distribution_half: float) -> bool:
     return is_solid
 
 
-@pwf.atomic("max_volume", "mean_volume")
+@fr.atomic("max_volume", "mean_volume")
 def voronoi_max_mean(structure):
     """Max and mean per-atom Voronoi volume (A^3)."""
     volumes = get_voronoi_volumes(structure)
@@ -58,7 +58,7 @@ def voronoi_max_mean(structure):
     return max_volume, mean_volume
 
 
-@pwf.atomic("keep_mask")
+@fr.atomic("keep_mask")
 def holes_mask(max_volumes, mean_volumes, factor: float = 2.0) -> list:
     """Per-entry True where no cavity: max_volume < factor * mean(mean_volumes)."""
     threshold = factor * float(np.mean(mean_volumes))

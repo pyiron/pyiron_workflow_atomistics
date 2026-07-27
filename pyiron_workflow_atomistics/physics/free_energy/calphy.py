@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-import pyiron_workflow as pwf
+import flowrep as fr
 from ase import Atoms
 
 from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
@@ -86,7 +86,7 @@ def _run_one(
         os.chdir(prev_cwd)
 
 
-@pwf.atomic
+@fr.atomic
 def free_energy(
     *,
     structure: Atoms,
@@ -132,7 +132,7 @@ def free_energy(
     return free_energy_output
 
 
-@pwf.atomic
+@fr.atomic
 def reversible_scaling_temperature(
     *,
     structure: Atoms,
@@ -188,7 +188,7 @@ def reversible_scaling_temperature(
     return free_energy_output
 
 
-@pwf.atomic
+@fr.atomic
 def reversible_scaling_pressure(
     *,
     structure: Atoms,
@@ -242,7 +242,7 @@ def reversible_scaling_pressure(
     return free_energy_output
 
 
-@pwf.atomic
+@fr.atomic
 def melting_temperature(
     *,
     structure: Atoms,
@@ -297,7 +297,7 @@ def melting_temperature(
     return free_energy_output
 
 
-@pwf.atomic
+@fr.atomic
 def alchemy(
     *,
     structure: Atoms,
@@ -356,7 +356,7 @@ def alchemy(
     return free_energy_output
 
 
-@pwf.atomic
+@fr.atomic
 def composition_scaling(
     *,
     structure: Atoms,
