@@ -127,7 +127,6 @@ def main() -> int:
         eos_type="birchmurnaghan",
     )
 
-
     opt_outputs = eos_run.outputs.opt_outputs
     dt_eos = eos_run.duration
 
