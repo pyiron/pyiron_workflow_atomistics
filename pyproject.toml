@@ -22,7 +22,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "flowrep==0.6.1",
+    "flowrep==0.6.2",
     "numpy==2.4.6",
     "pandas==3.0.3",
     "matplotlib==3.11.0",
