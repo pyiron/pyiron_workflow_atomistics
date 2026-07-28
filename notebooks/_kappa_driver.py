@@ -13,7 +13,6 @@ import json
 import os
 import pickle
 import sys
-import time
 from pathlib import Path
 
 import pyiron_workflow as pwf
@@ -117,8 +116,8 @@ def main() -> int:
     )
 
     # ---- 1) EOS sweep → equilibrium cubic lattice constant ----------------
-    t_eos = time.time()
-    opt = optimise_cubic_lattice_parameter(
+    eos_run = pwf.run(
+        optimise_cubic_lattice_parameter,
         structure=structure,
         name="Al",
         crystalstructure="fcc",
@@ -127,14 +126,17 @@ def main() -> int:
         num_points=args.eos_num_points,
         eos_type="birchmurnaghan",
     )
-    opt.run()
-    a0 = float(opt.outputs.a0.value)
-    bulk_modulus_GPa = float(opt.outputs.B.value)
-    e0_per_atom = float(opt.outputs.equil_energy_per_atom.value)
-    v0_per_atom = float(opt.outputs.equil_volume_per_atom.value)
-    eos_volumes = [float(v) for v in opt.outputs.volumes.value]
-    eos_energies = [float(e) for e in opt.outputs.energies.value]
-    dt_eos = time.time() - t_eos
+
+
+    opt_outputs = eos_run.outputs.opt_outputs
+    dt_eos = eos_run.duration
+
+    a0 = float(opt_outputs.a0)
+    bulk_modulus_GPa = float(opt_outputs.B)
+    e0_per_atom = float(opt_outputs.equil_energy_per_atom)
+    v0_per_atom = float(opt_outputs.equil_volume_per_atom)
+    eos_volumes = [float(v) for v in opt_outputs.volumes]
+    eos_energies = [float(e) for e in opt_outputs.energies]
 
     structure_relaxed = bulk("Al", "fcc", a=a0, cubic=True)
     structure_relaxed.calc = calc
@@ -159,8 +161,7 @@ def main() -> int:
     )
 
     # ---- 2) Phonon thermal conductivity on the relaxed lattice ------------
-    t0 = time.time()
-    result = pwf.run(
+    phonon_run = pwf.run(
         calculate_phonon_thermal_conductivity,
         structure=structure_relaxed,
         engine=engine.with_working_directory("phonon"),
@@ -175,8 +176,9 @@ def main() -> int:
         mode_resolved=True,
         harmonic_observables=True,
     )
-    out = result.outputs["phonon_output"].value
-    dt = time.time() - t0
+
+    out = phonon_run.outputs.phonon_output
+    dt = phonon_run.duration
 
     # Pickle only what the notebook plots — keep the dump small and
     # cross-env-loadable (no live phono3py / TF / torch handles).
