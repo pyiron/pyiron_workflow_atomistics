@@ -352,7 +352,7 @@ def anharmonic_free_energy_dynaphopy(
         q_points=q_points,
         phono3py_output=phono3py_output,
         power_spectra=False,
-        keep_handles=False,  # we need .phonopy / .quasiparticle handles to extract data
+        keep_handles=True,  # we need .phonopy / .quasiparticle handles to extract data
     )
     harmonic_frequencies = fr.std.get_attr(md_phonon_output, "harmonic_frequencies")
     renormalised_frequencies = fr.std.get_attr(
