@@ -24,7 +24,7 @@ def modify_dataclass_multi(dataclass_instance, entry_names, entry_values):
     if len(entry_names) != len(entry_values):
         raise ValueError("entry_names and entry_values must have the same length")
     ds = dataclass_instance
-    for name, val in zip(entry_names, entry_values):
+    for name, val in zip(entry_names, entry_values, strict=False):
         ds = modify_dataclass(ds, name, val)
     return ds
 

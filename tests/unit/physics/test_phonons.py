@@ -219,7 +219,7 @@ def test_fd_fc2_supercells_deterministic():
         is_plusminus="auto",
     )
     assert len(a) == len(b) and len(a) > 0
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=False):
         np.testing.assert_allclose(x.get_positions(), y.get_positions())
         np.testing.assert_allclose(x.get_cell()[:], y.get_cell()[:])
 
@@ -279,7 +279,7 @@ def test_fd_fc3_supercells_deterministic():
     a = _generate_fc3_supercells(**kwargs)
     b = _generate_fc3_supercells(**kwargs)
     assert len(a) == len(b) and len(a) > 0
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=False):
         np.testing.assert_allclose(x.get_positions(), y.get_positions())
 
 
@@ -561,7 +561,7 @@ def test_random_fc3_supercells_deterministic_with_seed():
     a = _generate_fc3_supercells(**kwargs)
     b = _generate_fc3_supercells(**kwargs)
     assert len(a) == len(b) == 10
-    for x, y in zip(a, b):
+    for x, y in zip(a, b, strict=False):
         np.testing.assert_allclose(x.get_positions(), y.get_positions())
 
 

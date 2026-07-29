@@ -182,7 +182,7 @@ def gb_length_optimiser(
     )
     # 2. Compute energies/volumes for extended structures
     engine_outputs = []
-    for struct, eng in zip(extended_GBs, engines_per_calc):
+    for struct, eng in zip(extended_GBs, engines_per_calc, strict=False):
         output = calculate(struct, eng)
         engine_outputs.append(output)
 
@@ -863,7 +863,7 @@ def plot_structure_with_cleavage(
 
     # 6) Legend outside the plot area
     handles, labels = ax.get_legend_handles_labels()
-    by_label = dict(zip(labels, handles))
+    by_label = dict(zip(labels, handles, strict=False))
     ax.legend(
         by_label.values(),
         by_label.keys(),
@@ -1033,7 +1033,7 @@ def get_results_df(
 
     cleavage_energies = []
 
-    for E, struct in zip(energies, relaxed_structures):
+    for E, struct in zip(energies, relaxed_structures, strict=False):
         cell = struct.get_cell()
         # Get the 2 vectors that span the cleavage plane perpendicular to the cleavage axis
         a1, a2 = np.delete(cell, axis_index, axis=0)
@@ -1093,7 +1093,7 @@ def calc_cleavage_GB(
     )
 
     engine_outputs = []
-    for struct, eng in zip(cleaved_structures, engines_per_plane):
+    for struct, eng in zip(cleaved_structures, engines_per_plane, strict=False):
         output = calculate(struct, eng)
         engine_outputs.append(output)
 
@@ -1248,7 +1248,7 @@ def calculate_substitutional_segregation_GB(
     )
 
     engine_outputs = []
-    for struct, eng in zip(gb_seg_structure_list, gb_seg_engines):
+    for struct, eng in zip(gb_seg_structure_list, gb_seg_engines, strict=False):
         output = calculate(struct, eng)
         engine_outputs.append(output)
 

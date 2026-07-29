@@ -116,9 +116,9 @@ def coexistence_iteration(
         vmax = [records[i]["voronoi_max"] for i in sel_index]
         vmean = [records[i]["voronoi_mean"] for i in sel_index]
         keep = holes_mask(vmax, vmean, factor=2.0)
-        sel_s = [s for s, k in zip(sel_s, keep) if k]
-        sel_p = [p for p, k in zip(sel_p, keep) if k]
-        sel_t = [t for t, k in zip(sel_t, keep) if k]
+        sel_s = [s for s, k in zip(sel_s, keep, strict=False) if k]
+        sel_p = [p for p, k in zip(sel_p, keep, strict=False) if k]
+        sel_t = [t for t, k in zip(sel_t, keep, strict=False) if k]
     if len(sel_s) > 2:
         t_next, _, _, _ = predict_melting_point(
             sel_s, sel_p, sel_t, boundary_value=boundary_value
@@ -151,7 +151,9 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
     the strain grid on the previous iteration's fitted zero-pressure strain.
     """
     mi = melting_input
-    schedules = list(zip(mi.timestep_lst, mi.fit_range_lst, mi.nve_steps_lst))
+    schedules = list(
+        zip(mi.timestep_lst, mi.fit_range_lst, mi.nve_steps_lst, strict=False)
+    )
     temperature = float(t_guess)
     center = 1.0
     iterations: list[MeltingIterationRecord] = []

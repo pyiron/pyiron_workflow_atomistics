@@ -67,7 +67,7 @@ def pressures_from_trajectory(engine_output, last_n: int = 20) -> float:
     window_s = stresses[-last_n:]
     _require_momenta(window_f)
     pressures = []
-    for frame, stress in zip(window_f, window_s):
+    for frame, stress in zip(window_f, window_s, strict=False):
         p_vir = _virial_pressure_ev_per_a3(stress)  # eV/A^3
         p_kin = (
             len(frame) * units.kB * frame.get_temperature() / frame.get_volume()

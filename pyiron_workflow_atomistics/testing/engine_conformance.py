@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import os
 import pickle
+from collections.abc import Callable
 from dataclasses import is_dataclass
-from typing import Callable
 
 from ase import Atoms
 from ase.build import bulk

@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -35,7 +35,7 @@ class PlotGBPlaneInput:
     plane_linestyles: tuple[str, str] = ("--", "-")
     axis: int = 2
     dpi: int = 300
-    save_path: Optional[str] = None
+    save_path: str | None = None
 
 
 @dataclass
@@ -47,7 +47,7 @@ class PlotCleaveInput:
     plane_color: str = "r"
     plane_linestyle: str = "--"
     atom_size: float = 30
-    save_path: Optional[str] = None
+    save_path: str | None = None
     dpi: int = 300
     show_fractional_axes: bool = True
     ylims: list[float] = field(default_factory=lambda: [0, 61])

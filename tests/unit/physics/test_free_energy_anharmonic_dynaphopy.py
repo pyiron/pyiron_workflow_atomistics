@@ -168,7 +168,7 @@ def test_stack_tdi_outputs_central_differences():
             linewidths=np.zeros((1, 12)),
             q_mesh=(7, 7, 7),
         )
-        for T, F in zip(Ts, Fs)
+        for T, F in zip(Ts, Fs, strict=False)
     ]
     structure = type("FakeAtoms", (), {"__len__": lambda self: 4})()
     out = _stack_tdi_outputs(

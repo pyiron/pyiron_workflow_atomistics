@@ -6,8 +6,9 @@ LAMMPS, ...) must satisfy so physics workflows can use them interchangeably.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import flowrep as fr
 import numpy as np

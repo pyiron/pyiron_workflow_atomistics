@@ -328,7 +328,7 @@ def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     rows_to_drop = set()
 
     def is_negation(t1, t2):
-        return all(x == -y for x, y in zip(t1, t2))
+        return all(x == -y for x, y in zip(t1, t2, strict=False))
 
     for _sigma, group in tqdm(df.groupby("Sigma"), desc="Removing negative duplicates"):
         processed = set()

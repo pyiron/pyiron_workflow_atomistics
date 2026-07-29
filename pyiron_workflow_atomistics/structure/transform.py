@@ -80,7 +80,7 @@ def create_supercell_with_min_dimensions(
 
     # Determine repeat factors for each axis
     repeats = []
-    for length, min_len in zip(lengths, min_dimensions):
+    for length, min_len in zip(lengths, min_dimensions, strict=False):
         if min_len is None:
             repeats.append(1)
         else:

@@ -48,7 +48,7 @@ class TestBulkFunctions(unittest.TestCase):
         alpha0, beta0, gamma0 = orig_cell.angles()
         orig_cell_array = np.array(orig_cell)  # 3x3
 
-        for struct, eps in zip(structures, expected_strains):
+        for struct, eps in zip(structures, expected_strains, strict=False):
             # Atom count unchanged
             self.assertEqual(len(struct), len(self.test_atoms))
 
@@ -195,7 +195,7 @@ class TestBulkFunctions(unittest.TestCase):
         a0, b0, c0 = original_cell.lengths()
         epsilons = np.linspace(*strain_range, num_points)
 
-        for struct, eps in zip(structures, epsilons):
+        for struct, eps in zip(structures, epsilons, strict=False):
             a, b, c = struct.get_cell().lengths()
             self.assertAlmostEqual(a, a0 * (1 + eps), places=6)
             self.assertAlmostEqual(b, b0 * (1 + eps), places=6)

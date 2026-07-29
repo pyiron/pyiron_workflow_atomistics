@@ -1,7 +1,5 @@
 """Surface energy workflow."""
 
-from typing import Optional, Union
-
 import flowrep as fr
 import numpy as np
 from ase import Atoms
@@ -61,11 +59,11 @@ def get_n_atoms(atoms):
 def calculate_surface_energy(
     bulk_structure: Atoms,
     engine: Engine,
-    miller_indices: Union[tuple[int, int, int], tuple[int, int, int, int]] = (1, 1, 1),
+    miller_indices: tuple[int, int, int] | tuple[int, int, int, int] = (1, 1, 1),
     layers: int = 3,
     vacuum: float = 10.0,
     periodic: bool = True,
-    mu_bulk: Optional[float] = None,
+    mu_bulk: float | None = None,
 ):
     """Calculate the surface energy (J/m^2) of a slab cut from ``bulk_structure``.
 
