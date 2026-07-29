@@ -103,7 +103,6 @@ def get_interp_min_energy_structure_from_outputs(
     )
     energies = extracted_dict["final_energy"]
     structs = extracted_dict["final_structure"]
-    print("ENGINGE OUTPUT STRUCTS", structs)
     lengths = [
         np.linalg.norm(np.array(struct.cell)[axis_to_index(axis)]) for struct in structs
     ]
@@ -278,7 +277,12 @@ def get_gb_length_optimiser_plot(
     """
     # Prepare data
     df_copy = pd.DataFrame([dataclasses.asdict(obj) for obj in engine_outputs])
-    df_copy["c"] = df_copy.structures.apply(lambda x: x[0].cell[-1][-1])
+    # EngineOutput.structures is optional (None for engines that only report
+    # finals); fall back to the always-present final_structure for the cell.
+    df_copy["c"] = [
+        (eo.structures[0] if eo.structures else eo.final_structure).cell[-1][-1]
+        for eo in engine_outputs
+    ]
 
     # Optionally select only the n smallest energy points
     if isinstance(n_points, int) and n_points > 0:

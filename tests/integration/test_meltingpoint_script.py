@@ -6,7 +6,8 @@ import pytest
 
 def _load_script():
     spec = importlib.util.spec_from_file_location(
-        "meltingpoint", pathlib.Path("../scripts/meltingpoint.py")
+        "meltingpoint",
+        pathlib.Path(__file__).parents[2] / "scripts" / "meltingpoint.py",
     )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

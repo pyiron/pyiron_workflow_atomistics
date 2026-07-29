@@ -10,7 +10,7 @@ name = "pyiron_workflow_atomistics"
 description = "A pyiron module for atomistic simulation workflows"
 readme = { file = "docs/README.md", content-type = "text/markdown" }
 keywords = ["pyiron", "atomistics", "workflow"]
-requires-python = ">=3.9, <3.14"
+requires-python = ">=3.11, <3.14"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Topic :: Scientific/Engineering",

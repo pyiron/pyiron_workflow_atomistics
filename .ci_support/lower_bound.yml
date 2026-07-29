@@ -3,7 +3,7 @@ channels:
 
 dependencies:
   # Core Python version
-  - python =3.10
+  - python =3.11
 
   # Conda-forge packages
   - flowrep =0.6.0

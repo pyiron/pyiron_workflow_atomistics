@@ -127,8 +127,8 @@ def main() -> int:
         eos_type="birchmurnaghan",
     )
 
-    opt_outputs = eos_run.outputs.opt_outputs
-    dt_eos = eos_run.duration
+    opt_outputs = eos_run.outputs
+    dt_eos = eos_run.duration.total_seconds()
 
     a0 = float(opt_outputs.a0)
     bulk_modulus_GPa = float(opt_outputs.B)
@@ -177,7 +177,7 @@ def main() -> int:
     )
 
     out = phonon_run.outputs.phonon_output
-    dt = phonon_run.duration
+    dt = phonon_run.duration.total_seconds()
 
     # Pickle only what the notebook plots — keep the dump small and
     # cross-env-loadable (no live phono3py / TF / torch handles).
