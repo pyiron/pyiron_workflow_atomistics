@@ -8,7 +8,7 @@ def test_fillin_default_calckwargs_merges_defaults():
         fillin_default_calckwargs,
     )
 
-    out = fillin_default_calckwargs.node_function(
+    out = fillin_default_calckwargs(
         calc_kwargs={"a": 1},
         default_values={"a": 0, "b": 2},
     )
@@ -20,7 +20,7 @@ def test_fillin_default_calckwargs_drops_keys():
         fillin_default_calckwargs,
     )
 
-    out = fillin_default_calckwargs.node_function(
+    out = fillin_default_calckwargs(
         calc_kwargs={"a": 1, "secret": 2},
         remove_keys=["secret"],
     )
@@ -32,7 +32,7 @@ def test_fillin_default_calckwargs_coerces_properties_to_tuple():
         fillin_default_calckwargs,
     )
 
-    out = fillin_default_calckwargs.node_function(
+    out = fillin_default_calckwargs(
         calc_kwargs={"properties": ["energy", "forces"]},
     )
     assert out["properties"] == ("energy", "forces")
@@ -44,7 +44,7 @@ def test_generate_kwargs_variant_is_a_deepcopy():
     )
 
     base = {"x": 0, "nested": {"a": 1}}
-    out = generate_kwargs_variant.node_function(base, "x", 5)
+    out = generate_kwargs_variant(base, "x", 5)
     assert out == {"x": 5, "nested": {"a": 1}}
     out["nested"]["a"] = 99
     assert base["nested"]["a"] == 1
@@ -55,7 +55,7 @@ def test_generate_kwargs_variants_lists_them():
         generate_kwargs_variants,
     )
 
-    out = generate_kwargs_variants.node_function(
+    out = generate_kwargs_variants(
         base_kwargs={"x": 0},
         key="x",
         values=[1, 2, 3],

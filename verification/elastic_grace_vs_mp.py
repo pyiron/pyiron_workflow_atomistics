@@ -77,6 +77,8 @@ def load_grace_calculator(model_name=GRACE_MODEL):
 def grace_elastic(structure, workdir):
     os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
     os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
+    import pyiron_workflow as pwf
+
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
     from pyiron_workflow_atomistics.physics.elastic import calculate_elastic_constants
 
@@ -86,11 +88,14 @@ def grace_elastic(structure, workdir):
         calculator=calc,
         working_directory=os.path.abspath(workdir),
     )
-    wf = calculate_elastic_constants(
-        structure=structure, engine=engine, relax_initial=True
+    out = pwf.run(
+        calculate_elastic_constants,
+        structure=structure,
+        engine=engine,
+        relax_initial=True,
     )
-    out = wf.run()
-    return out["elastic_constants"]
+    elastic_constants = out.outputs["elastic_constants"]
+    return elastic_constants
 
 
 def _vrh(x):

@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 from typing import Literal
 
-import pyiron_workflow as pwf
+import flowrep as fr
 from ase import Atoms
 
 from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
@@ -86,7 +86,7 @@ def _run_one(
         os.chdir(prev_cwd)
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def free_energy(
     *,
     structure: Atoms,
@@ -108,7 +108,7 @@ def free_energy(
     Pressure is in **bar** (calphy native). Temperature in K. Free energy
     returned in eV/atom.
     """
-    return _run_one(
+    free_energy_output = _run_one(
         mode="fe",
         structure=structure,
         lammps_engine=lammps_engine,
@@ -129,9 +129,10 @@ def free_energy(
             equilibration_control=equilibration_control,
         ),
     )
+    return free_energy_output
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def reversible_scaling_temperature(
     *,
     structure: Atoms,
@@ -163,7 +164,7 @@ def reversible_scaling_temperature(
             "reversible_scaling_temperature requires "
             "`temperature_range=(lo, hi)` (length-2 tuple)"
         )
-    return _run_one(
+    free_energy_output = _run_one(
         mode="ts",
         structure=structure,
         lammps_engine=lammps_engine,
@@ -184,9 +185,10 @@ def reversible_scaling_temperature(
             equilibration_control=equilibration_control,
         ),
     )
+    return free_energy_output
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def reversible_scaling_pressure(
     *,
     structure: Atoms,
@@ -216,7 +218,7 @@ def reversible_scaling_pressure(
             "reversible_scaling_pressure requires "
             "`pressure_range=(lo, hi)` (length-2 tuple)"
         )
-    return _run_one(
+    free_energy_output = _run_one(
         mode="pscale",
         structure=structure,
         lammps_engine=lammps_engine,
@@ -237,9 +239,10 @@ def reversible_scaling_pressure(
             equilibration_control=equilibration_control,
         ),
     )
+    return free_energy_output
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def melting_temperature(
     *,
     structure: Atoms,
@@ -269,7 +272,7 @@ def melting_temperature(
         raise ValueError(
             f"`temperature_guess` must be positive, got {temperature_guess}"
         )
-    return _run_one(
+    free_energy_output = _run_one(
         mode="melting_temperature",
         structure=structure,
         lammps_engine=lammps_engine,
@@ -291,9 +294,10 @@ def melting_temperature(
             equilibration_control=equilibration_control,
         ),
     )
+    return free_energy_output
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def alchemy(
     *,
     structure: Atoms,
@@ -327,7 +331,7 @@ def alchemy(
             f"alchemy requires {missing} (raw LAMMPS strings for the "
             f"target potential)"
         )
-    return _run_one(
+    free_energy_output = _run_one(
         mode="alchemy",
         structure=structure,
         lammps_engine=lammps_engine,
@@ -349,9 +353,10 @@ def alchemy(
             equilibration_control=equilibration_control,
         ),
     )
+    return free_energy_output
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def composition_scaling(
     *,
     structure: Atoms,
@@ -380,7 +385,7 @@ def composition_scaling(
             "`output_chemical_composition={'A': n_a, 'B': n_b, ...}` "
             "(target atom counts per element)"
         )
-    return _run_one(
+    free_energy_output = _run_one(
         mode="composition_scaling",
         structure=structure,
         lammps_engine=lammps_engine,
@@ -401,3 +406,4 @@ def composition_scaling(
             equilibration_control=equilibration_control,
         ),
     )
+    return free_energy_output

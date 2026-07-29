@@ -223,7 +223,7 @@ def test_get_gb_code_df_macro_runs_and_deduplicates():
         get_gb_code_df,
     )
 
-    out = get_gb_code_df.node_function(
+    out = get_gb_code_df(
         axes_list=[np.array([1, 0, 0])],
         basis="fcc",
         sigma_limit=6,
@@ -246,7 +246,7 @@ def test_get_gb_code_df_macro_no_dedup_returns_more_rows():
         get_gb_code_df,
     )
 
-    raw = get_gb_code_df.node_function(
+    raw = get_gb_code_df(
         axes_list=[np.array([1, 0, 0])],
         basis="fcc",
         sigma_limit=6,
@@ -255,7 +255,7 @@ def test_get_gb_code_df_macro_no_dedup_returns_more_rows():
         max_workers=1,
         deduplicate=False,
     )
-    dedup = get_gb_code_df.node_function(
+    dedup = get_gb_code_df(
         axes_list=[np.array([1, 0, 0])],
         basis="fcc",
         sigma_limit=6,

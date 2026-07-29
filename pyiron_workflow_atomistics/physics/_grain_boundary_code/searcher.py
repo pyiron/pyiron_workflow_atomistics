@@ -1,6 +1,7 @@
 from math import degrees
 from multiprocessing import Pool, cpu_count
 
+import flowrep as fr
 import gb_code.csl_generator as csl
 import numpy as np
 import pandas as pd
@@ -165,7 +166,7 @@ def _construct_structure_for_entry(args):
         grain_length_axis,
         min_inplane_gb_length,
     ) = args
-    fn = construct_GB_from_GBCode(
+    _, final_structure = construct_GB_from_GBCode(
         axis=entry["Axis"],
         basis=basis,
         lattice_param=lattice_param,
@@ -176,15 +177,15 @@ def _construct_structure_for_entry(args):
         req_length_grain=req_length_grain,
         equil_volume=equil_volume_per_atom,
         grain_length_axis=grain_length_axis,
-    )()
+    )
     from pyiron_workflow_atomistics.structure.transform import (
         create_supercell_with_min_dimensions,
     )
 
     supercell = create_supercell_with_min_dimensions(
-        fn["final_structure"],
+        final_structure,
         min_dimensions=[min_inplane_gb_length, min_inplane_gb_length, None],
-    )()
+    )
     # print(type(fn))
     return supercell
 
@@ -327,7 +328,7 @@ def _rid_negative_duplicates(df: pd.DataFrame) -> pd.DataFrame:
     rows_to_drop = set()
 
     def is_negation(t1, t2):
-        return all(x == -y for x, y in zip(t1, t2))
+        return all(x == -y for x, y in zip(t1, t2, strict=False))
 
     for _sigma, group in tqdm(df.groupby("Sigma"), desc="Removing negative duplicates"):
         processed = set()
@@ -456,10 +457,7 @@ def _get_gbcode_df_multiple_axes(
     return pd.concat(all_results, ignore_index=True)
 
 
-import pyiron_workflow as pwf
-
-
-@pwf.as_function_node("gb_code_df")
+@fr.atomic("gb_code_df")
 def get_gb_code_df(
     axes_list: list[np.ndarray],
     basis: str = "fcc",
@@ -481,7 +479,7 @@ def get_gb_code_df(
     return gb_code_df
 
 
-@pwf.as_function_node("gb_code_df_with_structures")
+@fr.atomic("gb_code_df_with_structures")
 def get_gb_code_df_with_structures(
     gb_code_df: pd.DataFrame | None = None,
     axes_list: list[np.ndarray] | None = None,

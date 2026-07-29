@@ -20,6 +20,7 @@ import pickle
 
 import numpy as np
 import pandas as pd
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -44,7 +45,11 @@ def test_calculate_substitutional_segregation_GB_runs(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    wf = calculate_substitutional_segregation_GB(
+    result = pwf.run(
+        calculate_substitutional_segregation_GB,
+        pwf.RunConfig(dag_layers_multithreaded=False),
+        # With multithreading, ase complains
+        # AttributeError: 'PrimitiveNeighborList' object has no attribute 'neighbors'. Did you mean: 'get_neighbors'?
         structure=structure,
         defect_sites=defect_sites,
         element="Ag",
@@ -54,8 +59,7 @@ def test_calculate_substitutional_segregation_GB_runs(tmp_path):
         parent_dir=str(tmp_path),
         df_filename="seg_df.pkl",
     )
-    out = wf.run()
-    df = out["gb_seg_calcs_df"]
+    df = result.outputs["gb_seg_calcs_df"]
 
     assert isinstance(df, pd.DataFrame)
     # One row per defect site, columns from both the unique_sites_df concat
@@ -65,9 +69,8 @@ def test_calculate_substitutional_segregation_GB_runs(tmp_path):
 
     # Each site's structure was swapped to Ag and the relaxation produced an
     # engine_output with a finite final_energy.
-    assert "engine_output" in df.columns
-    energies = [out.final_energy for out in df["engine_output"]]
-    assert all(np.isfinite(e) for e in energies)
+    assert "final_energy" in df.columns
+    assert all(np.isfinite(e) for e in df["final_energy"])
 
     # write_df pickled the result to parent_dir/df_filename.
     pickled = tmp_path / "seg_df.pkl"
@@ -95,7 +98,7 @@ def test_calculate_substitutional_segregation_GB_graph_constructs(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    wf = calculate_substitutional_segregation_GB(
+    df = calculate_substitutional_segregation_GB(
         structure=structure,
         defect_sites=[0, 1],
         element="Ag",
@@ -104,7 +107,7 @@ def test_calculate_substitutional_segregation_GB_graph_constructs(tmp_path):
         unique_sites_df=pd.DataFrame({"site_id": [0, 1]}),
         parent_dir=str(tmp_path),
     )
-    assert wf is not None
+    assert df is not None
 
 
 def test_create_seg_structure_and_output_dir_swaps_one_site(tmp_path):
@@ -114,7 +117,7 @@ def test_create_seg_structure_and_output_dir_swaps_one_site(tmp_path):
     )
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
-    seg, out_dir = create_seg_structure_and_output_dir.node_function(
+    seg, out_dir = create_seg_structure_and_output_dir(
         structure=structure,
         defect_site=7,
         element="Ag",
@@ -134,14 +137,14 @@ def test_get_df_col_as_list_extracts_column():
     from pyiron_workflow_atomistics.physics.grain_boundary import get_df_col_as_list
 
     df = pd.DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
-    out = get_df_col_as_list.node_function(df=df, col="a")
+    out = get_df_col_as_list(df=df, col="a")
     assert out == [1, 2, 3]
 
 
 def test__make_engines_from_dirs_returns_one_per_subdir(tmp_path):
     from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
     from pyiron_workflow_atomistics.physics.grain_boundary import (
-        _make_engines_from_dirs,
+        _make_engines_with_subdirs,
     )
 
     base = ASEEngine(
@@ -150,7 +153,7 @@ def test__make_engines_from_dirs_returns_one_per_subdir(tmp_path):
         working_directory=str(tmp_path),
     )
     dirs = [str(tmp_path / "a"), str(tmp_path / "b"), str(tmp_path / "c")]
-    engines = _make_engines_from_dirs.node_function(engine=base, output_dirs=dirs)
+    engines = _make_engines_with_subdirs(engine=base, subdirnames=dirs)
 
     assert len(engines) == 3
     assert [e.working_directory for e in engines] == dirs

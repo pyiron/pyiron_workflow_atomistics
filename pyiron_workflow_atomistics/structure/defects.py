@@ -15,12 +15,12 @@ grain boundaries: A first-principles study. Phys. Rev. Mater., 8, 073601.
 doi:10.1103/PhysRevMaterials.8.073601
 """
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms as ASEAtoms
 
 
-@pwf.as_function_node("vacancy_structure")
+@fr.atomic("vacancy_structure")
 def create_vacancy(structure: ASEAtoms, remove_atom_index: int = 0) -> ASEAtoms:
     """Return a copy of ``structure`` with one atom removed.
 
@@ -28,7 +28,7 @@ def create_vacancy(structure: ASEAtoms, remove_atom_index: int = 0) -> ASEAtoms:
     --------
     >>> from ase.build import bulk
     >>> bulk_struct = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
-    >>> vac = create_vacancy.node_function(bulk_struct, remove_atom_index=0)
+    >>> vac = create_vacancy(bulk_struct, remove_atom_index=0)
     >>> len(vac) == len(bulk_struct) - 1
     True
     """
@@ -37,7 +37,7 @@ def create_vacancy(structure: ASEAtoms, remove_atom_index: int = 0) -> ASEAtoms:
     return vacancy_structure
 
 
-@pwf.as_function_node("structure")
+@fr.atomic("structure")
 def substitutional_swap(
     base_structure: ASEAtoms, defect_site: int = 0, new_symbol: str = "Si"
 ) -> ASEAtoms:

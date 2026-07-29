@@ -14,6 +14,10 @@ from ase.build import stack
 from ase.lattice.cubic import BodyCenteredCubic as bcc
 
 import pyiron_workflow_atomistics.physics.grain_boundary as gb_cleavage_module
+from pyiron_workflow_atomistics.physics._grain_boundary_helpers.dataclass_storage import (
+    CleaveGBStructureInput,
+    PlotCleaveInput,
+)
 from pyiron_workflow_atomistics.structure.transform import add_vacuum
 
 
@@ -61,7 +65,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
 
             # Rattle the gb structure using rattle in ASE to perturb symmetry
             # gb.rattle()
-            gb_pmg = add_vacuum(gb, vacuum_slab).run()
+            gb_pmg = add_vacuum(gb, vacuum_slab)
         self.test_atoms = gb_pmg
 
     def test_find_viable_cleavage_planes_around_plane_cartesian(self):
@@ -73,7 +77,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             coord_tol=1.0,
             layer_tolerance=0.1,
             fractional=False,
-        ).run()
+        )
 
         self.assertIsInstance(result, list)
         # Should find at least one viable plane (between z=2 and z=4)
@@ -88,7 +92,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             coord_tol=0.125,  # 1.0/8.0 in fractional coordinates
             layer_tolerance=0.1,
             fractional=True,
-        ).run()
+        )
 
         self.assertIsInstance(result, list)
 
@@ -101,7 +105,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             site_dist_threshold=2.0,
             layer_tolerance=0.1,
             fractional=False,
-        ).run()
+        )
 
         self.assertIsInstance(result, list)
 
@@ -114,7 +118,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             site_dist_threshold=0.25,  # 2.0/8.0 in fractional coordinates
             layer_tolerance=0.1,
             fractional=True,
-        ).run()
+        )
 
         self.assertIsInstance(result, list)
 
@@ -126,7 +130,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             plane_coord=20,
             separation=2.0,
             use_fractional=False,
-        ).run()
+        )
 
         self.assertIsInstance(result, Atoms)
         self.assertEqual(len(result), len(self.test_atoms))
@@ -147,7 +151,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             plane_coord=0.5,  # 3.0/8.0 in fractional coordinates
             separation=2.0,
             use_fractional=True,
-        ).run()
+        )
 
         self.assertIsInstance(result, Atoms)
         self.assertEqual(len(result), len(self.test_atoms))
@@ -160,7 +164,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
             plane_coord=1.0,
             separation=1.0,
             use_fractional=False,
-        ).run()
+        )
 
         self.assertIsInstance(result, Atoms)
 
@@ -178,8 +182,10 @@ class TestGBCleavageFunctions(unittest.TestCase):
         fig, ax = gb_cleavage_module.plot_structure_with_cleavage(
             structure=self.test_atoms,
             cleavage_planes=cleavage_planes,
-            projection=(0, 2),
-        ).run()
+            input_plot_cleave=PlotCleaveInput(
+                projection=(0, 2),
+            ),
+        )
 
         # Should return figure and axes
         self.assertIsNotNone(fig)
@@ -195,9 +201,11 @@ class TestGBCleavageFunctions(unittest.TestCase):
             fig, ax = gb_cleavage_module.plot_structure_with_cleavage(
                 structure=self.test_atoms,
                 cleavage_planes=cleavage_planes,
-                projection=(0, 2),
-                save_path=save_path,
-            ).run()
+                input_plot_cleave=PlotCleaveInput(
+                    projection=(0, 2),
+                    save_path=save_path,
+                ),
+            )
 
             # Check that file was created
             self.assertTrue(os.path.exists(save_path))
@@ -207,14 +215,16 @@ class TestGBCleavageFunctions(unittest.TestCase):
         cleaved_structures, cleavage_plane_coords = (
             gb_cleavage_module.cleave_gb_structure(
                 base_structure=self.test_atoms,
-                axis_to_cleave="c",
-                target_coord=20.0,
-                tol=0.5,
-                cleave_region_halflength=2.0,
-                layer_tolerance=0.1,
-                separation=2.0,
-                use_fractional=False,
-            ).run()
+                input_cleave_gb_structure=CleaveGBStructureInput(
+                    axis_to_cleave="c",
+                    cleavage_target_coord=20.0,
+                    tol=0.5,
+                    cleave_region_halflength=2.0,
+                    layer_tolerance=0.1,
+                    separation=2.0,
+                    use_fractional=False,
+                ),
+            )
         )
 
         self.assertIsInstance(cleaved_structures, list)
@@ -231,9 +241,7 @@ class TestGBCleavageFunctions(unittest.TestCase):
         parent_dir = "/base/dir"
         cleavage_planes = [2.0, 3.5, 4.0]
 
-        result = gb_cleavage_module.get_cleavage_calc_names(
-            parent_dir, cleavage_planes
-        ).run()
+        result = gb_cleavage_module.get_cleavage_calc_names(parent_dir, cleavage_planes)
 
         self.assertEqual(len(result), len(cleavage_planes))
 
@@ -282,16 +290,13 @@ class TestGBCleavageFunctions(unittest.TestCase):
             final_stress=np.zeros((3, 3)),
         )
 
-        mock_df = pd.DataFrame(
-            {"engine_output": [mock_output1, mock_output2], "convergence": [True, True]}
-        )
         result = gb_cleavage_module.get_results_df(
-            df=mock_df,
+            engine_outputs=[mock_output1, mock_output2],
             cleavage_coords=cleavage_coords,
             cleaved_structures=cleaved_structures,
             uncleaved_energy=uncleaved_energy,
             cleavage_axis="c",
-        ).run()
+        )
 
         self.assertIsInstance(result, pd.DataFrame)
 

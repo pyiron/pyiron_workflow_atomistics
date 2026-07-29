@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import os
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine, calculate
@@ -39,7 +39,7 @@ def _check_qha_volume_range(
         )
 
 
-@pwf.as_function_node("qha_results")
+@fr.atomic
 def _fit_qha(
     energies,
     volumes,
@@ -99,23 +99,24 @@ def _fit_qha(
     bulk = bulk_raw[:n_T] if bulk_raw.size >= n_T else bulk_raw
     alpha = alpha_raw[:n_T] if alpha_raw.size >= n_T else alpha_raw
 
-    return {
+    qha_results = {
         "equilibrium_volume_array": V_T,
         "gibbs_free_energy_array": gibbs,
         "bulk_modulus_array": bulk,
         "thermal_expansion_array": alpha,
         "qha_handle": qha,
     }
+    return qha_results
 
 
-@pwf.as_function_node("energies_per_volume", "volumes")
+@fr.atomic("energies_per_volume", "volumes")
 def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine):
     """One-shot static energy per strained cell. Returns (energies, volumes/atom)."""
     energies: list[float] = []
     volumes: list[float] = []
     for i, s in enumerate(strained_structures):
         sub_engine = engine.with_working_directory(f"vol_E_{i:03d}")
-        out = calculate.node_function(structure=s, engine=sub_engine)
+        out = calculate(structure=s, engine=sub_engine)
         if not out.converged:
             raise RuntimeError(
                 f"Static-energy calc failed for strained cell {i} "
@@ -126,7 +127,7 @@ def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine
     return np.asarray(energies), np.asarray(volumes)
 
 
-@pwf.as_function_node("free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V")
+@fr.atomic("free_energy_per_T_V", "entropy_per_T_V", "cv_per_T_V")
 def _harmonic_grid_over_volumes(
     strained_structures: list[Atoms],
     engine: Engine,
@@ -157,7 +158,7 @@ def _harmonic_grid_over_volumes(
     for j, s in enumerate(strained_structures):
         vol_dir = os.path.join(working_directory, f"vol_{j:03d}")
         sub_engine = engine.with_working_directory(vol_dir)
-        sub_wf = harmonic_free_energy(
+        out = harmonic_free_energy(
             structure=s,
             engine=sub_engine,
             fc2_supercell_matrix=fc2_supercell_matrix,
@@ -167,8 +168,6 @@ def _harmonic_grid_over_volumes(
             working_directory=vol_dir,
             subdir="harmonic",
         )
-        out = sub_wf.run()
-        out = out["free_energy_output"] if isinstance(out, dict) else out
         n_atoms_primitive = int(out.report["n_atoms_primitive"])
         F_TV[:, j] = (
             np.asarray(out.free_energy_array) * ev_to_kj_mol * n_atoms_primitive
@@ -185,7 +184,7 @@ def _harmonic_grid_over_volumes(
     return F_TV, S_TV, Cv_TV
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def _pack_qha_output(
     structure: Atoms,
     qha_results: dict,
@@ -205,7 +204,7 @@ def _pack_qha_output(
     # central reference volume; the full (n_T, n_V) grid lives in
     # free_energy_volume_array (the unconstrained F(T,V) phonon grid).
     mid = entropy_per_T_V.shape[1] // 2
-    return FreeEnergyOutput(
+    free_energy_output = FreeEnergyOutput(
         mode="qha",
         reference_phase="solid",
         free_energy=float(qha_results["gibbs_free_energy_array"][0]),
@@ -232,11 +231,11 @@ def _pack_qha_output(
         thermal_expansion_array=qha_results["thermal_expansion_array"],
         qha_handle=qha_results["qha_handle"] if keep_handles else None,
     )
+    return free_energy_output
 
 
-@pwf.api.as_macro_node("free_energy_output")
+@fr.workflow
 def quasiharmonic_free_energy(
-    wf,
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix,
@@ -263,50 +262,50 @@ def quasiharmonic_free_energy(
 
     See spec ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md``.
     """
-    wf.paths = _resolve_simfolder(
+    simfolder, sub_engine = _resolve_simfolder(
         engine=engine,
         working_directory=working_directory,
         subdir=subdir,
     )
-    wf.strained_structures = generate_structures(
+    strained_structures = generate_structures(
         base_structure=structure,
         axes=["iso"],
         strain_range=strain_range,
         num_points=num_volumes,
     )
-    wf.static_E = _static_energies_per_volume(
-        strained_structures=wf.strained_structures.outputs.structure_list,
-        engine=wf.paths.outputs.sub_engine,
+    static_E_per_V, static_V = _static_energies_per_volume(
+        strained_structures=strained_structures,
+        engine=sub_engine,
     )
-    wf.harmonic_grid = _harmonic_grid_over_volumes(
-        strained_structures=wf.strained_structures.outputs.structure_list,
+    F_TV, S_TV, Cv_TV = _harmonic_grid_over_volumes(
+        strained_structures=strained_structures,
         engine=engine,
         fc2_supercell_matrix=fc2_supercell_matrix,
         temperatures=temperatures,
         displacement_distance=displacement_distance,
         is_plusminus=is_plusminus,
-        working_directory=wf.paths.outputs.simfolder,
+        working_directory=simfolder,
     )
-    wf.qha = _fit_qha(
-        energies=wf.static_E.outputs.energies_per_volume,
-        volumes=wf.static_E.outputs.volumes,
-        free_energy_per_T_V=wf.harmonic_grid.outputs.free_energy_per_T_V,
-        entropy_per_T_V=wf.harmonic_grid.outputs.entropy_per_T_V,
-        cv_per_T_V=wf.harmonic_grid.outputs.cv_per_T_V,
+    qha = _fit_qha(
+        energies=static_E_per_V,
+        volumes=static_V,
+        free_energy_per_T_V=F_TV,
+        entropy_per_T_V=S_TV,
+        cv_per_T_V=Cv_TV,
         temperatures=temperatures,
         pressure_GPa=pressure,
         eos_type=eos_type,
     )
-    wf.synthesis = _pack_qha_output(
+    free_energy_output = _pack_qha_output(
         structure=structure,
-        qha_results=wf.qha.outputs.qha_results,
-        volumes=wf.static_E.outputs.volumes,
-        free_energy_per_T_V=wf.harmonic_grid.outputs.free_energy_per_T_V,
-        entropy_per_T_V=wf.harmonic_grid.outputs.entropy_per_T_V,
-        cv_per_T_V=wf.harmonic_grid.outputs.cv_per_T_V,
+        qha_results=qha,
+        volumes=static_V,
+        free_energy_per_T_V=F_TV,
+        entropy_per_T_V=S_TV,
+        cv_per_T_V=Cv_TV,
         temperatures=temperatures,
         pressure_GPa=pressure,
-        simfolder=wf.paths.outputs.simfolder,
+        simfolder=simfolder,
         keep_handles=keep_handles,
     )
-    return wf.synthesis.outputs.free_energy_output
+    return free_energy_output

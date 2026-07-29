@@ -1,8 +1,7 @@
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from gb_code.gb_generator import GB_character
 from pyiron_snippets.logger import logger
-from pyiron_workflow import Workflow
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
@@ -44,7 +43,7 @@ def _build_gb_structure(
     ).to_pymatgen(element=element)
 
 
-@pwf.as_function_node("wrapped_sorted_structure")
+@fr.atomic("wrapped_sorted_structure")
 def wrap_and_sort_structure(structure, axis=2):
     treated_struct = structure.copy()
     treated_struct.wrap()
@@ -175,7 +174,7 @@ def align_lattice_to_axes(structure):
     )
 
 
-@pwf.as_function_node
+@fr.atomic
 def get_realigned_structure(
     struct, arrange_ab_by_length=True, perform_equiv_check=False
 ):
@@ -218,7 +217,7 @@ def get_realigned_structure(
     return reordered_struct
 
 
-@pwf.as_function_node
+@fr.atomic
 def get_gbstruct_from_gbcode(
     axis=None,
     basis="bcc",
@@ -253,7 +252,7 @@ def get_gbstruct_from_gbcode(
     return structure
 
 
-@pwf.as_function_node
+@fr.atomic
 def merge_structure_sites(structure, merge_dist_tolerance=1.3, merge_mode="average"):
     structure_merged = structure.copy()
     structure_merged.merge_sites(tol=merge_dist_tolerance, mode=merge_mode)
@@ -261,7 +260,7 @@ def merge_structure_sites(structure, merge_dist_tolerance=1.3, merge_mode="avera
     return structure_merged
 
 
-@pwf.as_function_node
+@fr.atomic
 def get_expected_equilibrium_c_struct(struct, v0_per_atom, axis=2):
     from pymatgen.core.lattice import Lattice
 
@@ -284,7 +283,7 @@ def get_expected_equilibrium_c_struct(struct, v0_per_atom, axis=2):
     return struct_eq, adj_axis_length
 
 
-@pwf.as_function_node
+@fr.atomic
 def convert_structure(struct, target="ase"):
     """
     Convert between ASE Atoms and Pymatgen Structure.
@@ -310,9 +309,8 @@ def convert_structure(struct, target="ase"):
     return converted_struct
 
 
-@Workflow.wrap.as_macro_node("original_GBcode_structure", "final_structure")
+@fr.workflow("original_GBcode_structure", "final_structure")
 def construct_GB_from_GBCode(
-    wf,
     axis,
     basis,
     lattice_param,
@@ -327,14 +325,13 @@ def construct_GB_from_GBCode(
     merge_dist_tolerance=1.3,
     merge_mode="average",
     equil_volume=None,
+    target: str = "ase",
 ):
     """
     Macro node to build a grain boundary structure pipeline from a GB code.
 
     Parameters:
     -----------
-    wf : pwf.Workflow
-        The Workflow to which nodes are added.
     axis : list or array-like
         Miller direction vector for the GB code (e.g., [1,1,1]).
     basis : str
@@ -363,15 +360,17 @@ def construct_GB_from_GBCode(
         Merge strategy, e.g., "average" or "first" (default "average").
     equil_volume : float, optional
         Equilibrium volume per atom for bulk structure (v0_per_atom).
+    target : {'ase', 'pmg'}
+        Conversion target: 'ase' for ASE Atoms, 'pmg' for Pymatgen Structure.
 
     Returns:
     --------
-        wf.structure : ase.Atoms
+        structure : ase.Atoms
             The final GB structure.
-        wf.sorted_structure : ase.Atoms
+        sorted_structure : ase.Atoms
             The final GB structure sorted by the specified axis.
     """
-    wf.gbcode_GBstruct = get_gbstruct_from_gbcode(
+    gbcode_GBstruct = get_gbstruct_from_gbcode(
         axis=axis,
         basis=basis,
         lattice_param=lattice_param,
@@ -382,23 +381,25 @@ def construct_GB_from_GBCode(
         req_length_grain=req_length_grain,
         grain_length_axis=grain_length_axis,
     )
-    wf.gbplane_normal_aligned_c_struct = get_realigned_structure(
-        wf.gbcode_GBstruct,
+    gbplane_normal_aligned_c_struct = get_realigned_structure(
+        gbcode_GBstruct,
         arrange_ab_by_length=arrange_ab_by_length,
         perform_equiv_check=perform_equiv_check,
     )
-    wf.merged_gbcode_GBstruct = merge_structure_sites(
-        wf.gbplane_normal_aligned_c_struct,
+    merged_gbcode_GBstruct = merge_structure_sites(
+        gbplane_normal_aligned_c_struct,
         merge_dist_tolerance=merge_dist_tolerance,
         merge_mode=merge_mode,
     )
-    wf.merged_gbcode_GBstruct_equilibrated_bulkvol = get_expected_equilibrium_c_struct(
-        struct=wf.merged_gbcode_GBstruct, v0_per_atom=equil_volume
+    merged_gbcode_GBstruct_equilibrated_bulkvol_struct_eq, _ = (
+        get_expected_equilibrium_c_struct(
+            struct=merged_gbcode_GBstruct, v0_per_atom=equil_volume
+        )
     )
-    wf.structure = convert_structure(wf.gbcode_GBstruct, target="ase")
-    wf.treated_struct = convert_structure(
-        wf.merged_gbcode_GBstruct_equilibrated_bulkvol.outputs.struct_eq, target="ase"
+    structure = convert_structure(gbcode_GBstruct, target=target)
+    treated_struct = convert_structure(
+        merged_gbcode_GBstruct_equilibrated_bulkvol_struct_eq, target=target
     )
-    wf.sorted_structure = wrap_and_sort_structure(wf.treated_struct)
+    sorted_structure = wrap_and_sort_structure(treated_struct)
 
-    return (wf.structure, wf.sorted_structure)
+    return structure, sorted_structure

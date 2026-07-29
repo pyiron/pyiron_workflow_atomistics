@@ -12,6 +12,7 @@ module exercises:
 
 from __future__ import annotations
 
+import pyiron_workflow as pwf
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -32,7 +33,8 @@ def test_optimise_cubic_lattice_parameter_runs_end_to_end(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    wf = optimise_cubic_lattice_parameter(
+    out = pwf.run(
+        optimise_cubic_lattice_parameter,
         structure=structure,
         name="Cu",
         crystalstructure="fcc",
@@ -41,8 +43,7 @@ def test_optimise_cubic_lattice_parameter_runs_end_to_end(tmp_path):
         strain_range=(-0.05, 0.05),
         num_points=5,
         eos_type="birchmurnaghan",
-    )
-    out = wf.run()
+    ).outputs
 
     a0 = out["a0"]
     B = out["B"]
@@ -68,7 +69,7 @@ def test_generate_structures_defaults_to_iso_axes():
     from pyiron_workflow_atomistics.physics.bulk import generate_structures
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True)
-    structures = generate_structures.node_function(
+    structures = generate_structures(
         base_structure=structure, axes=None, strain_range=(-0.05, 0.05), num_points=3
     )
     assert len(structures) == 3
@@ -83,7 +84,7 @@ def test_generate_structures_with_unknown_axis_warns():
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True)
     with pytest.warns(UserWarning, match="Unknown axis label"):
-        out = generate_structures.node_function(
+        out = generate_structures(
             base_structure=structure,
             axes=["a", "garbage"],
             strain_range=(-0.05, 0.05),

@@ -6,11 +6,12 @@ LAMMPS, ...) must satisfy so physics workflows can use them interchangeably.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 
@@ -108,21 +109,21 @@ class EngineOutput:
         return asdict(self)
 
 
-@pwf.as_function_node("subengine")
+@fr.atomic("subengine")
 def subengine(engine: Engine, subdir: str) -> Engine:
     """Function-node wrapper around :meth:`Engine.with_working_directory`.
 
-    Use this inside ``@pwf.as_macro_node`` graphs where the engine arrives
+    Use this inside ``@fr.workflow`` graphs where the engine arrives
     as an input channel. Calling ``engine.with_working_directory(...)``
-    directly in a macro body dispatches the channel's ``__call__`` and
-    crashes with ``ReadinessError``; routing the same call through this
+    directly in a macro body would require parsing attribute calls and thus fails;
+    routing the same call through this
     node delays the resolution to graph-execution time.
     """
     subengine = engine.with_working_directory(subdir)
     return subengine
 
 
-@pwf.as_function_node("path")
+@fr.atomic("path")
 def subdir_path(engine: Engine, subdir: str) -> str:
     """Function-node returning ``os.path.join(engine.working_directory, subdir)``.
 
@@ -135,7 +136,7 @@ def subdir_path(engine: Engine, subdir: str) -> str:
     return path
 
 
-@pwf.as_function_node("engine_output")
+@fr.atomic("engine_output")
 def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     """Execute ``engine`` on ``structure``.
 
@@ -151,7 +152,8 @@ def calculate(structure: Atoms, engine: Engine) -> EngineOutput:
     ...     calculator=EMT(),
     ...     working_directory="./_demo",
     ... )
-    >>> out = calculate.node_function(bulk("Cu", "fcc", a=3.6, cubic=True), engine)  # doctest: +SKIP
+    >>> out = calculate(bulk("Cu", "fcc", a=3.6, cubic=True), engine)  # doctest: +SKIP
     """
     fn, kwargs = engine.get_calculate_fn(structure)
-    return fn(structure=structure, **kwargs)
+    engine_output = fn(structure=structure, **kwargs)
+    return engine_output

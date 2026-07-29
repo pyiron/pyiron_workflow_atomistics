@@ -1,9 +1,9 @@
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 
-@pwf.as_function_node
+@fr.atomic
 def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     """
     Add vacuum padding to an ASE Atoms object along a specified axis.
@@ -43,14 +43,14 @@ def add_vacuum(atoms, vacuum_length=20, axis="c", center_atoms=True):
     return new_atoms
 
 
-@pwf.as_function_node("supercell")
+@fr.atomic("supercell")
 def create_supercell(base_structure: Atoms, supercell_repeats: tuple) -> Atoms:
     # Create the supercell
     supercell = base_structure.repeat(supercell_repeats)
     return supercell
 
 
-@pwf.as_function_node("supercell")
+@fr.atomic("supercell")
 def create_supercell_with_min_dimensions(
     base_structure: Atoms, min_dimensions=None
 ) -> Atoms:
@@ -80,7 +80,7 @@ def create_supercell_with_min_dimensions(
 
     # Determine repeat factors for each axis
     repeats = []
-    for length, min_len in zip(lengths, min_dimensions):
+    for length, min_len in zip(lengths, min_dimensions, strict=False):
         if min_len is None:
             repeats.append(1)
         else:
@@ -93,7 +93,7 @@ def create_supercell_with_min_dimensions(
     return supercell
 
 
-@pwf.as_function_node("rattled_structure")
+@fr.atomic("rattled_structure")
 def rattle(structure: Atoms, rattle: float | None = None) -> Atoms:
     """Return a copy of ``structure`` with atomic positions perturbed.
 
@@ -110,43 +110,3 @@ def rattle(structure: Atoms, rattle: float | None = None) -> Atoms:
     if rattle:
         rattled_structure.rattle(rattle)
     return rattled_structure
-
-
-# Because it is really fucking annoying to have to access the data from the dataframe when all I want is a list.
-@pwf.as_function_node
-def forloop_function(function, kwarg_to_iterate, kwarg_values, other_kwargs=None):
-    """
-    Applies `function` repeatedly changing a single keyword argument over given values,
-    merged with any fixed `other_kwargs`.
-
-    :param function:          callable to invoke
-    :param kwarg_to_iterate:  str               # name of the keyword argument to iterate
-    :param kwarg_values:      Iterable         # values to assign to that keyword
-    :param other_kwargs:      dict, optional   # any additional fixed keywords
-    :return:                  list             # outputs from each call
-    # Example usage:
-    # def compute(a, b, scale=1):
-    #     return scale * (a + b)
-    #
-    # results = forloop_function(
-    #     function=compute,
-    #     kwarg_to_iterate='a',
-    #     kwarg_values=[1,2,3],
-    #     other_kwargs={'b':10, 'scale':0.5}
-    # )
-    # print(results)  # [5.5, 6.0, 6.5]
-    """
-    other_kwargs = other_kwargs or {}
-    output_lst = []
-
-    # Iterate over all provided values for the single kwarg
-    for val in kwarg_values:
-        # Build parameters for this call
-        params = {kwarg_to_iterate: val}
-        # Merge in fixed kwargs
-        params.update(other_kwargs)
-        # Invoke the function
-        result = function(**params)
-        output_lst.append(result)
-
-    return output_lst

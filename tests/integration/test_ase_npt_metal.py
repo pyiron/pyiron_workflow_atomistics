@@ -23,6 +23,6 @@ def test_npt_berendsen_metal_runs(tmp_path):
         initial_temperature=600.0,
     )
     eng = ASEEngine(EngineInput=md, calculator=EMT(), working_directory=str(tmp_path))
-    out = calculate.node_function(atoms, engine=eng)
+    out = calculate(atoms, engine=eng)
     assert out.converged is True
     assert out.structures and out.structures[-1].get_temperature() > 0

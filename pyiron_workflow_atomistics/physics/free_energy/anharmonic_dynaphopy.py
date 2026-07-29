@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine
@@ -18,7 +18,7 @@ from pyiron_workflow_atomistics.physics.phonons.md_renormalised import (
 )
 
 
-@pwf.as_function_node("free_energy_per_atom", "entropy_per_atom", "cv_per_atom")
+@fr.atomic
 def _free_energy_from_spectrum(
     frequencies: np.ndarray,  # (n_q, n_band) THz
     q_weights: np.ndarray,  # (n_q,), sums to 1
@@ -67,9 +67,11 @@ def _free_energy_from_spectrum(
         # T=0: only zero-point energy contributes; S and Cv are zero.
         F_modes = 0.5 * hbar_omega_eV
         F_modes = np.where(is_acoustic_gamma, 0.0, F_modes)
-        F = float((weights[:, None] * F_modes).sum() / n_atoms_primitive)
-        S = 0.0
-        Cv = 0.0
+        free_energy_per_atom = float(
+            (weights[:, None] * F_modes).sum() / n_atoms_primitive
+        )
+        entropy_per_atom = 0.0
+        cv_per_atom = 0.0
     else:
         kT_eV = c.Boltzmann * temperature / c.eV
         x = hbar_omega_eV / kT_eV
@@ -94,11 +96,13 @@ def _free_energy_from_spectrum(
                 is_acoustic_gamma | (denom == 0), 0.0, num / denom
             )
 
-        F = float((weights[:, None] * F_modes).sum() / n_atoms_primitive)
-        S = float((weights[:, None] * S_modes).sum() / n_atoms_primitive)
-        Cv = float((weights[:, None] * Cv_modes).sum() / n_atoms_primitive)
+        free_energy_per_atom = float(
+            (weights[:, None] * F_modes).sum() / n_atoms_primitive
+        )
+        entropy_per_atom = float((weights[:, None] * S_modes).sum() / n_atoms_primitive)
+        cv_per_atom = float((weights[:, None] * Cv_modes).sum() / n_atoms_primitive)
 
-    return F, S, Cv
+    return free_energy_per_atom, entropy_per_atom, cv_per_atom
 
 
 def _commensurate_q_points(structure: Atoms, q_mesh) -> tuple[np.ndarray, np.ndarray]:
@@ -137,7 +141,7 @@ def _commensurate_q_points(structure: Atoms, q_mesh) -> tuple[np.ndarray, np.nda
     return q_points, weights
 
 
-@pwf.as_function_node("q_points", "q_weights")
+@fr.atomic
 def _commensurate_q_points_node(structure: Atoms, q_mesh):
     """Function-node wrapper for `_commensurate_q_points`.
 
@@ -149,7 +153,7 @@ def _commensurate_q_points_node(structure: Atoms, q_mesh):
     return q_points, q_weights
 
 
-@pwf.as_function_node("n_atoms")
+@fr.atomic
 def _n_atoms_node(structure: Atoms) -> int:
     """Return ``len(structure)`` at execution time.
 
@@ -159,7 +163,7 @@ def _n_atoms_node(structure: Atoms) -> int:
     return len(structure)
 
 
-@pwf.as_function_node("guarded_frequencies", "n_guarded")
+@fr.atomic
 def _guard_unphysical_frequencies(
     renormalised_frequencies: np.ndarray,
     harmonic_frequencies: np.ndarray,
@@ -203,12 +207,12 @@ def _guard_unphysical_frequencies(
         0.0,
     )
     needs_guard = ~np.isfinite(renorm) | (relative_shift > max_relative_shift)
-    out = np.where(needs_guard, harm, out)
+    guarded_frequencies = np.where(needs_guard, harm, out)
     n_guarded = int(np.sum(needs_guard))
-    return out, n_guarded
+    return guarded_frequencies, n_guarded
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def _pack_anharmonic_dynaphopy_output(
     structure: Atoms,
     md_phonon_output,
@@ -249,7 +253,7 @@ def _pack_anharmonic_dynaphopy_output(
             "`production_steps` or `q_mesh` for more trustworthy anharmonic values.",
             stacklevel=2,
         )
-    return FreeEnergyOutput(
+    free_energy_output = FreeEnergyOutput(
         mode="anharmonic_dynaphopy",
         reference_phase="solid",
         free_energy=float(free_energy_per_atom),
@@ -277,11 +281,11 @@ def _pack_anharmonic_dynaphopy_output(
         dynaphopy_handle=(md_phonon_output.quasiparticle if keep_handles else None),
         phonopy_handle=md_phonon_output.phonopy if keep_handles else None,
     )
+    return free_energy_output
 
 
-@pwf.api.as_macro_node("free_energy_output")
+@fr.workflow("free_energy_output")
 def anharmonic_free_energy_dynaphopy(
-    wf,
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix,
@@ -325,17 +329,19 @@ def anharmonic_free_energy_dynaphopy(
     inputs the result will still be per-unit-cell-atom, which is the consistent
     convention across the free-energy module.
     """
-    wf.paths = _resolve_simfolder(
+    simfolder, sub_engine = _resolve_simfolder(
         engine=engine,
         working_directory=working_directory,
         subdir=subdir,
     )
-    wf.q = _commensurate_q_points_node(structure=structure, q_mesh=q_mesh)
-    wf.n_atoms = _n_atoms_node(structure=structure)
+    q_points, q_weights = _commensurate_q_points_node(
+        structure=structure, q_mesh=q_mesh
+    )
+    n_atoms = _n_atoms_node(structure=structure)
 
-    wf.md_renorm = calculate_phonon_md_renormalisation(
+    md_phonon_output = calculate_phonon_md_renormalisation(
         structure=structure,
-        engine=wf.paths.outputs.sub_engine,
+        engine=sub_engine,
         fc2_supercell_matrix=fc2_supercell_matrix,
         temperature=temperature,
         equilibration_steps=equilibration_steps,
@@ -343,43 +349,44 @@ def anharmonic_free_energy_dynaphopy(
         time_step=time_step,
         thermostat_time_constant=thermostat_time_constant,
         seed=seed,
-        q_points=wf.q.outputs.q_points,
+        q_points=q_points,
         phono3py_output=phono3py_output,
         power_spectra=False,
         keep_handles=True,  # we need .phonopy / .quasiparticle handles to extract data
     )
-    wf.guarded = _guard_unphysical_frequencies(
-        renormalised_frequencies=(
-            wf.md_renorm.outputs.md_phonon_output.renormalised_frequencies
-        ),
-        harmonic_frequencies=(
-            wf.md_renorm.outputs.md_phonon_output.harmonic_frequencies
-        ),
+    harmonic_frequencies = fr.std.get_attr(md_phonon_output, "harmonic_frequencies")
+    renormalised_frequencies = fr.std.get_attr(
+        md_phonon_output, "renormalised_frequencies"
     )
-    wf.spectrum = _free_energy_from_spectrum(
-        frequencies=wf.guarded.outputs.guarded_frequencies,
-        q_weights=wf.q.outputs.q_weights,
+    guarded_frequencies, n_guarded = _guard_unphysical_frequencies(
+        renormalised_frequencies=renormalised_frequencies,
+        harmonic_frequencies=harmonic_frequencies,
+    )
+    # spectrum = _free_energy_from_spectrum(
+    free_energy_per_atom, entropy_per_atom, cv_per_atom = _free_energy_from_spectrum(
+        frequencies=guarded_frequencies,
+        q_weights=q_weights,
         temperature=temperature,
         # Per-unit-cell-atom: primitive equals unitcell for fcc cubic; see docstring.
-        n_atoms_primitive=wf.n_atoms.outputs.n_atoms,
+        n_atoms_primitive=n_atoms,
     )
-    wf.synthesis = _pack_anharmonic_dynaphopy_output(
+    free_energy_output = _pack_anharmonic_dynaphopy_output(
         structure=structure,
-        md_phonon_output=wf.md_renorm.outputs.md_phonon_output,
-        q_weights=wf.q.outputs.q_weights,
-        free_energy_per_atom=wf.spectrum.outputs.free_energy_per_atom,
-        entropy_per_atom=wf.spectrum.outputs.entropy_per_atom,
-        cv_per_atom=wf.spectrum.outputs.cv_per_atom,
+        md_phonon_output=md_phonon_output,
+        q_weights=q_weights,
+        free_energy_per_atom=free_energy_per_atom,
+        entropy_per_atom=entropy_per_atom,
+        cv_per_atom=cv_per_atom,
         temperature=temperature,
         q_mesh=q_mesh,
-        n_guarded=wf.guarded.outputs.n_guarded,
-        simfolder=wf.paths.outputs.simfolder,
+        n_guarded=n_guarded,
+        simfolder=simfolder,
         keep_handles=keep_handles,
     )
-    return wf.synthesis.outputs.free_energy_output
+    return free_energy_output
 
 
-@pwf.as_function_node("per_T_outputs")
+@fr.atomic
 def _sweep_dynaphopy_over_T(
     structure: Atoms,
     engine: Engine,
@@ -399,10 +406,10 @@ def _sweep_dynaphopy_over_T(
     macro body) so it executes with concrete values at run time instead of
     against pyiron_workflow ``UserInput`` proxies at graph-build time.
     """
-    outputs: list = []
+    per_T_outputs: list = []
     for i, T in enumerate(temperatures):
         sub_seed = None if seed is None else int(seed) + i
-        sub_wf = anharmonic_free_energy_dynaphopy(
+        result = anharmonic_free_energy_dynaphopy(
             structure=structure,
             engine=engine,
             fc2_supercell_matrix=fc2_supercell_matrix,
@@ -417,15 +424,11 @@ def _sweep_dynaphopy_over_T(
             subdir=f"T_{i:03d}_{float(T):.1f}K",
             keep_handles=False,
         )
-        result = sub_wf.run()
-        # Unwrap DotDict if pyiron_workflow returned the macro output that way.
-        if isinstance(result, dict):
-            result = result["free_energy_output"]
-        outputs.append(result)
-    return outputs
+        per_T_outputs.append(result)
+    return per_T_outputs
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def _stack_tdi_outputs(
     per_T_outputs: list,
     structure,
@@ -464,7 +467,7 @@ def _stack_tdi_outputs(
     lw = np.stack([np.asarray(o.linewidths) for o in per_T_outputs], axis=0)
 
     derivative_warning = n_T < 3
-    return FreeEnergyOutput(
+    free_energy_output = FreeEnergyOutput(
         mode="anharmonic_dynaphopy_tdi",
         reference_phase="solid",
         free_energy=float(F[0]),
@@ -486,11 +489,11 @@ def _stack_tdi_outputs(
         renormalised_frequencies_per_T=renorm,
         linewidths_per_T=lw,
     )
+    return free_energy_output
 
 
-@pwf.api.as_macro_node("free_energy_output")
+@fr.workflow
 def anharmonic_free_energy_dynaphopy_tdi(
-    wf,
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix,
@@ -518,12 +521,12 @@ def anharmonic_free_energy_dynaphopy_tdi(
     ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md`` for
     the renormalised-harmonic-over-T justification.
     """
-    wf.paths = _resolve_simfolder(
+    simfolder, _ = _resolve_simfolder(
         engine=engine,
         working_directory=working_directory,
         subdir=subdir,
     )
-    wf.sweep = _sweep_dynaphopy_over_T(
+    per_T_outputs = _sweep_dynaphopy_over_T(
         structure=structure,
         engine=engine,
         fc2_supercell_matrix=fc2_supercell_matrix,
@@ -534,11 +537,11 @@ def anharmonic_free_energy_dynaphopy_tdi(
         thermostat_time_constant=thermostat_time_constant,
         seed=seed,
         q_mesh=q_mesh,
-        working_directory=wf.paths.outputs.simfolder,
+        working_directory=simfolder,
     )
-    wf.stack = _stack_tdi_outputs(
-        per_T_outputs=wf.sweep.outputs.per_T_outputs,
+    free_energy_output = _stack_tdi_outputs(
+        per_T_outputs=per_T_outputs,
         structure=structure,
         temperatures=temperatures,
     )
-    return wf.stack.outputs.free_energy_output
+    return free_energy_output

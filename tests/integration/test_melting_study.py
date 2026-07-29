@@ -1,3 +1,4 @@
+import pyiron_workflow as pwf
 import pytest
 from ase.calculators.emt import EMT
 
@@ -30,7 +31,8 @@ def test_calculate_melting_point_end_to_end(tmp_path):
     eng = ASEEngine(
         EngineInput=CalcInputStatic(), calculator=EMT(), working_directory=str(tmp_path)
     )
-    res = calculate_melting_point.node_function(eng, mi)
+    out = pwf.run(calculate_melting_point, engine=eng, melting_input=mi)
+    res = out.outputs["result"]
     assert res.element == "Al"
     assert res.initial_guess >= 0
     assert isinstance(res.melting_temperature, float)

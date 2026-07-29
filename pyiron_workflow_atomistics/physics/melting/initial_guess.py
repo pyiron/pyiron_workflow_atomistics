@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow as pwf
+import flowrep as fr
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import cna_fractions
 from pyiron_workflow_atomistics.engine import CalcInputMD, calculate
@@ -10,7 +10,7 @@ from pyiron_workflow_atomistics.engine import CalcInputMD, calculate
 
 def _fraction(structure, key_max):
     """Population fraction of the dominant crystalline phase ``key_max``."""
-    counts = cna_fractions.node_function(structure)
+    counts = cna_fractions(structure)
     return counts.get(key_max, 0) / len(structure)
 
 
@@ -43,10 +43,10 @@ def _heated_solid(
     )
     tag = f"{subdir}_{int(round(temperature))}"
     eng = replace(engine, EngineInput=md).with_working_directory(tag)
-    return calculate.node_function(structure, engine=eng).final_structure
+    return calculate(structure, engine=eng).final_structure
 
 
-@pwf.as_function_node("t_guess", "structure")
+@fr.atomic("t_guess", "structure")
 def estimate_melting_temperature(
     structure,
     engine,

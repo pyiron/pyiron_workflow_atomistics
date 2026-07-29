@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow as pwf
+import flowrep as fr
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import voronoi_max_mean
 from pyiron_workflow_atomistics.analysis.trajectory import (
@@ -23,7 +23,7 @@ def _engine_with(engine, calc_input, subdir):
     return replace(engine, EngineInput=calc_input).with_working_directory(subdir)
 
 
-@pwf.as_function_node("relaxed_structure", "engine_output")
+@fr.atomic
 def npt_relax_solid(
     structure,
     engine,
@@ -53,11 +53,12 @@ def npt_relax_solid(
         seed=seed,
         compressibility=1e-6,
     )
-    out = calculate.node_function(structure, engine=_engine_with(engine, md, subdir))
-    return out.final_structure, out
+    engine_output = calculate(structure, engine=_engine_with(engine, md, subdir))
+    relaxed_structure = engine_output.final_structure
+    return relaxed_structure, engine_output
 
 
-@pwf.as_function_node("interface_structure")
+@fr.atomic
 def build_solid_liquid_interface(
     structure,
     engine,
@@ -69,7 +70,7 @@ def build_solid_liquid_interface(
     subdir="interface",
 ):
     """Freeze lower half, melt upper half at t_liquid (NVT), recool to t_solid."""
-    frozen = freeze_half.node_function(structure)
+    frozen = freeze_half(structure)
     melt_md = CalcInputMD(
         mode="NVT",
         thermostat="langevin",
@@ -80,7 +81,7 @@ def build_solid_liquid_interface(
         initial_temperature=2.0 * t_liquid,
         seed=seed,
     )
-    melted = calculate.node_function(
+    melted = calculate(
         frozen, engine=_engine_with(engine, melt_md, f"{subdir}_melt")
     ).final_structure
     cool_md = CalcInputMD(
@@ -93,14 +94,14 @@ def build_solid_liquid_interface(
         initial_temperature=2.0 * t_solid,
         seed=seed,
     )
-    cooled = calculate.node_function(
+    cooled = calculate(
         melted, engine=_engine_with(engine, cool_md, f"{subdir}_cool")
     ).final_structure
-    interface_structure = unfreeze.node_function(cooled)
+    interface_structure = unfreeze(cooled)
     return interface_structure
 
 
-@pwf.as_function_node("records")
+@fr.atomic
 def strain_scan_nvt_nve(
     structure,
     engine,
@@ -117,7 +118,7 @@ def strain_scan_nvt_nve(
     """For each strain: NVT-equilibrate then NVE; record T, P, solid fraction, voronoi."""
     records = []
     for i, strain in enumerate(strains):
-        strained = strain_cell_along_z.node_function(structure, strain)
+        strained = strain_cell_along_z(structure, strain)
         nvt_md = CalcInputMD(
             mode="NVT",
             thermostat="langevin",
@@ -128,7 +129,7 @@ def strain_scan_nvt_nve(
             initial_temperature=2.0 * temperature,
             seed=seed,
         )
-        equil = calculate.node_function(
+        equil = calculate(
             strained, engine=_engine_with(engine, nvt_md, f"{subdir}_nvt_{i:03d}")
         ).final_structure
         # The NVE input `equil` is already NVT-equilibrated at `temperature`
@@ -145,20 +146,16 @@ def strain_scan_nvt_nve(
             initial_temperature=temperature,
             seed=seed,
         )
-        nve_out = calculate.node_function(
+        nve_out = calculate(
             equil, engine=_engine_with(engine, nve_md, f"{subdir}_nve_{i:03d}")
         )
-        vmax, vmean = voronoi_max_mean.node_function(nve_out.final_structure)
+        vmax, vmean = voronoi_max_mean(nve_out.final_structure)
         records.append(
             {
                 "strain": strain,
-                "mean_T": temperatures_from_trajectory.node_function(
-                    nve_out, last_n=last_n
-                ),
-                "mean_P": pressures_from_trajectory.node_function(
-                    nve_out, last_n=last_n
-                ),
-                "solid_fraction": solid_fraction_kde.node_function(
+                "mean_T": temperatures_from_trajectory(nve_out, last_n=last_n),
+                "mean_P": pressures_from_trajectory(nve_out, last_n=last_n),
+                "solid_fraction": solid_fraction_kde(
                     nve_out.final_structure, crystalstructure
                 ),
                 "voronoi_max": vmax,

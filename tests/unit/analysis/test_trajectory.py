@@ -21,7 +21,7 @@ def test_temperatures_from_trajectory_mean():
     out = EngineOutput(
         final_structure=frames[-1], final_energy=0.0, converged=True, structures=frames
     )
-    T = temperatures_from_trajectory.node_function(out, last_n=5)
+    T = temperatures_from_trajectory(out, last_n=5)
     assert abs(T - 300.0) < 1e-6
 
 
@@ -38,7 +38,7 @@ def test_pressures_from_trajectory_virial_plus_kinetic():
         structures=[frame],
         stresses=[svoigt],
     )
-    P = pressures_from_trajectory.node_function(out, last_n=1)
+    P = pressures_from_trajectory(out, last_n=1)
     p_kin = n * units.kB * 300.0 / V  # eV/A^3
     expected = (p_vir + p_kin) * 160.21766208  # GPa
     assert abs(P - expected) < 1e-6
@@ -56,6 +56,6 @@ def test_pressures_accepts_full_3x3_stress():
         structures=[frame],
         stresses=[full],
     )
-    P = pressures_from_trajectory.node_function(out, last_n=1)
+    P = pressures_from_trajectory(out, last_n=1)
     p_kin = n * units.kB * 300.0 / (a**3)
     assert abs(P - (p_vir + p_kin) * 160.21766208) < 1e-6

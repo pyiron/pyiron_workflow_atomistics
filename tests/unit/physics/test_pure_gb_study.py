@@ -24,6 +24,7 @@ from __future__ import annotations
 import pathlib
 
 import numpy as np
+import pyiron_workflow as pwf
 import pytest
 
 EAM_PATH = pathlib.Path(__file__).resolve().parents[3] / "notebooks" / "Al-Fe.eam.fs"
@@ -107,8 +108,11 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
         calculator=EAM(potential=str(EAM_PATH)),
         working_directory=str(tmp_path),
     )
-
-    wf = pure_gb_study(
+    result = pwf.run(
+        pure_gb_study,
+        pwf.RunConfig(dag_layers_multithreaded=False),
+        # With multithreading, ase complains
+        # AttributeError: 'PrimitiveNeighborList' object has no attribute 'neighbors'. Did you mean: 'get_neighbors'?
         gb_structure=gb,
         equil_bulk_volume=v0,
         equil_bulk_energy=e0,
@@ -127,7 +131,7 @@ def test_pure_gb_study_runs_end_to_end(tmp_path):
         ),
         PlotCleave_Input=PlotCleaveInput(),
     )
-    out = wf.run()
+    out = result.outputs
 
     # --- final length-optimised structure ---
     final_struct = out["final_pure_grain_boundary_structure"]
@@ -182,46 +186,12 @@ def test_pure_gb_study_constructs_graph_without_running():
     """Graph construction alone catches type-hint and channel-shape regressions
     without paying for any EAM relaxation. Runs in milliseconds.
     """
-    from ase.calculators.eam import EAM
-
-    from pyiron_workflow_atomistics.engine import (
-        ASEEngine,
-        CalcInputMinimize,
-        CalcInputStatic,
-    )
-    from pyiron_workflow_atomistics.physics._grain_boundary_helpers.dataclass_storage import (
-        CleaveGBStructureInput,
-        PlotCleaveInput,
-    )
     from pyiron_workflow_atomistics.physics.grain_boundary import pure_gb_study
 
-    gb, lc = _build_s3_ra110_bcc_fe_bicrystal(size_z=2)
-
-    eng_min = ASEEngine(
-        EngineInput=CalcInputMinimize(
-            force_convergence_tolerance=0.5, max_iterations=5
-        ),
-        calculator=EAM(potential=str(EAM_PATH)),
-        working_directory=".",
-    )
-    eng_static = ASEEngine(
-        EngineInput=CalcInputStatic(),
-        calculator=EAM(potential=str(EAM_PATH)),
-        working_directory=".",
-    )
-
-    # Graph construction wires up every channel; passes only if every type hint
-    # and channel-shape contract along the path is honoured.
-    wf = pure_gb_study(
-        gb_structure=gb,
-        equil_bulk_volume=11.0,
-        equil_bulk_energy=-4.0,
-        extensions_stage1=[-0.05, 0.0, 0.05],
-        extensions_stage2=[-0.02, 0.0, 0.02],
-        engine=eng_min,
-        static_engine=eng_static,
-        CleaveGBStructure_Input=CleaveGBStructureInput(axis_to_cleave="c"),
-        PlotCleave_Input=PlotCleaveInput(),
-    )
+    node = pwf.node(pure_gb_study)
     # Don't run — just check the macro was assembled.
-    assert wf is not None
+    assert node is not None
+
+    # Validate type checking on all the edges
+    validation_report = pwf.tools.validate_plan(node, do_ontology=False)
+    assert validation_report.valid

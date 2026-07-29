@@ -628,7 +628,7 @@ def test_free_energy_node_raises_when_calphy_missing(monkeypatch, fcc_al_atoms):
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ModuleNotFoundError, match=r"pip install"):
-        free_energy.node_function(
+        free_energy(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -650,7 +650,7 @@ def test_free_energy_node_rejects_non_default_engine_field(fcc_al_atoms):
     eng.raw_script = "run 1000"
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"raw_script"):
-        free_energy.node_function(
+        free_energy(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -673,7 +673,7 @@ def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
     s = fcc_al_atoms.copy()
     s.pbc = (True, True, False)
     with pytest.raises(ValueError, match=r"PBC"):
-        free_energy.node_function(
+        free_energy(
             structure=s,
             lammps_engine=eng,
             potential=pot,
@@ -704,7 +704,7 @@ def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_at
     monkeypatch.chdir(tmp_path)
     cwd_before = os.getcwd()
     with pytest.raises(RuntimeError, match="calphy exploded"):
-        free_energy.node_function(
+        free_energy(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -749,7 +749,7 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
     )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
 
-    out = free_energy.node_function(
+    out = free_energy(
         structure=cu,
         lammps_engine=eng,
         potential=pot,
@@ -790,7 +790,7 @@ def test_reversible_scaling_temperature_validates_tuple_shape(fcc_al_atoms):
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"temperature_range"):
-        reversible_scaling_temperature.node_function(
+        reversible_scaling_temperature(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -820,7 +820,7 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
     )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
 
-    out = reversible_scaling_temperature.node_function(
+    out = reversible_scaling_temperature(
         structure=cu,
         lammps_engine=eng,
         potential=pot,
@@ -860,7 +860,7 @@ def test_reversible_scaling_pressure_validates_tuple_shape(fcc_al_atoms):
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"pressure_range"):
-        reversible_scaling_pressure.node_function(
+        reversible_scaling_pressure(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -889,7 +889,7 @@ def test_melting_temperature_validates_positive_guess(fcc_al_atoms):
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
     with pytest.raises(ValueError, match=r"positive"):
-        melting_temperature.node_function(
+        melting_temperature(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -918,7 +918,7 @@ def test_melting_temperature_runs(tmp_path):
         pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
     )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
-    out = melting_temperature.node_function(
+    out = melting_temperature(
         structure=cu,
         lammps_engine=eng,
         potential=pot,
@@ -951,7 +951,7 @@ def test_alchemy_requires_target_potential_strings(fcc_al_atoms):
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command="lmp")
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/A.eam.alloy Al")
     with pytest.raises(ValueError, match=r"pair_style_target"):
-        alchemy.node_function(
+        alchemy(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -982,7 +982,7 @@ def test_composition_scaling_requires_output_composition(fcc_al_atoms):
         pair_style="eam/alloy", pair_coeff="* * /tmp/AB.eam.alloy A B"
     )
     with pytest.raises(ValueError, match=r"output_chemical_composition"):
-        composition_scaling.node_function(
+        composition_scaling(
             structure=fcc_al_atoms,
             lammps_engine=eng,
             potential=pot,
@@ -1056,7 +1056,7 @@ def test_reversible_scaling_pressure_smoke(tmp_path):
     )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
 
-    out = reversible_scaling_pressure.node_function(
+    out = reversible_scaling_pressure(
         structure=cu,
         lammps_engine=eng,
         potential=pot,
@@ -1091,7 +1091,7 @@ def test_alchemy_smoke(tmp_path):
     cu_potential = f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
     pot = LammpsPotential(pair_style="eam/alloy", pair_coeff=cu_potential)
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
-    out = alchemy.node_function(
+    out = alchemy(
         structure=cu,
         lammps_engine=eng,
         potential=pot,
@@ -1129,7 +1129,7 @@ def test_composition_scaling_smoke(tmp_path):
         pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
     )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
-    out = composition_scaling.node_function(
+    out = composition_scaling(
         structure=cu,
         lammps_engine=eng,
         potential=pot,

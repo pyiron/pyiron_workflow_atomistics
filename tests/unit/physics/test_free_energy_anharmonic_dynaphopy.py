@@ -60,7 +60,7 @@ def test_free_energy_from_spectrum_matches_einstein_closed_form():
     omega_THz = 5.0
     frequencies = np.full((1, 3), omega_THz)  # 1 q, 3 bands, all identical
     q_weights = np.array([1.0])
-    F, S, Cv = _free_energy_from_spectrum.node_function(
+    F, S, Cv = _free_energy_from_spectrum(
         frequencies=frequencies,
         q_weights=q_weights,
         temperature=300.0,
@@ -83,7 +83,7 @@ def test_free_energy_from_spectrum_rejects_imaginary_modes():
     frequencies = np.array([[5.0, -1.0, 3.0]])  # one imaginary
     q_weights = np.array([1.0])
     with pytest.raises(ValueError, match="imaginary modes"):
-        _free_energy_from_spectrum.node_function(
+        _free_energy_from_spectrum(
             frequencies=frequencies,
             q_weights=q_weights,
             temperature=300.0,
@@ -121,8 +121,7 @@ def test_anharmonic_free_energy_dynaphopy_emt_al(tmp_path):
         temperatures=(300.0,),
         working_directory=str(tmp_path),
         subdir="harmonic_ref",
-    ).run()
-    out_h = out_h["free_energy_output"] if isinstance(out_h, dict) else out_h
+    )
 
     out_a = anharmonic_free_energy_dynaphopy(
         structure=structure,
@@ -133,8 +132,7 @@ def test_anharmonic_free_energy_dynaphopy_emt_al(tmp_path):
         q_mesh=(5, 5, 5),
         working_directory=str(tmp_path),
         subdir="anharmonic_T300",
-    ).run()
-    out_a = out_a["free_energy_output"] if isinstance(out_a, dict) else out_a
+    )
 
     assert out_a.mode == "anharmonic_dynaphopy"
     assert out_a.temperature == 300.0
@@ -170,10 +168,10 @@ def test_stack_tdi_outputs_central_differences():
             linewidths=np.zeros((1, 12)),
             q_mesh=(7, 7, 7),
         )
-        for T, F in zip(Ts, Fs)
+        for T, F in zip(Ts, Fs, strict=False)
     ]
     structure = type("FakeAtoms", (), {"__len__": lambda self: 4})()
-    out = _stack_tdi_outputs.node_function(
+    out = _stack_tdi_outputs(
         per_T_outputs=per_T,
         structure=structure,
         temperatures=Ts,
@@ -212,8 +210,7 @@ def test_anharmonic_free_energy_dynaphopy_tdi_emt_al(tmp_path):
         q_mesh=(5, 5, 5),
         working_directory=str(tmp_path),
         subdir="anharmonic_tdi",
-    ).run()
-    out = out["free_energy_output"] if isinstance(out, dict) else out
+    )
 
     assert out.mode == "anharmonic_dynaphopy_tdi"
     assert out.temperature_array.shape == (2,)

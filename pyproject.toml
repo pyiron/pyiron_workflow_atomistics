@@ -10,32 +10,32 @@ name = "pyiron_workflow_atomistics"
 description = "A pyiron module for atomistic simulation workflows"
 readme = { file = "docs/README.md", content-type = "text/markdown" }
 keywords = ["pyiron", "atomistics", "workflow"]
-requires-python = ">=3.9, <3.14"
+requires-python = ">=3.11, <3.14"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Topic :: Scientific/Engineering",
     "License :: OSI Approved :: BSD License",
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "numpy==2.2.6",
-    "pandas==3.0.3",
-    "matplotlib==3.11.0",
+    "flowrep==0.6.2",
+    "numpy==2.4.6",
+    "pandas==3.0.5",
+    "matplotlib==3.11.1",
     "ase==3.29.0",
     "scipy==1.17.1",
-    "pyiron-workflow==0.15.6",
+    "pyiron-workflow==0.19.0",
     "pymatgen==2026.5.4",
     "pyiron_snippets==1.4.0",
     "scikit-learn==1.9.0",
     "structuretoolkit==0.0.45",
     "pyscal3==3.3.2",
     "lz-GB-code==0.1.0",
-    "tqdm==4.68.4",
+    "tqdm==4.70.0",
 ]
 dynamic = ["version"]
 authors = [

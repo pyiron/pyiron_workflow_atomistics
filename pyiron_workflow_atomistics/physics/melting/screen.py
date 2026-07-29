@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-import pyiron_workflow as pwf
+import flowrep as fr
 from ase.data import atomic_numbers, reference_states
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import (
@@ -48,7 +48,7 @@ def _default_candidate_phases(element):
     return phases
 
 
-@pwf.as_function_node("t_guess", "structure", "observed_phase")
+@fr.atomic("t_guess", "structure", "observed_phase")
 def screen_phase(
     engine,
     element,
@@ -70,17 +70,15 @@ def screen_phase(
     (``observed_phase``) — which differs from ``crystalstructure`` when the seeded
     polymorph transforms on relaxation.
     """
-    structure = create_coexistence_supercell.node_function(
+    structure = create_coexistence_supercell(
         element, crystalstructure, a=a, n_atoms=n_atoms
     )
     relax_engine = replace(
         engine, EngineInput=CalcInputMinimize(relax_cell=True)
     ).with_working_directory(f"{subdir}_min")
-    relaxed = calculate.node_function(structure, engine=relax_engine).final_structure
-    observed_phase, _, distribution_half = analyse_reference_structure.node_function(
-        relaxed
-    )
-    t_guess, struct_at_guess = estimate_melting_temperature.node_function(
+    relaxed = calculate(structure, engine=relax_engine).final_structure
+    observed_phase, _, distribution_half = analyse_reference_structure(relaxed)
+    t_guess, struct_at_guess = estimate_melting_temperature(
         relaxed,
         engine,
         key_max=observed_phase,
@@ -121,7 +119,7 @@ def _select_for_refinement(screened, n_refine):
     return pool[: max(1, n_refine)]
 
 
-@pwf.as_function_node("result")
+@fr.atomic
 def melting_point_scan(engine, melting_input):
     """Discover the pre-melt phase and melting point across candidate polymorphs.
 
@@ -138,9 +136,9 @@ def melting_point_scan(engine, melting_input):
         a_cs = (
             mi.a
             if mi.a is not None
-            else estimate_lattice_constant.node_function(mi.element, engine, cs)
+            else estimate_lattice_constant(mi.element, engine, cs)
         )
-        t_guess, struct, observed = screen_phase.node_function(
+        t_guess, struct, observed = screen_phase(
             engine,
             mi.element,
             cs,
@@ -175,7 +173,7 @@ def melting_point_scan(engine, melting_input):
         t_guess, struct = artifacts[rec.crystalstructure]
         # Label refinement by the OBSERVED phase: that is the crystal actually
         # present in the warm seed, and the solid-fraction CNA target must match it.
-        res = refine_melting_point.node_function(
+        res = refine_melting_point(
             struct,
             engine,
             t_guess=t_guess,

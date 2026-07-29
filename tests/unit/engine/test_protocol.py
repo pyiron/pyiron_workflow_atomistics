@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 import numpy as np
 import pytest
@@ -81,5 +81,5 @@ def test_run_node_dispatches_to_engine():
         def with_working_directory(self, subdir: str) -> StubEngine:
             return StubEngine(working_directory=f"./{subdir}")
 
-    out = calculate.node_function(structure=structure, engine=StubEngine())
+    out = calculate(structure=structure, engine=StubEngine())
     assert out is sentinel_output

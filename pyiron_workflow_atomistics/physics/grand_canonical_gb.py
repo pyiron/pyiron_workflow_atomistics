@@ -14,9 +14,9 @@ from __future__ import annotations
 import dataclasses
 import logging
 
+import flowrep as fr
 import numpy as np
 import pandas as pd
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine.inputs import CalcInputMD, CalcInputMinimize
@@ -51,7 +51,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-@pwf.as_function_node("lower_slab", "upper_slab", "dlat")
+@fr.atomic
 def build_bicrystal_slabs(
     crystal: str,
     symbol: str,
@@ -166,13 +166,13 @@ def _validate_workflow_inputs(
 _DEFAULT_GCO_CONFIG = GCOConfig()
 
 
-@pwf.as_function_node("results", "best_structures")
+@fr.atomic
 def gco_search(
     minimize_engine: Engine,
     lower_slab: Atoms,
     upper_slab: Atoms,
     e_cohesive: float,
-    config: GCOConfig = _DEFAULT_GCO_CONFIG,
+    gco_config: GCOConfig = _DEFAULT_GCO_CONFIG,
     n_iters: int = 100,
     md_engine: Engine | None = None,
     seed: int = 0,
@@ -195,7 +195,7 @@ def gco_search(
     e_cohesive
         Bulk cohesive energy per atom in eV (negative). Used in the
         GB-energy formula.
-    config
+    gco_config
         ``GCOConfig`` with all algorithmic knobs.
     n_iters
         Number of iterations (per search).
@@ -229,13 +229,13 @@ def gco_search(
     _validate_workflow_inputs(
         minimize_engine=minimize_engine,
         md_engine=md_engine,
-        config=config,
+        config=gco_config,
         n_iters=n_iters,
         e_cohesive=e_cohesive,
     )
 
     rng = np.random.default_rng(seed)
-    weights = compute_weights(config)
+    weights = compute_weights(gco_config)
     best_egb = float("inf")
     kept_rows: list[dict] = []
     kept_atoms: list[Atoms] = []
@@ -246,20 +246,20 @@ def gco_search(
         bc = Bicrystal(
             lower=lower_slab,
             upper=upper_slab,
-            config=config,
+            config=gco_config,
             dlat=dlat,
             make_copy=True,  # Bicrystal.copy_ul() copies lower0/upper0 into lower/upper
         )
 
-        dx, dy = sample_xy_translation(upper_slab, rng, config.ngrid)
+        dx, dy = sample_xy_translation(upper_slab, rng, gco_config.ngrid)
         bc.shift_upper(dx, dy)
-        bc.get_bounds(config)
+        bc.get_bounds(gco_config)
         rx, ry = sample_xy_replications(rng, weights)
         bc.replicate(rx, ry)
         bc.get_gbplane_atoms_u()
-        bc.defect_upper(config, rng)
+        bc.defect_upper(gco_config, rng)
         bc.perturb_atoms(rng)
-        bc.join_gb(config)
+        bc.join_gb(gco_config)
 
         try:
             bc.find_and_swap_inters(rng)
@@ -278,14 +278,14 @@ def gco_search(
 
         # ---- optional MD -----------------------------------------------
         T, n_md = 0, 0
-        if md_engine is not None and rng.random() < config.md_run_probability:
-            T = sample_md_temperature(config, rng)
-            n_md = sample_md_steps(config, rng)
+        if md_engine is not None and rng.random() < gco_config.md_run_probability:
+            T = sample_md_temperature(gco_config, rng)
+            n_md = sample_md_steps(gco_config, rng)
             iter_md = _make_iter_md_engine(md_engine, T, n_md).with_working_directory(
                 f"iter_{i:05d}/md"
             )
             try:
-                out_md = calculate.node_function(structure=atoms, engine=iter_md)
+                out_md = calculate(structure=atoms, engine=iter_md)
             except Exception as exc:
                 logger.warning("iter %d MD failed: %s; skipping.", i, exc)
                 continue
@@ -294,7 +294,7 @@ def gco_search(
         # ---- minimize --------------------------------------------------
         iter_min = minimize_engine.with_working_directory(f"iter_{i:05d}/min")
         try:
-            out = calculate.node_function(structure=atoms, engine=iter_min)
+            out = calculate(structure=atoms, engine=iter_min)
         except Exception as exc:
             logger.warning("iter %d minimize failed: %s; skipping.", i, exc)
             continue
@@ -312,7 +312,7 @@ def gco_search(
             gb_area_a2=area,
             e_cohesive_ev=e_cohesive,
         )
-        if egb < best_egb * config.e_mult:
+        if egb < best_egb * gco_config.e_mult:
             if egb < best_egb:
                 best_egb = egb
             kept_rows.append(
@@ -332,7 +332,7 @@ def gco_search(
             kept_atoms.append(out.final_structure)
 
         # ---- periodic dedup --------------------------------------------
-        if config.dedup_every and (i + 1) % config.dedup_every == 0:
+        if gco_config.dedup_every and (i + 1) % gco_config.dedup_every == 0:
             kept_rows, kept_atoms = dedup(kept_rows, kept_atoms)
 
     results = pd.DataFrame(kept_rows)

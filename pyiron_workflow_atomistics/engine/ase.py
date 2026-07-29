@@ -6,8 +6,11 @@ Consolidates and replaces engine_ase/{ase.py, ase_calculator.py, ase_engine.py}.
 from __future__ import annotations
 
 import contextlib
+import functools
 import json
 import os
+import threading
+import weakref
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -24,6 +27,45 @@ from pyiron_workflow_atomistics.engine.inputs import (
     CalcInputStatic,
 )
 from pyiron_workflow_atomistics.engine.protocol import EngineOutput
+
+# ---------------------------------------------------------------------------
+# Calculator locking
+# ---------------------------------------------------------------------------
+#
+# ASE Calculator instances are stateful (results cache, neighbor lists) and not
+# thread-safe. pyiron_workflow >= 0.19 runs DAG-layer peers in threads by
+# default, and ASEEngine.with_working_directory() shares one calculator across
+# all sub-engines, so two peer nodes can otherwise drive the same calculator
+# concurrently — crashing in ase.PrimitiveNeighborList or silently corrupting
+# results. Serialize runs per calculator instance; distinct calculators still
+# run in parallel. Locks live in a module-level registry (not on the engine) so
+# engines stay picklable.
+
+_calc_locks: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+_calc_locks_guard = threading.Lock()
+_fallback_calc_lock = threading.Lock()  # for calculators that refuse weakrefs
+
+
+def _calculator_lock(calc: Calculator) -> threading.Lock:
+    with _calc_locks_guard:
+        try:
+            lock = _calc_locks.get(calc)
+            if lock is None:
+                lock = threading.Lock()
+                _calc_locks[calc] = lock
+            return lock
+        except TypeError:
+            return _fallback_calc_lock
+
+
+def _serialized_per_calculator(fn):
+    @functools.wraps(fn)
+    def wrapper(structure, calc, *args, **kwargs):
+        with _calculator_lock(calc):
+            return fn(structure, calc, *args, **kwargs)
+
+    return wrapper
+
 
 # ---------------------------------------------------------------------------
 # Low-level helpers: gather() + attach_props()
@@ -125,6 +167,7 @@ def _build_engine_output(
 # ---------------------------------------------------------------------------
 
 
+@_serialized_per_calculator
 def ase_calc_structure(
     structure: Atoms,
     calc: Calculator,
@@ -257,6 +300,7 @@ def ase_calc_structure(
     )
 
 
+@_serialized_per_calculator
 def ase_md_calc_structure(
     structure: Atoms,
     calc: Calculator,

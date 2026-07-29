@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from sklearn.neighbors import KernelDensity
 from structuretoolkit.analyse import get_adaptive_cna_descriptors
 
 
-@pwf.as_function_node("solid_fraction")
+@fr.atomic
 def solid_fraction_kde(
     structure, crystalstructure: str, threshold: float = 0.1
 ) -> float:
@@ -49,4 +49,5 @@ def solid_fraction_kde(
             ratio = ratio_below
         else:
             ratio = min(ratio_below, ratio_above)
-    return float(ratio)
+    solid_fraction = float(ratio)
+    return solid_fraction

@@ -54,7 +54,7 @@ def test_find_gb_plane_raises_when_slab_too_thin_to_catch_any_bulk_atoms():
     atoms = _make_linear_chain(5, spacing=1.0)
     feat = _peaked_featuriser(0.5)
     with pytest.raises(ValueError, match="no bulk atoms found"):
-        find_gb_plane.node_function(
+        find_gb_plane(
             atoms=atoms,
             featuriser=feat,
             axis="c",
@@ -76,7 +76,7 @@ def test_find_gb_plane_caps_bulk_indices_at_n_bulk():
     # catches ~10 atoms each → 20 total. n_bulk=4 forces the cap.
     atoms = _make_linear_chain(40, spacing=1.0)
     feat = _peaked_featuriser(0.5)
-    out = find_gb_plane.node_function(
+    out = find_gb_plane(
         atoms=atoms,
         featuriser=feat,
         axis="c",
@@ -105,7 +105,7 @@ def test_find_gb_plane_single_peak_branch():
         z = at.get_positions()[idx, 2]
         return [-abs(z - 10.0)]  # most-negative at z=10 → peak in disorder after norm
 
-    out = find_gb_plane.node_function(
+    out = find_gb_plane(
         atoms=atoms,
         featuriser=feat,
         axis="c",
@@ -130,7 +130,7 @@ def test_find_gb_plane_extends_selection_with_extend_region_length():
         z = at.get_positions()[idx, 2]
         return [-abs(z - 10.0)]
 
-    base = find_gb_plane.node_function(
+    base = find_gb_plane(
         atoms=atoms,
         featuriser=feat,
         axis="c",
@@ -141,7 +141,7 @@ def test_find_gb_plane_extends_selection_with_extend_region_length():
         threshold_frac=0.3,
         extend_region_length=0.0,
     )
-    extended = find_gb_plane.node_function(
+    extended = find_gb_plane(
         atoms=atoms,
         featuriser=feat,
         axis="c",

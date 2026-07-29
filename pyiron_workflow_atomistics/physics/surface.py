@@ -1,16 +1,18 @@
 """Surface energy workflow."""
 
-from typing import Optional, Union
-
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
-from pyiron_workflow_atomistics.engine import Engine, calculate, subengine
+from pyiron_workflow_atomistics.engine import (
+    Engine,
+    calculate,
+    subengine,
+)
 from pyiron_workflow_atomistics.structure.build import create_surface_slab
 
 
-@pwf.as_function_node("mu_bulk_out")
+@fr.atomic
 def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     """Return the bulk per-atom chemical potential.
 
@@ -20,34 +22,34 @@ def _bulk_per_atom_energy(bulk_structure, engine: Engine, mu_bulk=None):
     otherwise the per-atom energy will reflect surface/geometry artefacts.
     """
     if mu_bulk is None:
-        output = calculate.node_function(bulk_structure, engine=engine)
+        output = calculate(bulk_structure, engine=engine)
         mu_bulk_out = output.final_energy / len(bulk_structure)
     else:
         mu_bulk_out = mu_bulk
     return mu_bulk_out
 
 
-@pwf.as_function_node("surface_energy")
+@fr.atomic("surface_energy")
 def get_surface_energy(E_slab, E_bulk_per_atom, N_slab, area_one_side):
     gamma_fs = (E_slab - N_slab * E_bulk_per_atom) / (2.0 * area_one_side)
     gamma_J_per_m2 = gamma_fs * 16.021766208
     return gamma_J_per_m2
 
 
-@pwf.as_function_node("area_one_side")
+@fr.atomic
 def area_one_side(slab):
     cell = slab.cell
-    area = np.linalg.norm(np.cross(cell[0], cell[1]))
-    return area
+    area_one_side = np.linalg.norm(np.cross(cell[0], cell[1]))
+    return area_one_side
 
 
-@pwf.as_function_node("n_atoms")
+@fr.atomic
 def get_n_atoms(atoms):
-    n = len(atoms)
-    return n
+    n_atoms = len(atoms)
+    return n_atoms
 
 
-@pwf.as_macro_node(
+@fr.workflow(
     "unrelaxed_surface",
     "relaxed_surface",
     "relaxed_surface_calc_output",
@@ -55,14 +57,13 @@ def get_n_atoms(atoms):
     "surface_energy",
 )
 def calculate_surface_energy(
-    wf,
     bulk_structure: Atoms,
     engine: Engine,
-    miller_indices: Union[tuple[int, int, int], tuple[int, int, int, int]] = (1, 1, 1),
+    miller_indices: tuple[int, int, int] | tuple[int, int, int, int] = (1, 1, 1),
     layers: int = 3,
     vacuum: float = 10.0,
     periodic: bool = True,
-    mu_bulk: Optional[float] = None,
+    mu_bulk: float | None = None,
 ):
     """Calculate the surface energy (J/m^2) of a slab cut from ``bulk_structure``.
 
@@ -80,32 +81,36 @@ def calculate_surface_energy(
     no-vacuum slab, which gave physically wrong (often negative) surface
     energies because a slab with ``vacuum=0`` is not equivalent to bulk.
     """
-    wf.slab_vac = create_surface_slab(
+    unrelaxed_surface = create_surface_slab(
         bulk_structure=bulk_structure,
         miller_indices=miller_indices,
         layers=layers,
         vacuum=vacuum,
         periodic=periodic,
     )
-    wf.calc_slab = calculate(wf.slab_vac, engine=engine, label="calc_slab")
-    wf.bulk_ref_engine = subengine(engine=engine, subdir="bulk_ref")
-    wf.mu_bulk_out = _bulk_per_atom_energy(
+    relaxed_surface_calc_output = calculate(unrelaxed_surface, engine=engine)
+    relaxed_surface = fr.std.get_attr(relaxed_surface_calc_output, "final_structure")
+    relaxed_surface_system_energy = fr.std.get_attr(
+        relaxed_surface_calc_output, "final_energy"
+    )
+    bulk_ref_engine = subengine(engine=engine, subdir="bulk_ref")
+    mu_bulk_out = _bulk_per_atom_energy(
         bulk_structure=bulk_structure,
-        engine=wf.bulk_ref_engine,
+        engine=bulk_ref_engine,
         mu_bulk=mu_bulk,
     )
-    wf.n_atoms_slab = get_n_atoms(wf.slab_vac)
-    wf.area_one_side = area_one_side(wf.slab_vac)
-    wf.surface_energy = get_surface_energy(
-        E_slab=wf.calc_slab.outputs.engine_output.final_energy,
-        E_bulk_per_atom=wf.mu_bulk_out,
-        N_slab=wf.n_atoms_slab,
-        area_one_side=wf.area_one_side,
+    n_atoms_slab = get_n_atoms(unrelaxed_surface)
+    area = area_one_side(unrelaxed_surface)
+    surface_energy = get_surface_energy(
+        E_slab=relaxed_surface_system_energy,
+        E_bulk_per_atom=mu_bulk_out,
+        N_slab=n_atoms_slab,
+        area_one_side=area,
     )
     return (
-        wf.slab_vac,
-        wf.calc_slab.outputs.engine_output.final_structure,
-        wf.calc_slab,
-        wf.mu_bulk_out,
-        wf.surface_energy,
+        unrelaxed_surface,
+        relaxed_surface,
+        relaxed_surface_calc_output,
+        mu_bulk_out,
+        surface_energy,
     )

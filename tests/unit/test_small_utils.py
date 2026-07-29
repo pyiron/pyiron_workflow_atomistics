@@ -22,7 +22,7 @@ def test_get_per_atom_quantity_divides_by_atom_count():
 
     structure = bulk("Cu", "fcc", a=3.6, cubic=True)  # 4 atoms
     assert len(structure) == 4
-    per_atom = get_per_atom_quantity.node_function(quantity=-16.0, structure=structure)
+    per_atom = get_per_atom_quantity(quantity=-16.0, structure=structure)
     assert per_atom == -4.0
 
 
@@ -72,7 +72,7 @@ def test_modify_dataclass_returns_a_new_instance_with_the_field_replaced():
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     src = _Thing(a=1, b="x", c=0.0)
-    out = modify_dataclass.node_function(src, "b", "y")
+    out = modify_dataclass(src, "b", "y")
     assert isinstance(out, _Thing)
     assert out.b == "y"
     # Other fields untouched
@@ -86,7 +86,7 @@ def test_modify_dataclass_raises_on_unknown_field():
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dataclass
 
     with pytest.raises(KeyError, match="Unknown field"):
-        modify_dataclass.node_function(_Thing(), "does_not_exist", 0)
+        modify_dataclass(_Thing(), "does_not_exist", 0)
 
 
 def test_modify_dataclass_multi_replaces_each_field_in_turn():
@@ -95,7 +95,7 @@ def test_modify_dataclass_multi_replaces_each_field_in_turn():
     )
 
     src = _Thing(a=1, b="x", c=0.0)
-    out = modify_dataclass_multi.node_function(src, ["a", "c"], [42, 3.14])
+    out = modify_dataclass_multi(src, ["a", "c"], [42, 3.14])
     assert out.a == 42
     assert out.c == 3.14
     assert out.b == "x"  # untouched
@@ -108,14 +108,14 @@ def test_modify_dataclass_multi_rejects_length_mismatch():
     )
 
     with pytest.raises(ValueError, match="same length"):
-        modify_dataclass_multi.node_function(_Thing(), ["a", "b"], [1])
+        modify_dataclass_multi(_Thing(), ["a", "b"], [1])
 
 
 def test_modify_dict_applies_updates_without_mutating_source():
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dict
 
     src = {"x": 1, "y": 2, "z": 3}
-    out = modify_dict.node_function(src, {"x": 10, "z": 30})
+    out = modify_dict(src, {"x": 10, "z": 30})
     assert out == {"x": 10, "y": 2, "z": 30}
     # Source is untouched.
     assert src == {"x": 1, "y": 2, "z": 3}
@@ -125,7 +125,7 @@ def test_modify_dict_rejects_unknown_keys():
     from pyiron_workflow_atomistics._internal.dataclass_helpers import modify_dict
 
     with pytest.raises(KeyError, match="Unknown key"):
-        modify_dict.node_function({"a": 1}, {"a": 2, "missing": 3})
+        modify_dict({"a": 1}, {"a": 2, "missing": 3})
 
 
 # --- _internal/engine_output ------------------------------------------------

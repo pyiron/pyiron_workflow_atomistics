@@ -20,7 +20,7 @@ def test_construct_GB_from_GBCode_macro_builds_an_atoms_structure():
         construct_GB_from_GBCode,
     )
 
-    fn = construct_GB_from_GBCode(
+    original, final = construct_GB_from_GBCode(
         axis=[1, 0, 0],
         basis="bcc",
         lattice_param=2.828,
@@ -31,10 +31,8 @@ def test_construct_GB_from_GBCode_macro_builds_an_atoms_structure():
         req_length_grain=10.0,
         grain_length_axis=0,
         equil_volume=11.3,
-    )()  # invoke the macro
+    )
 
-    final = fn["final_structure"]
-    original = fn["original_GBcode_structure"]
     assert isinstance(final, Atoms)
     assert isinstance(original, Atoms)
     assert all(s == "Fe" for s in final.get_chemical_symbols())
@@ -55,7 +53,7 @@ def test_construct_GB_from_GBCode_macro_grain_length_extension_in_original():
     )
 
     req = 8.0
-    fn = construct_GB_from_GBCode(
+    original, _ = construct_GB_from_GBCode(
         axis=[1, 0, 0],
         basis="bcc",
         lattice_param=2.828,
@@ -66,8 +64,7 @@ def test_construct_GB_from_GBCode_macro_grain_length_extension_in_original():
         req_length_grain=req,
         grain_length_axis=0,
         equil_volume=11.3,
-    )()
-    original = fn["original_GBcode_structure"]
+    )
     cell_lengths = np.linalg.norm(original.cell.array, axis=1)
     # At least one cell vector is long enough to host the requested grain.
     assert cell_lengths.max() >= 2 * req - 1e-3

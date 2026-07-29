@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: pyiron/actions/cached-miniforge@actions-4.1.0
+      - uses: pyiron/actions/cached-miniforge@actions-4.2.1
         with:
           python-version: '3.12'
           env-files: .ci_support/environment.yml

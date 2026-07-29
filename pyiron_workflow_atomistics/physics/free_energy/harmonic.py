@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import os
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 
 from pyiron_workflow_atomistics.engine import Engine
@@ -29,7 +29,7 @@ from pyiron_workflow_atomistics.physics.phonons.harmonic import (
 )
 
 
-@pwf.as_function_node("simfolder", "sub_engine")
+@fr.atomic
 def _resolve_simfolder(
     engine: Engine,
     working_directory: str,
@@ -52,7 +52,7 @@ def _resolve_simfolder(
     return simfolder, sub_engine
 
 
-@pwf.as_function_node("phonopy_view")
+@fr.atomic
 def _produce_fc2_view(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -68,25 +68,25 @@ def _produce_fc2_view(
     sc = _normalise_supercell_matrix(fc2_supercell_matrix)
 
     unitcell = _ase_to_phonopy(structure)
-    phonon = phonopy.Phonopy(
+    phonopy_view = phonopy.Phonopy(
         unitcell=unitcell, supercell_matrix=sc, primitive_matrix="auto"
     )
-    phonon.generate_displacements(
+    phonopy_view.generate_displacements(
         distance=displacement_distance, is_plusminus=is_plusminus
     )
     forces = _stack_forces(fc2_engine_outputs)
-    if forces.shape[0] != len(phonon.supercells_with_displacements):
+    if forces.shape[0] != len(phonopy_view.supercells_with_displacements):
         raise RuntimeError(
             f"FC2 force/supercell mismatch: {forces.shape[0]} forces vs "
-            f"{len(phonon.supercells_with_displacements)} expected supercells. "
+            f"{len(phonopy_view.supercells_with_displacements)} expected supercells. "
             "displacement kwargs likely drifted between generation and synthesis."
         )
-    phonon.forces = forces
-    phonon.produce_force_constants()
-    return phonon
+    phonopy_view.forces = forces
+    phonopy_view.produce_force_constants()
+    return phonopy_view
 
 
-@pwf.as_function_node("free_energy_output")
+@fr.atomic
 def _pack_harmonic_output(
     structure: Atoms,
     phonopy_view,
@@ -129,7 +129,7 @@ def _pack_harmonic_output(
     )
 
     elements = list(dict.fromkeys(structure.get_chemical_symbols()))
-    return FreeEnergyOutput(
+    free_energy_output = FreeEnergyOutput(
         mode="harmonic",
         reference_phase="solid",
         free_energy=float(F[0]),
@@ -157,11 +157,11 @@ def _pack_harmonic_output(
         band_structure=band_structure if keep_handles else None,
         phonon_dos=dos if keep_handles else None,
     )
+    return free_energy_output
 
 
-@pwf.api.as_macro_node("free_energy_output")
+@fr.workflow
 def harmonic_free_energy(
-    wf,
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix,
@@ -185,37 +185,37 @@ def harmonic_free_energy(
 
     See spec: docs/design/specs/2026-05-15-free-energy-consolidation-design.md
     """
-    wf.paths = _resolve_simfolder(
+    simfolder, sub_engine = _resolve_simfolder(
         engine=engine,
         working_directory=working_directory,
         subdir=subdir,
     )
 
-    wf.fc2_supercells = _generate_fc2_supercells(
+    fc2_supercells = _generate_fc2_supercells(
         structure=structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
         displacement_distance=displacement_distance,
         is_plusminus=is_plusminus,
     )
-    wf.fc2_eval = _evaluate_supercells(
-        supercells=wf.fc2_supercells.outputs.fc2_supercells,
-        engine=wf.paths.outputs.sub_engine,
+    fc2_eval = _evaluate_supercells(
+        supercells=fc2_supercells,
+        engine=sub_engine,
         prefix="fc2_disp_",
     )
-    wf.fc2_view = _produce_fc2_view(
+    fc2_view = _produce_fc2_view(
         structure=structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
-        fc2_engine_outputs=wf.fc2_eval.outputs.engine_outputs,
+        fc2_engine_outputs=fc2_eval,
         displacement_distance=displacement_distance,
         is_plusminus=is_plusminus,
     )
-    wf.synthesis = _pack_harmonic_output(
+    free_energy_output = _pack_harmonic_output(
         structure=structure,
-        phonopy_view=wf.fc2_view.outputs.phonopy_view,
+        phonopy_view=fc2_view,
         temperatures=temperatures,
         fc2_supercell_matrix=fc2_supercell_matrix,
         displacement_distance=displacement_distance,
-        simfolder=wf.paths.outputs.simfolder,
+        simfolder=simfolder,
         keep_handles=keep_handles,
     )
-    return wf.synthesis.outputs.free_energy_output
+    return free_energy_output

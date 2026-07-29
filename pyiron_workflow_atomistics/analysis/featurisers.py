@@ -30,6 +30,7 @@ def voronoi_site_featuriser(atoms: Atoms, site_index: int) -> dict:
     for arr, label in zip(
         [volumes, vertices, areas, distances],
         ["volumes", "vertices", "areas", "distances"],
+        strict=False,
     ):
         out.update(stats(arr, f"VorNN_{label}"))
     return out
@@ -153,7 +154,7 @@ def summarize_cosine_groups(A, threshold=0.999, ids=None, include_singletons=Tru
     mask = S[iu] >= threshold
     rows = iu[0][mask]
     cols = iu[1][mask]
-    for i, j in zip(rows, cols):
+    for i, j in zip(rows, cols, strict=False):
         union(i, j)
 
     # Gather groups (connected components)

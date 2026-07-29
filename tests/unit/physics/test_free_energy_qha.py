@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pyiron_workflow as pwf
 import pytest
 
 
@@ -28,13 +29,11 @@ def _synthetic_qha_inputs(n_T=5, n_V=7):
         )
 
         for i, T in enumerate(temperatures):
-            F_TV[i, j], S_TV[i, j], Cv_TV[i, j] = (
-                _free_energy_from_spectrum.node_function(
-                    frequencies=np.full((1, 3), omega_THz),
-                    q_weights=np.array([1.0]),
-                    temperature=T,
-                    n_atoms_primitive=1,
-                )
+            F_TV[i, j], S_TV[i, j], Cv_TV[i, j] = _free_energy_from_spectrum(
+                frequencies=np.full((1, 3), omega_THz),
+                q_weights=np.array([1.0]),
+                temperature=T,
+                n_atoms_primitive=1,
             )
     return energies, volumes, temperatures, F_TV, S_TV, Cv_TV
 
@@ -44,7 +43,7 @@ def test_fit_qha_produces_finite_arrays():
     from pyiron_workflow_atomistics.physics.free_energy.quasiharmonic import _fit_qha
 
     energies, volumes, T, F_TV, S_TV, Cv_TV = _synthetic_qha_inputs()
-    result = _fit_qha.node_function(
+    result = _fit_qha(
         energies=energies,
         volumes=volumes,
         free_energy_per_T_V=F_TV,
@@ -96,7 +95,8 @@ def test_quasiharmonic_free_energy_emt_al(tmp_path):
         working_directory=str(tmp_path),
     )
 
-    wf = quasiharmonic_free_energy(
+    result = pwf.run(
+        quasiharmonic_free_energy,
         structure=structure,
         engine=engine,
         fc2_supercell_matrix=2 * np.eye(3, dtype=int),
@@ -106,8 +106,7 @@ def test_quasiharmonic_free_energy_emt_al(tmp_path):
         working_directory=str(tmp_path),
         subdir="qha",
     )
-    out = wf.run()
-    out = out["free_energy_output"] if isinstance(out, dict) else out
+    out = result.outputs["free_energy_output"]
 
     assert out.mode == "qha"
     # Thermal expansion is positive on warming for Al/EMT

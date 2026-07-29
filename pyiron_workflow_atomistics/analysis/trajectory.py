@@ -7,8 +7,8 @@ per-atom momenta (ASE engine; the velocity-patched LAMMPS engine) and whose
 
 from __future__ import annotations
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import units
 
 _EV_PER_A3_TO_GPA = 160.21766208
@@ -35,7 +35,7 @@ def _virial_pressure_ev_per_a3(stress: np.ndarray) -> float:
     return -trace / 3.0
 
 
-@pwf.as_function_node("temperature")
+@fr.atomic("temperature")
 def temperatures_from_trajectory(engine_output, last_n: int = 20) -> float:
     """Mean kinetic temperature (K) over the last ``last_n`` trajectory frames."""
     frames = engine_output.structures
@@ -47,7 +47,7 @@ def temperatures_from_trajectory(engine_output, last_n: int = 20) -> float:
     return temperature
 
 
-@pwf.as_function_node("pressure")
+@fr.atomic("pressure")
 def pressures_from_trajectory(engine_output, last_n: int = 20) -> float:
     """Mean total pressure (GPa) over the last ``last_n`` frames: virial + kinetic.
 
@@ -67,7 +67,7 @@ def pressures_from_trajectory(engine_output, last_n: int = 20) -> float:
     window_s = stresses[-last_n:]
     _require_momenta(window_f)
     pressures = []
-    for frame, stress in zip(window_f, window_s):
+    for frame, stress in zip(window_f, window_s, strict=False):
         p_vir = _virial_pressure_ev_per_a3(stress)  # eV/A^3
         p_kin = (
             len(frame) * units.kB * frame.get_temperature() / frame.get_volume()

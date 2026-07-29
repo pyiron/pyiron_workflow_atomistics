@@ -340,7 +340,7 @@ def test_resolve_md_defaults_raises_when_both_inputs_missing():
 
     cu = bulk("Cu", "fcc", a=3.6)
     with pytest.raises(ValueError, match="Must supply"):
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=None,
             phono3py_output=None,
@@ -356,7 +356,7 @@ def test_resolve_md_defaults_recompute_branch_returns_expected_tags():
     )
 
     cu = bulk("Cu", "fcc", a=3.6)
-    sc, qpts, seed, tag, fc2 = _resolve_md_defaults.node_function(
+    sc, qpts, seed, tag, fc2 = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=2,
         phono3py_output=None,
@@ -377,7 +377,7 @@ def test_resolve_md_defaults_seed_autofill_when_missing():
     )
 
     cu = bulk("Cu", "fcc", a=3.6)
-    *_, seed, _, _ = _resolve_md_defaults.node_function(
+    *_, seed, _, _ = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=2,
         phono3py_output=None,
@@ -396,7 +396,7 @@ def test_resolve_md_defaults_explicit_qpoints_pass_through():
 
     cu = bulk("Cu", "fcc", a=3.6)
     explicit_q = np.array([[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]])
-    _, qpts, *_ = _resolve_md_defaults.node_function(
+    _, qpts, *_ = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=2,
         phono3py_output=None,
@@ -414,7 +414,7 @@ def test_resolve_md_defaults_qpoints_wrong_shape_raises():
 
     cu = bulk("Cu", "fcc", a=3.6)
     with pytest.raises(ValueError, match="must be"):
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=2,
             phono3py_output=None,
@@ -448,7 +448,7 @@ def test_resolve_md_defaults_reuse_requires_fc2():
     cu = bulk("Cu", "fcc", a=3.6, cubic=True)
     upstream = _fake_phonon_output(fc2_supercell=2 * np.eye(3, dtype=int), fc2=None)
     with pytest.raises(ValueError, match="phono3py_output.fc2 is None"):
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=None,
             phono3py_output=upstream,
@@ -467,7 +467,7 @@ def test_resolve_md_defaults_reuse_succeeds_when_fc2_present():
     n = 4 * len(cu)
     fake_fc2 = np.zeros((n, n, 3, 3))
     upstream = _fake_phonon_output(fc2_supercell=2 * np.eye(3, dtype=int), fc2=fake_fc2)
-    sc, _qpts, _seed, tag, fc2 = _resolve_md_defaults.node_function(
+    sc, _qpts, _seed, tag, fc2 = _resolve_md_defaults(
         structure=cu,
         fc2_supercell_matrix=None,
         phono3py_output=upstream,
@@ -492,7 +492,7 @@ def test_resolve_md_defaults_supercell_mismatch_raises():
         fc2=np.zeros((4, 4, 3, 3)),
     )
     with pytest.raises(ValueError, match="disagrees with"):
-        _resolve_md_defaults.node_function(
+        _resolve_md_defaults(
             structure=cu,
             fc2_supercell_matrix=3 * np.eye(3, dtype=int),  # mismatch
             phono3py_output=upstream,
@@ -513,7 +513,7 @@ def test_select_or_compute_fc2_reuse_returns_array_as_ndarray():
     )
 
     fake = [[[1.0, 2.0]]]  # nested list to make sure asarray triggers
-    out = _select_or_compute_fc2.node_function(
+    out = _select_or_compute_fc2(
         structure=None,
         engine=None,
         resolved_fc2_supercell=np.eye(3, dtype=int),
@@ -530,7 +530,7 @@ def test_select_or_compute_fc2_reuse_without_array_raises():
     )
 
     with pytest.raises(RuntimeError, match="Internal error"):
-        _select_or_compute_fc2.node_function(
+        _select_or_compute_fc2(
             structure=None,
             engine=None,
             resolved_fc2_supercell=np.eye(3, dtype=int),
@@ -545,7 +545,7 @@ def test_select_or_compute_fc2_unknown_tag_raises():
     )
 
     with pytest.raises(ValueError, match="Unknown fc2_source_tag"):
-        _select_or_compute_fc2.node_function(
+        _select_or_compute_fc2(
             structure=None,
             engine=None,
             resolved_fc2_supercell=np.eye(3, dtype=int),

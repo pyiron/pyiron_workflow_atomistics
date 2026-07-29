@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import os
 import pickle
+from collections.abc import Callable
 from dataclasses import is_dataclass
-from typing import Callable
 
 from ase import Atoms
 from ase.build import bulk
@@ -113,7 +113,7 @@ class EngineConformanceTests:
         a real EngineOutput dataclass with the three required fields
         populated. Does NOT assert any physics, just the shape."""
         eng = type(self).engine_factory(tmp_path)
-        out = calculate.node_function(structure=self._structure(), engine=eng)
+        out = calculate(structure=self._structure(), engine=eng)
 
         assert isinstance(
             out, EngineOutput

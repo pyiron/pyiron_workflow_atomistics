@@ -113,7 +113,7 @@ def test_build_bicrystal_slabs_node_callable():
         build_bicrystal_slabs,
     )
 
-    lower, upper, dlat = build_bicrystal_slabs.node_function(
+    lower, upper, dlat = build_bicrystal_slabs(
         crystal="fcc",
         symbol="Cu",
         a=3.6,

@@ -3,8 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase.build import bulk
 from ase.constraints import FixAtoms
 
@@ -15,7 +15,7 @@ from ase.constraints import FixAtoms
 _ATOMS_PER_CUBIC = {"fcc": 4, "bcc": 2, "sc": 1}
 
 
-@pwf.as_function_node("a")
+@fr.atomic("a")
 def estimate_lattice_constant(element, engine, crystalstructure):
     """Seed lattice constant ``a`` for ``crystalstructure`` from a relaxed reference.
 
@@ -31,7 +31,7 @@ def estimate_lattice_constant(element, engine, crystalstructure):
     relax_engine = replace(
         engine, EngineInput=CalcInputMinimize(relax_cell=True)
     ).with_working_directory("a_ref")
-    relaxed = calculate.node_function(ref, engine=relax_engine).final_structure
+    relaxed = calculate(ref, engine=relax_engine).final_structure
     v_atom = relaxed.get_volume() / len(relaxed)
     cs = (crystalstructure or "fcc").lower()
     if cs == "hcp":
@@ -43,7 +43,7 @@ def estimate_lattice_constant(element, engine, crystalstructure):
     return float(a)
 
 
-@pwf.as_function_node("structure")
+@fr.atomic
 def create_coexistence_supercell(
     element: str,
     crystalstructure: str | None = None,
@@ -69,7 +69,7 @@ def create_coexistence_supercell(
     return structure
 
 
-@pwf.as_function_node("structure")
+@fr.atomic("structure")
 def freeze_half(structure, axis: int = 2, fraction: float = 0.5):
     """Fix atoms whose scaled coordinate along ``axis`` is below ``fraction``."""
     s = structure.copy()
@@ -78,7 +78,7 @@ def freeze_half(structure, axis: int = 2, fraction: float = 0.5):
     return s
 
 
-@pwf.as_function_node("structure")
+@fr.atomic("structure")
 def unfreeze(structure):
     """Remove all constraints."""
     s = structure.copy()
@@ -86,7 +86,7 @@ def unfreeze(structure):
     return s
 
 
-@pwf.as_function_node("structure")
+@fr.atomic("structure")
 def strain_cell_along_z(structure, strain: float):
     """Scale cell vector c by ``strain`` (scale_atoms=True)."""
     s = structure.copy()

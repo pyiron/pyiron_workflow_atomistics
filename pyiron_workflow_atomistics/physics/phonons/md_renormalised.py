@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import warnings
 
+import flowrep as fr
 import numpy as np
-import pyiron_workflow as pwf
 from ase import Atoms
 from numpy.typing import ArrayLike
 
@@ -81,13 +81,7 @@ def _multiplier_to_cell_vectors(
     return P @ np.asarray(primitive_cell, dtype=float)
 
 
-@pwf.as_function_node(
-    "resolved_fc2_supercell",
-    "resolved_q_points",
-    "resolved_seed",
-    "fc2_source_tag",
-    "fc2_array",
-)
+@fr.atomic
 def _resolve_md_defaults(
     structure: Atoms,
     fc2_supercell_matrix,
@@ -166,7 +160,7 @@ def _resolve_md_defaults(
     )
 
 
-@pwf.as_function_node("fc2_array")
+@fr.atomic
 def _compute_fc2_from_scratch(
     structure: Atoms,
     engine: Engine,
@@ -190,12 +184,12 @@ def _compute_fc2_from_scratch(
     )
 
     # Generate displaced supercells (FD, deterministic).
-    fc2_supercells = _generate_fc2_supercells.node_function(
+    fc2_supercells = _generate_fc2_supercells(
         structure=structure,
         fc2_supercell_matrix=resolved_fc2_supercell,
     )
     # Evaluate forces on each supercell.
-    fc2_engine_outputs = _evaluate_supercells.node_function(
+    fc2_engine_outputs = _evaluate_supercells(
         supercells=fc2_supercells,
         engine=engine,
         prefix="fc2_disp_",
@@ -222,7 +216,7 @@ def _compute_fc2_from_scratch(
     return fc2_array
 
 
-@pwf.as_function_node("trajectory_pack")
+@fr.atomic
 def _run_nvt_trajectory(
     structure: Atoms,
     engine: Engine,
@@ -303,7 +297,7 @@ def _run_nvt_trajectory(
     dyn.attach(record_step, interval=1)
     dyn.run(production_steps)
 
-    pack = {
+    trajectory_pack = {
         "positions": positions,
         "velocities": velocities,
         "time": times,
@@ -315,7 +309,7 @@ def _run_nvt_trajectory(
         "md_temperature_mean": float(instantaneous_T.mean()),
         "md_temperature_std": float(instantaneous_T.std()),
     }
-    return pack
+    return trajectory_pack
 
 
 def _build_phonopy_view(structure: Atoms, fc2_array: np.ndarray, supercell_matrix):
@@ -385,7 +379,7 @@ def _ase_to_dynaphopy_structure(structure: Atoms, fc2_array, fc2_supercell_matri
     return dyn_structure
 
 
-@pwf.as_function_node("md_phonon_output")
+@fr.atomic
 def _project_with_dynaphopy(
     structure: Atoms,
     fc2_array: np.ndarray,
@@ -514,7 +508,7 @@ def _project_with_dynaphopy(
     else:
         power_spectra_array = None
 
-    out = MdPhononOutput(
+    md_phonon_output = MdPhononOutput(
         structure=structure,
         fc2_supercell_matrix=_normalise_supercell_matrix(resolved_fc2_supercell),
         temperature=float(temperature),
@@ -535,7 +529,7 @@ def _project_with_dynaphopy(
     )
 
     # Auto-warn for bad MD on first run.
-    healthy, issues = out.check_md_health()
+    healthy, issues = md_phonon_output.check_md_health()
     if not healthy:
         warnings.warn(
             "MD diagnostics indicate potential issues:\n  - "
@@ -545,10 +539,10 @@ def _project_with_dynaphopy(
             stacklevel=2,
         )
 
-    return out
+    return md_phonon_output
 
 
-@pwf.as_function_node("fc2_array")
+@fr.atomic
 def _select_or_compute_fc2(
     structure: Atoms,
     engine: Engine,
@@ -569,7 +563,7 @@ def _select_or_compute_fc2(
             )
         fc2_array = np.asarray(fc2_array_reused)
     elif fc2_source_tag == "recompute":
-        fc2_array = _compute_fc2_from_scratch.node_function(
+        fc2_array = _compute_fc2_from_scratch(
             structure=structure,
             engine=engine,
             resolved_fc2_supercell=resolved_fc2_supercell,
@@ -579,9 +573,8 @@ def _select_or_compute_fc2(
     return fc2_array
 
 
-@pwf.api.as_macro_node("md_phonon_output")
+@fr.workflow
 def calculate_phonon_md_renormalisation(
-    wf,
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix=None,
@@ -611,7 +604,13 @@ def calculate_phonon_md_renormalisation(
     See spec: docs/design/specs/2026-05-15-dynaphopy-md-renormalisation-design.md
     """
     # Node 0: runtime arg resolution (proxy-safe).
-    wf.defaults = _resolve_md_defaults(
+    (
+        resolved_fc2_supercell,
+        resolved_q_points,
+        resolved_seed,
+        fc2_source_tag,
+        fc2_array,
+    ) = _resolve_md_defaults(
         structure=structure,
         fc2_supercell_matrix=fc2_supercell_matrix,
         phono3py_output=phono3py_output,
@@ -621,37 +620,37 @@ def calculate_phonon_md_renormalisation(
     )
 
     # Node 1: FC2 source — recompute or reuse.
-    wf.fc2 = _select_or_compute_fc2(
+    fc2_array = _select_or_compute_fc2(
         structure=structure,
         engine=engine,
-        resolved_fc2_supercell=wf.defaults.outputs.resolved_fc2_supercell,
-        fc2_source_tag=wf.defaults.outputs.fc2_source_tag,
-        fc2_array_reused=wf.defaults.outputs.fc2_array,
+        resolved_fc2_supercell=resolved_fc2_supercell,
+        fc2_source_tag=fc2_source_tag,
+        fc2_array_reused=fc2_array,
     )
 
     # Node 2: MD trajectory.
-    wf.trajectory = _run_nvt_trajectory(
+    trajectory_pack = _run_nvt_trajectory(
         structure=structure,
         engine=engine,
-        resolved_fc2_supercell=wf.defaults.outputs.resolved_fc2_supercell,
+        resolved_fc2_supercell=resolved_fc2_supercell,
         temperature=temperature,
         equilibration_steps=equilibration_steps,
         production_steps=production_steps,
         time_step=time_step,
         thermostat_time_constant=thermostat_time_constant,
-        seed=wf.defaults.outputs.resolved_seed,
+        seed=resolved_seed,
     )
 
     # Node 3: dynaphopy projection synthesis.
-    wf.projection = _project_with_dynaphopy(
+    md_phonon_output = _project_with_dynaphopy(
         structure=structure,
-        fc2_array=wf.fc2.outputs.fc2_array,
-        resolved_fc2_supercell=wf.defaults.outputs.resolved_fc2_supercell,
-        trajectory_pack=wf.trajectory.outputs.trajectory_pack,
-        resolved_q_points=wf.defaults.outputs.resolved_q_points,
+        fc2_array=fc2_array,
+        resolved_fc2_supercell=resolved_fc2_supercell,
+        trajectory_pack=trajectory_pack,
+        resolved_q_points=resolved_q_points,
         temperature=temperature,
         power_spectra=power_spectra,
         keep_handles=keep_handles,
     )
 
-    return wf.projection.outputs.md_phonon_output
+    return md_phonon_output

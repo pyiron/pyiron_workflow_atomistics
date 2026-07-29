@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable
+
+from pyiron_workflow_atomistics import engine
 
 
 def extract_outputs_from_EngineOutputs(
-    engine_outputs: Sequence,
+    engine_outputs: Iterable[engine.EngineOutput],
     keys: list[str],
     only_converged: bool = True,
 ) -> dict[str, list]:

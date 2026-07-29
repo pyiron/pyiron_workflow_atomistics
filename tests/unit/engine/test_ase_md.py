@@ -38,7 +38,7 @@ def test_ase_md_nvt_langevin_default_runs(tmp_path: Path):
         record_interval=1,
     )
 
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
 
     assert isinstance(out, EngineOutput)
     assert out.converged is True
@@ -69,7 +69,7 @@ def test_ase_md_nvt_berendsen_runs(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
     assert len(out.energies) >= 5
 
@@ -91,7 +91,7 @@ def test_ase_md_nvt_andersen_falls_through_to_langevin(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
 
 
@@ -110,7 +110,7 @@ def test_ase_md_nve_runs(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
 
 
@@ -132,7 +132,7 @@ def test_ase_md_npt_berendsen_runs(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
 
 
@@ -154,7 +154,7 @@ def test_ase_md_npt_nose_hoover_runs(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
 
 
@@ -169,7 +169,7 @@ def test_ase_md_npt_without_pressure_raises(tmp_path: Path):
         working_directory=str(tmp_path),
     )
     with pytest.raises(ValueError, match="Pressure must be specified"):
-        calculate.node_function(structure=_cu_supercell(), engine=engine)
+        calculate(structure=_cu_supercell(), engine=engine)
 
 
 def test_ase_md_npt_with_invalid_thermostat_raises(tmp_path: Path):
@@ -184,7 +184,7 @@ def test_ase_md_npt_with_invalid_thermostat_raises(tmp_path: Path):
         working_directory=str(tmp_path),
     )
     with pytest.raises(ValueError, match="NPT supports only"):
-        calculate.node_function(structure=_cu_supercell(), engine=engine)
+        calculate(structure=_cu_supercell(), engine=engine)
 
 
 def test_ase_md_write_to_disk_emits_trajectory_files(tmp_path: Path):
@@ -204,7 +204,7 @@ def test_ase_md_write_to_disk_emits_trajectory_files(tmp_path: Path):
         working_directory=str(tmp_path),
         write_to_disk=True,
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
     for name in (
         "initial_structure.xyz",
@@ -235,7 +235,7 @@ def test_ase_md_with_initial_temperature_zero(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     assert out.converged is True
 
 
@@ -299,7 +299,7 @@ def test_ase_md_velocities_initialised_at_target_T(tmp_path: Path):
         calculator=EMT(),
         working_directory=str(tmp_path),
     )
-    out = calculate.node_function(structure=_cu_supercell(), engine=engine)
+    out = calculate(structure=_cu_supercell(), engine=engine)
     # Final structure should have non-zero momenta since MaxwellBoltzmann initialised
     p = out.final_structure.get_momenta()
     assert np.linalg.norm(p) > 0
