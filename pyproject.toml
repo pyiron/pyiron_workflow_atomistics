@@ -34,7 +34,6 @@ dependencies = [
     "scikit-learn==1.9.0",
     "structuretoolkit==0.0.45",
     "pyscal3==3.3.2",
-    "lz-GB-code==0.1.0",
     "tqdm==4.70.0",
 ]
 dynamic = ["version"]
@@ -62,6 +61,14 @@ phonons-md = [
 free-energy = [
     "calphy>=1.5.6",
     "pyiron_workflow_lammps",
+]
+# Grain-boundary CSL search. lz-GB-code is PyPI-only (no conda-forge package),
+# so keeping it out of the mandatory dependencies is what lets this project be
+# packaged on conda-forge. It is imported only by
+# physics/_grain_boundary_code/searcher.py and physics/grand_canonical_gb.py,
+# neither of which is reachable from `import pyiron_workflow_atomistics`.
+gb = [
+    "lz-GB-code==0.1.0",
 ]
 
 [project.license]
