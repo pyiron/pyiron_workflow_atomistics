@@ -1,10 +1,13 @@
 import flowrep as fr
 import numpy as np
-from gb_code.gb_generator import GB_character
 from pyiron_snippets.logger import logger
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.core import Structure
 from pymatgen.io.ase import AseAtomsAdaptor
+
+from pyiron_workflow_atomistics.physics._grain_boundary_code._gb_code import (
+    GB_character,
+)
 
 
 def _axis_index_to_label(axis: int) -> str:
