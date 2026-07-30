@@ -2,12 +2,17 @@ from math import degrees
 from multiprocessing import Pool, cpu_count
 
 import flowrep as fr
-import gb_code.csl_generator as csl
 import numpy as np
 import pandas as pd
-from gb_code.csl_generator import get_theta_m_n_list
 from pyiron_snippets.logger import logger
 from tqdm import tqdm
+
+from pyiron_workflow_atomistics.physics._grain_boundary_code._gb_code import (
+    csl_generator as csl,
+)
+from pyiron_workflow_atomistics.physics._grain_boundary_code._gb_code import (
+    get_theta_m_n_list,
+)
 
 
 def _construct_gb_for_sigma(args):
