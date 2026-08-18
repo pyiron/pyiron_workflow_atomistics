@@ -111,7 +111,14 @@ def _fit_qha(
 
 @fr.atomic("energies_per_volume", "volumes")
 def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine):
-    """One-shot static energy per strained cell. Returns (energies, volumes/atom)."""
+    """One-shot static energy per strained cell. Returns (energies/atom, volumes/atom).
+
+    Both quantities are **per atom**. ``EngineOutput.final_energy`` is the total
+    cell energy, so it is divided by the atom count here to match ``volumes``.
+    Feeding a per-cell energy against a per-atom volume into ``phonopy.qha.QHA``
+    inflates the fitted bulk modulus by exactly ``len(s)`` (since B = V d²E/dV²)
+    and mis-weights the PV term at finite pressure.
+    """
     energies: list[float] = []
     volumes: list[float] = []
     for i, s in enumerate(strained_structures):
@@ -122,7 +129,7 @@ def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine
                 f"Static-energy calc failed for strained cell {i} "
                 f"(volume {s.get_volume():.3f} Å³)."
             )
-        energies.append(float(out.final_energy))
+        energies.append(float(out.final_energy) / len(s))
         volumes.append(float(s.get_volume()) / len(s))
     return np.asarray(energies), np.asarray(volumes)
 
