@@ -71,8 +71,20 @@ def _produce_fc2_view(
     phonopy_view = phonopy.Phonopy(
         unitcell=unitcell, supercell_matrix=sc, primitive_matrix="auto"
     )
+    # `is_diagonal` MUST be passed explicitly: the displacements were generated
+    # by `phono3py.generate_fc2_displacements`, whose default is False, while
+    # `phonopy.generate_displacements` defaults to True. `is_diagonal=True`
+    # permits diagonal (combined-axis) displacement directions and so needs
+    # fewer of them, meaning the two sides silently disagree on how many
+    # supercells exist. The counts coincide for high-symmetry cells (fcc/bcc
+    # give 1 either way) and diverge as soon as site symmetry drops — an hcp
+    # orthorhombic cell generates 4 and expects 2. Setting it False here reproduces
+    # phono3py's dataset exactly: same atom indices, same displacement vectors, same
+    # order.
     phonopy_view.generate_displacements(
-        distance=displacement_distance, is_plusminus=is_plusminus
+        distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        is_diagonal=False,
     )
     forces = _stack_forces(fc2_engine_outputs)
     if forces.shape[0] != len(phonopy_view.supercells_with_displacements):
