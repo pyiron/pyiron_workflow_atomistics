@@ -46,7 +46,9 @@ def _resolve_simfolder(
     string values, not the proxy UserInput objects a macro body sees during
     graph construction.
     """
-    simfolder = os.path.abspath(os.path.join(working_directory, subdir))
+    simfolder = os.path.abspath(
+        os.path.join(engine.working_directory, working_directory, subdir)
+    )
     os.makedirs(simfolder, exist_ok=True)
     sub_engine = engine.with_working_directory(simfolder)
     return simfolder, sub_engine
