@@ -107,11 +107,12 @@ def _pack_harmonic_output(
     decides the primitive cell — e.g. ``bulk("Al", "fcc", cubic=True)``
     (4-atom conventional) reduces to a 1-atom fcc primitive.
 
-    Downstream callers that expect phonopy's native units per primitive
-    cell (e.g. ``phonopy.qha.QHA`` in
-    ``quasiharmonic._harmonic_grid_over_volumes``) must multiply back by
-    ``c.eV * c.Avogadro / 1000`` (= ``EvTokJmol``) AND by
-    ``n_atoms_primitive`` (stashed in ``report["n_atoms_primitive"]``).
+    Downstream callers that want phonopy's kJ/mol units back (e.g.
+    ``phonopy.qha.QHA`` in ``quasiharmonic._harmonic_grid_over_volumes``)
+    multiply by ``c.eV * c.Avogadro / 1000`` (= ``EvTokJmol``) and nothing
+    else — the per-atom basis is kept, so the phonon term stays commensurate
+    with the per-atom static energies and volumes QHA is fed alongside it.
+    ``n_atoms_primitive`` remains in ``report`` for diagnostics.
     """
     import scipy.constants as c
 
