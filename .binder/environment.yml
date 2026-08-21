@@ -24,5 +24,6 @@ dependencies:
 - symfc
 - dynaphopy
 - python =3.13
+- zipp !=3.23.0
 - pip:
   - lz-GB-code==0.1.0
