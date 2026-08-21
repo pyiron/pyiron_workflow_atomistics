@@ -1,7 +1,6 @@
 channels:
 - conda-forge
 dependencies:
-- python>=3.11,<3.14
 - flowrep =0.6.2
 - numpy =2.4.6
 - pandas =3.0.5
@@ -24,5 +23,6 @@ dependencies:
 - phono3py
 - symfc
 - dynaphopy
+- python =3.13
 - pip:
   - lz-GB-code==0.1.0
