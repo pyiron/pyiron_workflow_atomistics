@@ -2,9 +2,6 @@ channels:
   - conda-forge
 
 dependencies:
-  # Core Python version
-  - python>=3.11,<3.14
-
   # Conda-forge packages
   - flowrep =0.6.2
   - numpy =2.4.6

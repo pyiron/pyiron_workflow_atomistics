@@ -11,6 +11,7 @@ jobs:
   pyiron:
     uses: pyiron/actions/.github/workflows/push-pull.yml@actions-4.2.1
     with:
+      notebooks-env-files: .ci_support/environment.yml .ci_support/environment-binder.yml
       runner: 'ubuntu-22.04' # with ubuntu > 22.04, pip is broken
       python-version: '3.13'
       python-version-alt1: '3.12'
