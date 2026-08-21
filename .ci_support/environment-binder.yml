@@ -2,3 +2,4 @@ channels:
   - conda-forge
 dependencies:
   - python =3.13
+  - zipp !=3.23.0
