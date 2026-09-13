@@ -22,7 +22,7 @@ dependencies:
 - tqdm =4.70.0
 - pytest
 - pytest-cov
-- pyscal3
+- pyscal3 =4.0.0
 - structuretoolkit =0.0.45
 - nbformat
 - nbclient
