@@ -7,10 +7,10 @@ Tier 2 — gated on ``pyscal3``; covers the void analysis pipeline.
 from __future__ import annotations
 
 import os
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from ase import Atoms
 from ase.build import bulk
 
 # ---------------------------------------------------------------------------
@@ -71,7 +71,8 @@ def test_substitutional_swap_with_explicit_index():
 
 
 def _mock_sys(boxdims):
-    return SimpleNamespace(boxdims=np.asarray(boxdims, dtype=float))
+    """A structure whose only relevant property is its cell lengths."""
+    return Atoms("H", positions=[[0.0, 0.0, 0.0]], cell=np.diag(boxdims), pbc=True)
 
 
 def test_filter_condition_inside_band_and_rvv():
@@ -200,15 +201,11 @@ def test_tabulate_voids_runs_and_closes_figure():
 # ---------------------------------------------------------------------------
 
 
-def _fcc_cu_pyscal_system():
-    """Build a fresh pyscal3 System for an 8x cubic-fcc Cu supercell."""
-    pyscal3 = pytest.importorskip("pyscal3")
-    System = pyscal3.System
-
+def _fcc_cu_structure():
+    """An 8x cubic-fcc Cu supercell; pyscal3 4.0 analyses ase.Atoms directly."""
+    pytest.importorskip("pyscal3")
     cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
-    sys = System()
-    sys.read.file(cu, format="ase")
-    return sys, cu
+    return cu, cu
 
 
 @pytest.mark.slow
@@ -217,8 +214,8 @@ def test_get_ra_matches_packing_factor_formula():
     and 32 atoms in a 7.2³ box, the closed form is ≈ 1.272 Å."""
     from pyiron_workflow_atomistics.structure.defects import get_ra
 
-    sys, _ = _fcc_cu_pyscal_system()
-    ra = get_ra(sys, sys.natoms, pf=0.74)
+    sys, _ = _fcc_cu_structure()
+    ra = get_ra(sys, len(sys), pf=0.74)
     # Closed-form: volume = 7.2^3 = 373.248; v_atom = 11.664; ra = (0.74*11.664*3/(4π))**(1/3)
     expected = ((0.74 * (7.2**3 / 32)) / ((4 / 3) * np.pi)) ** (1 / 3)
     assert ra == pytest.approx(expected, rel=1e-9)
@@ -231,11 +228,10 @@ def test_get_octahedral_positions_returns_finite_list():
     pytest.importorskip("pyscal3")
     from pyiron_workflow_atomistics.structure.defects import get_octahedral_positions
 
-    sys, _ = _fcc_cu_pyscal_system()
-    sys.find.neighbors(method="voronoi", cutoff=0.1)
+    sys, _ = _fcc_cu_structure()
     positions = get_octahedral_positions(sys, alat=3.6)
     assert len(positions) > 0
-    box = sys.box
+    box = np.asarray(sys.cell)
     for p in positions:
         assert 0 <= p[0] <= box[0][0]
         assert 0 <= p[1] <= box[1][1]
@@ -263,7 +259,9 @@ def test_calculate_voids_returns_sys_and_ratios(tmp_path, monkeypatch):
         tabulate=False,
         write=False,
     )
-    assert sys.natoms > 32  # original 32 + void sites
+    assert len(sys) > 32  # original 32 + void sites
+    assert (np.asarray(sys.numbers) == 0).any()  # void sites are marked X
+    assert "rvv" in sys.arrays
     assert len(void_ratios) > 0
     assert len(void_count) == len(void_ratios)
     # Sanity: tabulate=True path is covered separately to keep this test fast.
@@ -319,8 +317,9 @@ def test_filter_and_cluster_atoms_runs_after_calculate_voids(tmp_path, monkeypat
     out = filter_and_cluster_atoms(
         sys, distance=[0.0, 14.4], axis=2, rvv=[0.0, 1.5], write=False
     )
-    # Output is a fresh System; it should still hold a positive atom count.
-    assert out.natoms > 0
+    # Output is a fresh structure; it should still hold a positive atom count.
+    assert len(out) > 0
+    assert "cluster" in out.arrays
 
 
 @pytest.mark.slow
@@ -348,4 +347,42 @@ def test_filter_and_cluster_atoms_writes_output_when_requested(tmp_path, monkeyp
     filter_and_cluster_atoms(
         sys, distance=[0.0, 14.4], axis=2, rvv=[0.0, 1.5], write=True
     )
-    assert os.path.exists(tmp_path / "output.data")
+    assert os.path.exists(tmp_path / "output.xyz")
+
+
+@pytest.mark.slow
+def test_void_pipeline_finds_the_fcc_interstitial_sites(tmp_path, monkeypatch):
+    """A 2x2x2 cubic fcc cell has 64 tetrahedral and 32 octahedral
+    interstitial sites. The Voronoi vertices are exactly those 96 sites, and
+    clustering the raw void list must collapse back onto them."""
+    pytest.importorskip("pyscal3")
+    import pyscal3
+    from ase.io.lammpsdata import write_lammps_data
+
+    from pyiron_workflow_atomistics.structure.defects import (
+        calculate_voids,
+        filter_and_cluster_atoms,
+    )
+
+    cu = bulk("Cu", "fcc", a=3.6, cubic=True) * (2, 2, 2)
+
+    vertices = cu.copy()
+    pyscal3.find_neighbors(vertices, method="voronoi", cutoff=0.1)
+    assert len(vertices.info["pyscal_unique_vertices"]) == 96
+
+    monkeypatch.chdir(tmp_path)
+    write_lammps_data("cu.data", cu)
+    structure, _, _ = calculate_voids(
+        "cu.data", format="lammps-data", alat=3.6, pf=0.74,
+        tabulate=False, write=False,
+    )
+    out = filter_and_cluster_atoms(
+        structure, distance=[0.0, 14.4], axis=2, rvv=[0.0, 1.5], write=False
+    )
+    voids = np.asarray(out.numbers) == 0
+    assert int(voids.sum()) == 96
+    # the real atoms are kept, unchanged in number
+    assert int((~voids).sum()) == len(cu)
+    # every void carries a cluster id and a void ratio
+    assert out.arrays["cluster"][voids].min() > 0
+    assert np.all(out.arrays["rvv"][voids] < 1.0)
