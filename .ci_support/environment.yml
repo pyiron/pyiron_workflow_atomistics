@@ -2,6 +2,9 @@ channels:
   - conda-forge
 
 dependencies:
+  # Build dependency
+  - setuptools
+
   # Conda-forge packages
   - flowrep =0.6.2
   - numpy =2.4.6
