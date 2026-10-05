@@ -111,7 +111,14 @@ def _fit_qha(
 
 @fr.atomic("energies_per_volume", "volumes")
 def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine):
-    """One-shot static energy per strained cell. Returns (energies, volumes/atom)."""
+    """One-shot static energy per strained cell. Returns (energies/atom, volumes/atom).
+
+    Both quantities are **per atom**. ``EngineOutput.final_energy`` is the total
+    cell energy, so it is divided by the atom count here to match ``volumes``.
+    Feeding a per-cell energy against a per-atom volume into ``phonopy.qha.QHA``
+    inflates the fitted bulk modulus by exactly ``len(s)`` (since B = V d²E/dV²)
+    and mis-weights the PV term at finite pressure.
+    """
     energies: list[float] = []
     volumes: list[float] = []
     for i, s in enumerate(strained_structures):
@@ -122,7 +129,7 @@ def _static_energies_per_volume(strained_structures: list[Atoms], engine: Engine
                 f"Static-energy calc failed for strained cell {i} "
                 f"(volume {s.get_volume():.3f} Å³)."
             )
-        energies.append(float(out.final_energy))
+        energies.append(float(out.final_energy) / len(s))
         volumes.append(float(s.get_volume()) / len(s))
     return np.asarray(energies), np.asarray(volumes)
 
@@ -137,16 +144,15 @@ def _harmonic_grid_over_volumes(
     is_plusminus,
     working_directory: str,
 ):
-    """Run harmonic_free_energy at each strained cell, stack F/S/Cv along V axis."""
+    """Run harmonic_free_energy at each strained cell, stack F/S/Cv along V axis.
+
+    Everything handed to ``phonopy.qha.QHA`` must share one basis. ``volumes``
+    and ``electronic_energies`` arrive from ``_static_energies_per_volume`` per
+    ATOM, so ``fe_phonon``/``entropy``/``cv`` are converted per atom too: the
+    only conversion applied here is eV → kJ/mol (and J/K/mol).
+    """
     import scipy.constants as c
 
-    # phonopy.qha expects fe_phonon in kJ/mol and entropy/cv in J/K/mol per
-    # *primitive cell* (not per primitive-cell atom). ``harmonic_free_energy``
-    # reports those quantities in eV / (eV/K) per primitive-cell ATOM per the
-    # FreeEnergyOutput spec, so the boundary conversion has to undo BOTH:
-    # (1) eV → kJ/mol via ``ev_to_kj_mol`` and (2) per-primitive-atom →
-    # per-primitive-cell via ``n_atoms_primitive`` (stashed in the harmonic
-    # output's report dict, per-volume).
     ev_to_kj_mol = c.eV * c.Avogadro / 1000.0  # ≈ 96.485
 
     T_arr = np.asarray(temperatures)
@@ -168,19 +174,9 @@ def _harmonic_grid_over_volumes(
             working_directory=vol_dir,
             subdir="harmonic",
         )
-        n_atoms_primitive = int(out.report["n_atoms_primitive"])
-        F_TV[:, j] = (
-            np.asarray(out.free_energy_array) * ev_to_kj_mol * n_atoms_primitive
-        )
-        S_TV[:, j] = (
-            np.asarray(out.entropy_array) * ev_to_kj_mol * 1000.0 * n_atoms_primitive
-        )
-        Cv_TV[:, j] = (
-            np.asarray(out.heat_capacity_array)
-            * ev_to_kj_mol
-            * 1000.0
-            * n_atoms_primitive
-        )
+        F_TV[:, j] = np.asarray(out.free_energy_array) * ev_to_kj_mol
+        S_TV[:, j] = np.asarray(out.entropy_array) * ev_to_kj_mol * 1000.0
+        Cv_TV[:, j] = np.asarray(out.heat_capacity_array) * ev_to_kj_mol * 1000.0
     return F_TV, S_TV, Cv_TV
 
 
