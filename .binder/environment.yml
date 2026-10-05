@@ -4,7 +4,7 @@ dependencies:
 - pip
 - setuptools
 - ase =3.29.0
-- flowrep =0.6.2
+- flowrep =0.6.7
 - matplotlib =3.11.1
 - numpy =2.4.6
 - pandas =3.0.5
