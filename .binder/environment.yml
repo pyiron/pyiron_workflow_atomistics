@@ -24,6 +24,5 @@ dependencies:
 - phono3py
 - symfc
 - dynaphopy
-- python =3.12
 - pip:
   - lz-GB-code==0.1.0
