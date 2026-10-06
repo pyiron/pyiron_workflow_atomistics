@@ -11,17 +11,17 @@ dependencies:
 - setuptools
 - ase =3.29.0
 - flowrep =0.6.7
-- matplotlib =3.11.1
+- matplotlib =3.11.2
 - numpy =2.4.6
-- pandas =3.0.5
-- pyiron_workflow =0.19.0
-- pyiron_snippets =1.4.0
-- pymatgen =2026.5.4
+- pandas =3.0.6
+- pyiron_workflow =0.20.3
+- pyiron_snippets =1.5.0
+- pymatgen =2026.9.24
 - pyscal3 =3.3.2
-- scikit-learn =1.9.0
+- scikit-learn =1.9.1
 - scipy =1.17.1
-- structuretoolkit =0.0.45
-- tqdm =4.70.0
+- structuretoolkit =0.0.47
+- tqdm =4.70.1
 - pytest
 - pytest-cov
 - nbformat
