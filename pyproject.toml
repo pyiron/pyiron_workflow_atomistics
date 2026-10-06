@@ -29,7 +29,7 @@ dependencies = [
     "pandas==3.0.5",
     "pyiron_snippets==1.4.0",
     "pyiron_workflow==0.19.0",
-    "pymatgen==2026.5.4",
+    "pymatgen==2026.9.24",
     "pyscal3==3.3.2",
     "scikit-learn==1.9.0",
     "scipy==1.17.1",
