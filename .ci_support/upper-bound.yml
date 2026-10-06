@@ -1,0 +1,6 @@
+channels:
+  - conda-forge
+dependencies:
+  - flowrep =0.7.0
+  - pyiron_snippets =2.0.0
+  - pyiron_workflow =0.21.0

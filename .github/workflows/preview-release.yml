@@ -15,6 +15,6 @@ jobs:
     secrets: inherit
     with:
       semantic-upper-bound: 'minor'
-      lower-bound-yaml: '.ci_support/lower_bound.yml'
+      lower-bound-yaml: '.ci_support/lower-bound.yml'
       pypi-to-conda-name-map-file: '.github/actions/.support/pypi_vs_conda_names.json'
       publish-to-pypi: false
