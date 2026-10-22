@@ -1,0 +1,92 @@
+# Build the sdist and wheel in isolation, then install each into a fresh venv
+# (no editable install, no pre-installed runtime deps) and run the tests from
+# outside the checkout against the installed package. Complements push-pull.yml,
+# whose jobs all run against the source tree.
+
+name: Clean Install
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # versioneer derives the version from git tags
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build --outdir dist .
+          twine check --strict dist/*
+      - name: Check the wheel ships a static _version.py
+        run: |
+          python - <<'EOF'
+          import glob, zipfile
+          wheel, = glob.glob("dist/*.whl")
+          src = zipfile.ZipFile(wheel).read("pyiron_workflow_atomistics/_version.py").decode()
+          assert "version_json" in src, "wheel contains the versioneer template _version.py"
+          print(wheel, "OK")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  install-and-test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+        dist: ['wheel', 'sdist']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo  # only used as a source of tests/
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - name: Install into a fresh venv
+        working-directory: ${{ runner.temp }}
+        run: |
+          if [ "${{ matrix.dist }}" = "wheel" ]; then
+            target=$(ls "$GITHUB_WORKSPACE"/dist/*.whl)
+          else
+            target=$(ls "$GITHUB_WORKSPACE"/dist/*.tar.gz)
+          fi
+          python -m venv venv
+          venv/bin/python -m pip install --upgrade pip
+          venv/bin/python -m pip install "${target}[test,gb,phonons]"
+          venv/bin/python -m pip check
+      - name: Import the installed package
+        working-directory: ${{ runner.temp }}
+        run: |
+          venv/bin/python - <<'EOF'
+          import importlib.metadata
+          import pyiron_workflow_atomistics as pwa
+          import pyiron_workflow_atomistics.testing
+          print(pwa.__file__)
+          print(pwa.__version__)
+          assert "site-packages" in pwa.__file__
+          assert pwa.__version__ == importlib.metadata.version("pyiron_workflow_atomistics")
+          EOF
+      - name: Run tests against the installed package
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir run && cp -r "$GITHUB_WORKSPACE"/repo/tests "$GITHUB_WORKSPACE"/repo/pytest.ini run/
+          cd run
+          ../venv/bin/python -m pytest -p no:cacheprovider \
+            tests/unit tests/integration/test_gb_code_pipeline.py
