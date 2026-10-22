@@ -16,7 +16,7 @@ jobs:
       python-version: '3.12'
       python-version-alt1: '3.13'
       python-version-alt2: '3.11'
-      python-version-alt3: 'exclude'  # No python 3.9
+      python-version-alt3: '3.14'
       runner-alt1: 'exclude'
       # The upstream coverage job runs `unittest discover`, which silently
       # skips every pytest-style test in this repo. We run our own pytest

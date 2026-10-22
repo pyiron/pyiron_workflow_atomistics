@@ -11,6 +11,6 @@ dependencies:
   # pyproject.toml stay on the newest 3.11-compatible releases (numpy 2.4.6,
   # scipy 1.17.1). The default minor cap would then exclude 2.5 / 1.18 for
   # everyone; the suite passes on numpy 2.5.3/2.5.4 and scipy 1.18.1 under
-  # Python 3.12/3.13, so allow the next minor series.
+  # Python 3.12/3.13/3.14, so allow the next minor series.
   - numpy =2.6.0
   - scipy =1.19.0
