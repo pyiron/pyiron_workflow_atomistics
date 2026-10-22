@@ -30,10 +30,10 @@ dependencies = [
     "pyiron_snippets==1.5.0",
     "pyiron_workflow==0.20.3",
     "pymatgen==2026.9.24",
-    "pyscal3==3.3.2",
+    "pyscal3==4.1.0",
     "scikit-learn==1.9.1",
     "scipy==1.17.1",
-    "structuretoolkit==0.0.47",
+    "structuretoolkit==0.0.48",
     "tqdm==4.70.1",
 ]
 dynamic = ["version"]
@@ -84,6 +84,9 @@ VCS = "git"
 style = "pep440-pre"
 tag_prefix = "pyiron_workflow_atomistics-"  # <-- must match your tags like v0.0.2a0
 versionfile_source = "pyiron_workflow_atomistics/_version.py"
+# Without versionfile_build, build_py ships the git-querying template
+# _version.py in the wheel, so an installed wheel reports "0+unknown".
+versionfile_build = "pyiron_workflow_atomistics/_version.py"
 parentdir_prefix = "pyiron_workflow_atomistics-"
 
 [tool.setuptools.packages.find]

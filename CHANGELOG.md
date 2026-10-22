@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.2.3] — 2026-10-22
+
+### Fixed
+
+- **Installed `__version__`.** Built wheels shipped versioneer's
+  git-querying ``_version.py`` template, so an installed package reported
+  ``0+unknown``. ``versionfile_build`` is now set, so the wheel carries a
+  static ``_version.py`` with the real release version, and a test checks
+  that installed builds report it.
+- **pyscal3 4 support.** pyscal3 4.0 removed the ``System`` class, which
+  broke the void analysis in ``structure/defects.py``. It is ported to the
+  pyscal3 4 API around ``ase.Atoms`` (void sites as placeholder species
+  ``X``, per-atom data in ``structure.arrays``, results written as extended
+  XYZ; the ``write`` argument of ``calculate_voids`` is now honoured).
+  Pins move to ``pyscal3==4.1.0`` and ``structuretoolkit==0.0.48``.
+
+### Changed
+
+- **Relaxed release caps.** The released ``numpy`` and ``scipy`` ranges
+  now admit numpy 2.5 and scipy 1.18 (``numpy<2.6.0``, ``scipy<1.19.0``);
+  the ``==`` pins stay on the newest Python 3.11-compatible releases. The
+  calendar-versioned ``pymatgen`` is capped at the next year rather than
+  the next month.
+- Lower bounds raised to match ``structuretoolkit`` 0.0.48
+  (``ase>=3.24.0``, ``numpy>=1.23.5``) and ``pyscal3>=4.1.0``; the
+  ``matplotlib`` lower bound is now listed under its conda name
+  ``matplotlib-base`` so the release script actually applies it.
+
+### Added
+
+- **Clean-install CI.** A workflow builds the wheel, installs it with
+  freely resolved dependencies into a fresh environment and runs the test
+  suite out of tree.
+
 ## [0.0.11] — 2026-05-16
 
 ### Fixed
