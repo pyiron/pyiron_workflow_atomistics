@@ -84,6 +84,9 @@ VCS = "git"
 style = "pep440-pre"
 tag_prefix = "pyiron_workflow_atomistics-"  # <-- must match your tags like v0.0.2a0
 versionfile_source = "pyiron_workflow_atomistics/_version.py"
+# Without versionfile_build, build_py ships the git-querying template
+# _version.py in the wheel, so an installed wheel reports "0+unknown".
+versionfile_build = "pyiron_workflow_atomistics/_version.py"
 parentdir_prefix = "pyiron_workflow_atomistics-"
 
 [tool.setuptools.packages.find]
