@@ -8,9 +8,18 @@ the parallel multi-axis driver. Marked slow.
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pandas as pd
 import pytest
+
+# The module under test imports gb_code (PyPI: lz-GB-code, the optional [gb]
+# extra) at import time.
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec("gb_code") is None,
+    reason="needs the optional [gb] extra (lz-GB-code)",
+)
 
 # ---------------------------------------------------------------------------
 # Tier 1 — pure helpers

@@ -1,3 +1,4 @@
+import importlib.util
 import math
 
 import pytest
@@ -10,6 +11,13 @@ from pyiron_workflow_atomistics.analysis.structure_descriptors import (
 from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
 from pyiron_workflow_atomistics.physics.melting.initial_guess import (
     estimate_melting_temperature,
+)
+
+# The melting workflows need the optional [analysis] extra
+# (structuretoolkit + scikit-learn).
+pytestmark = pytest.mark.skipif(
+    any(importlib.util.find_spec(m) is None for m in ("structuretoolkit", "sklearn")),
+    reason="needs the optional [analysis] extra (structuretoolkit, scikit-learn)",
 )
 
 

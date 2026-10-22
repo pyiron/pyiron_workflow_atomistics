@@ -1,4 +1,11 @@
-"""Common-neighbour-analysis and Voronoi structure descriptors (general)."""
+"""Common-neighbour-analysis and Voronoi structure descriptors (general).
+
+The CNA / Voronoi descriptors are computed with ``structuretoolkit``, an
+optional dependency (``pip install 'pyiron_workflow_atomistics[analysis]'``).
+It is imported when a descriptor is evaluated, not when this module is
+imported, so ``pyiron_workflow_atomistics.analysis`` stays importable without
+it.
+"""
 
 from __future__ import annotations
 
@@ -6,16 +13,21 @@ import operator
 
 import flowrep as fr
 import numpy as np
-from structuretoolkit.analyse import (
-    get_adaptive_cna_descriptors,
-    get_voronoi_volumes,
-)
+
+from pyiron_workflow_atomistics._internal.optional import require
+
+_FEATURE = "CNA / Voronoi structure analysis"
+
+
+def _analyse():
+    """``structuretoolkit.analyse``, imported on first use."""
+    return require("structuretoolkit.analyse", _FEATURE)
 
 
 @fr.atomic("counts")
 def cna_fractions(structure) -> dict:
     """Adaptive CNA counts, lowercase keys {'fcc','bcc','hcp','ico','others'}."""
-    counts_obj = get_adaptive_cna_descriptors(
+    counts_obj = _analyse().get_adaptive_cna_descriptors(
         structure=structure, mode="total", ovito_compatibility=False
     )
     counts = dict(counts_obj)
@@ -29,7 +41,7 @@ def analyse_reference_structure(structure):
     ``distribution_half`` is the solid/liquid threshold: a structure counts as
     *solid* while the dominant-phase fraction stays above this value.
     """
-    counts = get_adaptive_cna_descriptors(
+    counts = _analyse().get_adaptive_cna_descriptors(
         structure=structure, mode="total", ovito_compatibility=False
     )
     key_max = max(counts.items(), key=operator.itemgetter(1))[0]
@@ -41,7 +53,7 @@ def analyse_reference_structure(structure):
 @fr.atomic("is_solid")
 def classify_solid(structure, key_max: str, distribution_half: float) -> bool:
     """True if the dominant-phase fraction exceeds ``distribution_half``."""
-    counts = get_adaptive_cna_descriptors(
+    counts = _analyse().get_adaptive_cna_descriptors(
         structure=structure, mode="total", ovito_compatibility=False
     )
     fraction = counts.get(key_max, 0) / len(structure)
@@ -52,7 +64,7 @@ def classify_solid(structure, key_max: str, distribution_half: float) -> bool:
 @fr.atomic("max_volume", "mean_volume")
 def voronoi_max_mean(structure):
     """Max and mean per-atom Voronoi volume (A^3)."""
-    volumes = get_voronoi_volumes(structure)
+    volumes = _analyse().get_voronoi_volumes(structure)
     max_volume = float(np.max(volumes))
     mean_volume = float(np.mean(volumes))
     return max_volume, mean_volume

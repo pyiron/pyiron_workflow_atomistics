@@ -1,3 +1,5 @@
+import importlib.util
+
 import pytest
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -7,6 +9,13 @@ from pyiron_workflow_atomistics.physics.melting.md_steps import (
     build_solid_liquid_interface,
     npt_relax_solid,
     strain_scan_nvt_nve,
+)
+
+# The melting workflows need the optional [analysis] extra
+# (structuretoolkit + scikit-learn).
+pytestmark = pytest.mark.skipif(
+    any(importlib.util.find_spec(m) is None for m in ("structuretoolkit", "sklearn")),
+    reason="needs the optional [analysis] extra (structuretoolkit, scikit-learn)",
 )
 
 

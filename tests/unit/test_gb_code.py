@@ -1,7 +1,12 @@
 import unittest
 
-from gb_code.gb_generator import GB_character
-from gb_code.inplane_shift import generate_shifts, get_all_shifted_structures
+import pytest
+
+# gb_code (PyPI: lz-GB-code) comes with the optional [gb] extra.
+GB_character = pytest.importorskip("gb_code.gb_generator").GB_character
+_inplane_shift = pytest.importorskip("gb_code.inplane_shift")
+generate_shifts = _inplane_shift.generate_shifts
+get_all_shifted_structures = _inplane_shift.get_all_shifted_structures
 
 
 class TestGBCode(unittest.TestCase):

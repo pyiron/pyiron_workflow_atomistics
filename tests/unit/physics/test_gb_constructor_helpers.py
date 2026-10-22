@@ -8,10 +8,19 @@ is exercised once end-to-end as an integration test in
 
 from __future__ import annotations
 
+import importlib.util
+
 import numpy as np
 import pytest
 from ase.build import bulk
 from pymatgen.core import Lattice, Structure
+
+# The module under test imports gb_code (PyPI: lz-GB-code, the optional [gb]
+# extra) at import time.
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec("gb_code") is None,
+    reason="needs the optional [gb] extra (lz-GB-code)",
+)
 
 # ---------------------------------------------------------------------------
 # _axis_index_to_label

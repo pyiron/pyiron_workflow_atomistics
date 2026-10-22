@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import flowrep as fr
 import numpy as np
-from sklearn.neighbors import KernelDensity
-from structuretoolkit.analyse import get_adaptive_cna_descriptors
+
+from pyiron_workflow_atomistics._internal.optional import require
+
+_FEATURE = "The melting solid-fraction estimate (CNA + kernel density)"
 
 
 @fr.atomic
@@ -16,6 +18,13 @@ def solid_fraction_kde(
     gives the solid slab width relative to the cell. Mirrors the interface
     method's ``plot_solid_liquid_ratio`` (minus plotting).
     """
+    # Optional [analysis] dependencies, imported on use so that
+    # ``physics.melting`` stays importable without them.
+    get_adaptive_cna_descriptors = require(
+        "structuretoolkit.analyse", _FEATURE
+    ).get_adaptive_cna_descriptors
+    KernelDensity = require("sklearn.neighbors", _FEATURE).KernelDensity
+
     target = crystalstructure.lower()
     # Wrap coordinates into the cell (the notebook's center_coordinates_in_unit_cell):
     # MD lets atoms drift across PBC, so the raw z would smear the KDE slab width.
