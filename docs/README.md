@@ -39,9 +39,19 @@ pip install pyiron_workflow_atomistics
 conda install -c conda-forge pyiron_workflow_atomistics
 ```
 
-Optional extras for the phonons stack:
+The core install covers the `engine` layer, the structure builders and the
+bulk / surface / point-defect / elastic / grain-boundary workflows. Heavier,
+topic-specific dependencies are optional extras:
 
 ```bash
+# CNA / Voronoi structure descriptors (analysis.structure_descriptors), the
+# melting-point workflows (physics.melting) and the void analysis in
+# structure.defects: pulls structuretoolkit + pyscal3 + scikit-learn
+pip install "pyiron_workflow_atomistics[analysis]"
+
+# Grain-boundary CSL search: pulls lz-GB-code (PyPI only, also needed under conda)
+pip install "pyiron_workflow_atomistics[gb]"
+
 # κ(T) via phono3py: pulls phonopy + phono3py + symfc
 pip install "pyiron_workflow_atomistics[phonons]"
 

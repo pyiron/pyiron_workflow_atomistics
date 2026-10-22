@@ -4,8 +4,11 @@ from dataclasses import replace
 
 import flowrep as fr
 
+from pyiron_workflow_atomistics._internal.optional import require_analysis
 from pyiron_workflow_atomistics.analysis.structure_descriptors import cna_fractions
 from pyiron_workflow_atomistics.engine import CalcInputMD, calculate
+
+_FEATURE = "The melting-point workflows (physics.melting)"
 
 
 def _fraction(structure, key_max):
@@ -70,6 +73,7 @@ def estimate_melting_temperature(
     a hard ``max_iterations`` guard and ``t_ceiling`` so an undersampled MD run
     (where nothing melts) cannot expand the bracket without bound.
     """
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     ceiling = (
         t_ceiling
         if t_ceiling is not None

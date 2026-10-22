@@ -5,7 +5,6 @@ import flowrep as fr
 import numpy as np
 import pandas as pd
 from pyiron_snippets.logger import logger
-from tqdm import tqdm
 
 from pyiron_workflow_atomistics.physics._grain_boundary_code._gb_code import (
     csl_generator as csl,
@@ -13,6 +12,15 @@ from pyiron_workflow_atomistics.physics._grain_boundary_code._gb_code import (
 from pyiron_workflow_atomistics.physics._grain_boundary_code._gb_code import (
     get_theta_m_n_list,
 )
+
+try:
+    from tqdm import tqdm
+except ModuleNotFoundError:  # pragma: no cover - exercised only without tqdm
+    # tqdm ships with the [gb] extra, but it only draws progress bars: if
+    # lz-GB-code was installed on its own (e.g. pip into a conda env), run the
+    # search without them rather than failing.
+    def tqdm(iterable=None, *args, **kwargs):
+        return iterable
 
 
 def _construct_gb_for_sigma(args):
@@ -272,8 +280,6 @@ def _get_gbcode_df_with_structures(
     pd.DataFrame
         DataFrame with an added 'structure' column of constructed GBs.
     """
-    from tqdm import tqdm
-
     entries = df.to_dict("records")
     args_list = [
         (

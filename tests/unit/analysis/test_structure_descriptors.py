@@ -1,4 +1,7 @@
+import importlib.util
+
 import numpy as np
+import pytest
 from ase.build import bulk
 
 from pyiron_workflow_atomistics.analysis.structure_descriptors import (
@@ -9,16 +12,25 @@ from pyiron_workflow_atomistics.analysis.structure_descriptors import (
     voronoi_max_mean,
 )
 
+# The CNA / Voronoi descriptors need structuretoolkit ([analysis] extra);
+# holes_mask is plain numpy and always runs.
+needs_structuretoolkit = pytest.mark.skipif(
+    importlib.util.find_spec("structuretoolkit") is None,
+    reason="needs the optional [analysis] extra (structuretoolkit)",
+)
+
 
 def _fcc_al():
     return bulk("Al", "fcc", a=4.05, cubic=True).repeat((4, 4, 4))
 
 
+@needs_structuretoolkit
 def test_cna_fractions_fcc_dominant():
     counts = cna_fractions(_fcc_al())
     assert counts["fcc"] / sum(counts.values()) > 0.95
 
 
+@needs_structuretoolkit
 def test_analyse_reference_structure_fcc():
     key_max, n_atoms, half = analyse_reference_structure(_fcc_al())
     assert key_max == "fcc"
@@ -26,12 +38,14 @@ def test_analyse_reference_structure_fcc():
     assert abs(half - 0.5) < 0.05
 
 
+@needs_structuretoolkit
 def test_classify_solid_true_for_crystal():
     s = _fcc_al()
     key_max, _, half = analyse_reference_structure(s)
     assert classify_solid(s, key_max, half) is True
 
 
+@needs_structuretoolkit
 def test_classify_solid_false_for_disordered():
     s = _fcc_al()
     key_max, _, half = analyse_reference_structure(s)
@@ -40,6 +54,7 @@ def test_classify_solid_false_for_disordered():
     assert classify_solid(s, key_max, half) is False
 
 
+@needs_structuretoolkit
 def test_voronoi_max_mean_uniform_fcc():
     vmax, vmean = voronoi_max_mean(_fcc_al())
     assert vmax / vmean < 1.2  # uniform crystal: max ~ mean

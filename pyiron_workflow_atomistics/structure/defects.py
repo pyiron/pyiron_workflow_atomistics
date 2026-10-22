@@ -13,6 +13,11 @@ Azócar Guzmán, A., & Janisch, R. (2024). Effects of mechanical stress, chemica
 and coverage on hydrogen solubility during hydrogen-enhanced decohesion of ferritic steel
 grain boundaries: A first-principles study. Phys. Rev. Mater., 8, 073601.
 doi:10.1103/PhysRevMaterials.8.073601
+
+The void analysis (:func:`calculate_voids`, :func:`filter_and_cluster_atoms`)
+needs ``pyscal3``, an optional dependency
+(``pip install 'pyiron_workflow_atomistics[analysis]'``) imported on use; the
+vacancy / substitutional builders do not.
 """
 
 import itertools
@@ -21,8 +26,12 @@ import flowrep as fr
 import numpy as np
 from ase import Atoms as ASEAtoms
 
+from pyiron_workflow_atomistics._internal.optional import require
+
 #: Species used to mark a void site. ASE's placeholder element (Z = 0).
 VOID_SYMBOL = "X"
+
+_VOID_FEATURE = "The pyscal3 void analysis"
 
 
 @fr.atomic("vacancy_structure")
@@ -243,7 +252,7 @@ def calculate_voids(
     void_ratios, void_count: numpy.ndarray
         the distinct void ratios and how often each occurs
     """
-    import pyscal3
+    pyscal3 = require("pyscal3", _VOID_FEATURE)
     from ase.io import read
 
     # read in data
@@ -350,7 +359,7 @@ def filter_and_cluster_atoms(structure, distance, axis, rvv, write=True):
         the real atoms followed by one site per void cluster, with the void
         ratio in ``arrays["rvv"]`` and the cluster id in ``arrays["cluster"]``
     """
-    import pyscal3
+    pyscal3 = require("pyscal3", _VOID_FEATURE)
 
     d_min = distance[0]
     d_max = distance[1]

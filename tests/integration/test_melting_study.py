@@ -1,3 +1,5 @@
+import importlib.util
+
 import pyiron_workflow as pwf
 import pytest
 from ase.calculators.emt import EMT
@@ -6,6 +8,13 @@ from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
 from pyiron_workflow_atomistics.physics.melting import (
     MeltingInput,
     calculate_melting_point,
+)
+
+# The melting workflows need the optional [analysis] extra
+# (structuretoolkit + scikit-learn).
+pytestmark = pytest.mark.skipif(
+    any(importlib.util.find_spec(m) is None for m in ("structuretoolkit", "sklearn")),
+    reason="needs the optional [analysis] extra (structuretoolkit, scikit-learn)",
 )
 
 

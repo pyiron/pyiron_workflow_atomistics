@@ -3,6 +3,13 @@ import pathlib
 
 import pytest
 
+# scripts/meltingpoint.py runs the melting workflows, which need the optional
+# [analysis] extra (structuretoolkit + scikit-learn).
+pytestmark = pytest.mark.skipif(
+    any(importlib.util.find_spec(m) is None for m in ("structuretoolkit", "sklearn")),
+    reason="needs the optional [analysis] extra (structuretoolkit, scikit-learn)",
+)
+
 
 def _load_script():
     spec = importlib.util.spec_from_file_location(

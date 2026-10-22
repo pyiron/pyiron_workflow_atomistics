@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.3.0] — 2026-10-22
+
+### Changed
+
+- **BREAKING: `structuretoolkit`, `pyscal3` and `scikit-learn` are no longer
+  required dependencies.** They move to a new ``[analysis]`` extra, so
+  packages that only use ``pyiron_workflow_atomistics.engine`` (e.g.
+  ``pyiron_workflow_vasp``) no longer install them. They are needed only by
+  the CNA / Voronoi descriptors in ``analysis.structure_descriptors``
+  (``cna_fractions``, ``analyse_reference_structure``, ``classify_solid``,
+  ``voronoi_max_mean``), the ``physics.melting`` workflows and the void
+  analysis in ``structure.defects`` (``calculate_voids``,
+  ``filter_and_cluster_atoms``). Install them with::
+
+      pip install "pyiron_workflow_atomistics[analysis]"
+
+  Every module still imports without them and all public names are
+  unchanged; calling one of those functions without the extra raises a
+  ``ModuleNotFoundError`` that names the extra (the ``physics.melting``
+  workflows check before their first engine calculation). The conda-forge
+  environments used for CI, docs and binder keep installing them.
+- **BREAKING: `tqdm` is no longer a required dependency.** It only draws
+  progress bars for the grain-boundary CSL search and moves to the ``[gb]``
+  extra; the search runs without progress bars if it is missing.
+- Importing ``pyiron_workflow_atomistics.analysis`` (and with it
+  ``physics.bulk``, ``physics.elastic``, ``physics.grain_boundary`` and
+  ``physics.free_energy``) no longer imports ``structuretoolkit``.
+
+### Added
+
+- **Core-install CI.** The clean-install workflow also installs the wheel
+  without optional extras, checks the ``[analysis]`` packages are not pulled
+  in, and runs the unit tests (tests needing an extra are skipped).
+
 ## [0.2.4] — 2026-10-22
 
 ### Added

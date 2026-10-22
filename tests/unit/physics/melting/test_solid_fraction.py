@@ -1,7 +1,16 @@
+import importlib.util
+
 import numpy as np
+import pytest
 from ase.build import bulk
 
 from pyiron_workflow_atomistics.physics.melting.solid_fraction import solid_fraction_kde
+
+# solid_fraction_kde needs structuretoolkit + scikit-learn ([analysis] extra).
+pytestmark = pytest.mark.skipif(
+    any(importlib.util.find_spec(m) is None for m in ("structuretoolkit", "sklearn")),
+    reason="needs the optional [analysis] extra (structuretoolkit, scikit-learn)",
+)
 
 
 def _half_solid_half_liquid():

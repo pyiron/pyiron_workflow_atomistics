@@ -18,6 +18,7 @@ from dataclasses import replace
 import flowrep as fr
 from ase.data import atomic_numbers, reference_states
 
+from pyiron_workflow_atomistics._internal.optional import require_analysis
 from pyiron_workflow_atomistics.analysis.structure_descriptors import (
     analyse_reference_structure,
 )
@@ -37,6 +38,9 @@ from pyiron_workflow_atomistics.physics.melting.structures import (
 
 # CNA-classifiable solids the coexistence solid-fraction analysis can label.
 _REFINABLE_PHASES = ("fcc", "bcc", "hcp")
+
+
+_FEATURE = "The melting-point workflows (physics.melting)"
 
 
 def _default_candidate_phases(element):
@@ -70,6 +74,7 @@ def screen_phase(
     (``observed_phase``) — which differs from ``crystalstructure`` when the seeded
     polymorph transforms on relaxation.
     """
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     structure = create_coexistence_supercell(
         element, crystalstructure, a=a, n_atoms=n_atoms
     )
@@ -127,6 +132,7 @@ def melting_point_scan(engine, melting_input):
     ``n_refine`` survivors with the full coexistence method, and reports
     ``Tm = max`` over them with the selected phase and the runner-up gap.
     """
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     mi = melting_input
     phases = mi.candidate_phases or _default_candidate_phases(mi.element)
 
