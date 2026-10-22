@@ -31,11 +31,7 @@ dependencies = [
     "pyiron_snippets==1.5.0",
     "pyiron_workflow==0.20.3",
     "pymatgen==2026.9.24",
-    "pyscal3==4.1.0",
-    "scikit-learn==1.9.1",
     "scipy==1.17.1",
-    "structuretoolkit==0.0.48",
-    "tqdm==4.70.1",
 ]
 dynamic = ["version"]
 authors = [
@@ -70,6 +66,22 @@ free-energy = [
 # neither of which is reachable from `import pyiron_workflow_atomistics`.
 gb = [
     "lz-GB-code==0.1.0",
+    # Progress bars for the CSL search (searcher.py); optional at runtime.
+    "tqdm>=4.68.0,<4.71.0",
+]
+# CNA / Voronoi structure descriptors (analysis.structure_descriptors), the
+# melting-point workflows (physics.melting) and the void analysis in
+# structure.defects. Kept optional so that packages using only `engine` (e.g.
+# pyiron_workflow_vasp) do not pull them in; every use is guarded by
+# _internal/optional.py and names this extra when it is missing.
+# The release workflow only relaxes [project].dependencies, so these are
+# written as the ranges it would produce (lower bounds from
+# .ci_support/lower-bound.yml, minor caps, 0.x pinned); the exact versions CI
+# tests with live in .ci_support/environment.yml.
+analysis = [
+    "pyscal3>=4.1.0,<4.2.0",
+    "scikit-learn>=1.0.0,<1.10.0",
+    "structuretoolkit==0.0.48",
 ]
 
 [project.license]

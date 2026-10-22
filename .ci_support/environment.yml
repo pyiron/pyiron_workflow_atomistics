@@ -15,10 +15,16 @@ dependencies:
   - pyiron_snippets =1.5.0
   - pyiron_workflow =0.20.3
   - pymatgen =2026.9.24
-  - pyscal3 =4.1.0 # used by structure/defects.py void-analysis helpers (Tier 2 tests)
-  - scikit-learn =1.9.1
   - scipy =1.17.1
-  - structuretoolkit =0.0.48 # CNA + Voronoi descriptors for analysis/ + physics/melting/
+
+  # Optional [analysis] extra: CNA + Voronoi descriptors for analysis/ and
+  # physics/melting/ (structuretoolkit, scikit-learn), and the
+  # structure/defects.py void analysis (pyscal3). Not required by the
+  # package, but CI tests the full functionality.
+  - pyscal3 =4.1.0
+  - scikit-learn =1.9.1
+  - structuretoolkit =0.0.48
+  # Optional [gb] extra: progress bars for the GB CSL search.
   - tqdm =4.70.1
 
   # Test runners / notebook execution
