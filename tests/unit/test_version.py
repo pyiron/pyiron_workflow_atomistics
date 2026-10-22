@@ -2,10 +2,42 @@
 Unit tests for pyiron_workflow_atomistics version handling.
 """
 
+import importlib.metadata
 import unittest
+from pathlib import Path
 
 import pyiron_workflow_atomistics
 import pyiron_workflow_atomistics._version as version_module
+
+# Imported from a source tree (plain checkout or editable install) rather than
+# from an installed wheel/sdist build. Only then may __version__ legitimately
+# be "0+unknown" (e.g. no tags fetched) or differ from the installed metadata.
+_REPO_ROOT = Path(pyiron_workflow_atomistics.__file__).resolve().parent.parent
+FROM_SOURCE_TREE = (_REPO_ROOT / "pyproject.toml").is_file()
+
+# Built distributions carry versioneer's short static _version.py, which only
+# defines get_versions(); the git-querying template is only in the source tree.
+HAS_VERSIONEER_TEMPLATE = hasattr(version_module, "get_config")
+
+
+class TestInstalledVersion(unittest.TestCase):
+    """The version of an installed (non-editable) build must be resolved."""
+
+    @unittest.skipIf(FROM_SOURCE_TREE, "imported from a source tree")
+    def test_installed_version_matches_metadata(self):
+        version = pyiron_workflow_atomistics.__version__
+        self.assertNotEqual(version, "0+unknown")
+        self.assertEqual(
+            version, importlib.metadata.version("pyiron_workflow_atomistics")
+        )
+
+    @unittest.skipIf(FROM_SOURCE_TREE, "imported from a source tree")
+    def test_installed_version_file_is_static(self):
+        self.assertFalse(
+            HAS_VERSIONEER_TEMPLATE,
+            "installed _version.py is the versioneer template; "
+            "is versionfile_build set in [tool.versioneer]?",
+        )
 
 
 class TestVersion(unittest.TestCase):
@@ -41,6 +73,13 @@ class TestVersion(unittest.TestCase):
 
         # Check that version is a string
         self.assertIsInstance(versions["version"], str)
+
+
+@unittest.skipUnless(
+    HAS_VERSIONEER_TEMPLATE, "built _version.py has no versioneer internals"
+)
+class TestVersioneerTemplate(unittest.TestCase):
+    """Test the versioneer template machinery shipped in the source tree."""
 
     def test_get_config_function(self):
         """Test get_config function."""
