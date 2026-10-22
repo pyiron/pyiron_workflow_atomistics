@@ -373,8 +373,12 @@ def test_void_pipeline_finds_the_fcc_interstitial_sites(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     write_lammps_data("cu.data", cu)
     structure, _, _ = calculate_voids(
-        "cu.data", format="lammps-data", alat=3.6, pf=0.74,
-        tabulate=False, write=False,
+        "cu.data",
+        format="lammps-data",
+        alat=3.6,
+        pf=0.74,
+        tabulate=False,
+        write=False,
     )
     out = filter_and_cluster_atoms(
         structure, distance=[0.0, 14.4], axis=2, rvv=[0.0, 1.5], write=False

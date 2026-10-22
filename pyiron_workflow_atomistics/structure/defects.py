@@ -408,9 +408,7 @@ def filter_and_cluster_atoms(structure, distance, axis, rvv, write=True):
     if len(mean_positions) == 0:
         mean_positions = np.zeros((0, 3))
     new_positions = np.concatenate((previous_positions, mean_positions))
-    new_rlist = np.concatenate(
-        (np.ones(len(previous_positions)), mean_rlist)
-    )
+    new_rlist = np.concatenate((np.ones(len(previous_positions)), mean_rlist))
     new_numbers = np.concatenate(
         (previous_numbers, np.zeros(len(mean_positions), dtype=int))
     )
