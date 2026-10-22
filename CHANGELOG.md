@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [0.2.4] — 2026-10-22
+
+### Added
+
+- **Python 3.14 support.** ``requires-python`` is widened to
+  ``>=3.11, <3.15`` and the 3.14 classifier is added. Every runtime
+  dependency has CPython 3.14 wheels on PyPI and the pinned conda-forge
+  environment solves for ``python=3.14``; the clean-install workflow and
+  the upstream unit-test matrix now also run on 3.14.
+
 ## [0.2.3] — 2026-10-22
 
 ### Fixed
