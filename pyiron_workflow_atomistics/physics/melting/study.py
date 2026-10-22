@@ -3,11 +3,14 @@ from __future__ import annotations
 import flowrep as fr
 from ase.data import atomic_numbers, reference_states
 
+from pyiron_workflow_atomistics._internal.optional import require_analysis
 from pyiron_workflow_atomistics.physics.melting.coexistence import refine_melting_point
 from pyiron_workflow_atomistics.physics.melting.screen import screen_phase
 from pyiron_workflow_atomistics.physics.melting.structures import (
     estimate_lattice_constant,
 )
+
+_FEATURE = "The melting-point workflows (physics.melting)"
 
 
 def _default_crystalstructure(element):
@@ -22,6 +25,7 @@ def calculate_melting_point(engine, melting_input):
     then refines with the Step-2 coexistence loop. Use ``melting_point_scan`` to
     discover the pre-melt phase across polymorphs instead of fixing it here.
     """
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     mi = melting_input
     crystalstructure = mi.crystalstructure or _default_crystalstructure(mi.element)
     a = mi.a

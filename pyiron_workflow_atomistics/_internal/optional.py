@@ -58,3 +58,14 @@ def require(module: str, feature: str, extra: str = ANALYSIS_EXTRA) -> ModuleTyp
         raise ModuleNotFoundError(
             missing_message(module, feature, extra), name=exc.name
         ) from exc
+
+
+def require_analysis(feature: str, extra: str = ANALYSIS_EXTRA) -> None:
+    """Fail fast unless every ``[analysis]`` package the workflows use imports.
+
+    The melting-point workflows run engine calculations (relaxations, MD)
+    *before* their first CNA / kernel-density analysis; checking up front means
+    a missing extra is reported before any compute is spent, not after.
+    """
+    for module in ("structuretoolkit.analyse", "sklearn.neighbors"):
+        require(module, feature, extra)

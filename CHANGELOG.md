@@ -24,7 +24,8 @@ via `versioneer`.
 
   Every module still imports without them and all public names are
   unchanged; calling one of those functions without the extra raises a
-  ``ModuleNotFoundError`` that names the extra. The conda-forge
+  ``ModuleNotFoundError`` that names the extra (the ``physics.melting``
+  workflows check before their first engine calculation). The conda-forge
   environments used for CI, docs and binder keep installing them.
 - **BREAKING: `tqdm` is no longer a required dependency.** It only draws
   progress bars for the grain-boundary CSL search and moves to the ``[gb]``

@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import flowrep as fr
 
+from pyiron_workflow_atomistics._internal.optional import require_analysis
 from pyiron_workflow_atomistics.analysis.structure_descriptors import voronoi_max_mean
 from pyiron_workflow_atomistics.analysis.trajectory import (
     pressures_from_trajectory,
@@ -16,6 +17,8 @@ from pyiron_workflow_atomistics.physics.melting.structures import (
     strain_cell_along_z,
     unfreeze,
 )
+
+_FEATURE = "The melting-point workflows (physics.melting)"
 
 
 def _engine_with(engine, calc_input, subdir):
@@ -116,6 +119,7 @@ def strain_scan_nvt_nve(
     subdir="strain",
 ):
     """For each strain: NVT-equilibrate then NVE; record T, P, solid fraction, voronoi."""
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     records = []
     for i, strain in enumerate(strains):
         strained = strain_cell_along_z(structure, strain)

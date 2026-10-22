@@ -3,6 +3,7 @@ from __future__ import annotations
 import flowrep as fr
 import numpy as np
 
+from pyiron_workflow_atomistics._internal.optional import require_analysis
 from pyiron_workflow_atomistics.analysis.structure_descriptors import holes_mask
 from pyiron_workflow_atomistics.physics.melting.fitting import (
     predict_melting_point,
@@ -17,6 +18,8 @@ from pyiron_workflow_atomistics.physics.melting.outputs import (
     MeltingIterationRecord,
     MeltingResult,
 )
+
+_FEATURE = "The melting-point workflows (physics.melting)"
 
 
 def _strain_grid(center, fit_range, n_points):
@@ -72,6 +75,7 @@ def coexistence_iteration(
     fitted zero-pressure strain); the returned record carries the newly fitted
     ``center`` for the next iteration.
     """
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     solid, _ = npt_relax_solid(
         structure,
         engine,
@@ -150,6 +154,7 @@ def refine_melting_point(structure, engine, t_guess, melting_input, crystalstruc
     ``max_coexistence_iterations`` safety cap is hit). Each iteration re-centres
     the strain grid on the previous iteration's fitted zero-pressure strain.
     """
+    require_analysis(_FEATURE)  # fail before any engine call, not after
     mi = melting_input
     schedules = list(
         zip(mi.timestep_lst, mi.fit_range_lst, mi.nve_steps_lst, strict=False)

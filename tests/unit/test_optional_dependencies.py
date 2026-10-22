@@ -138,3 +138,36 @@ def test_void_analysis_raises_the_actionable_error(monkeypatch, tmp_path):
 
     with pytest.raises(ModuleNotFoundError, match=r"(?s)pyscal3.*\[analysis\]"):
         calculate_voids(str(path), "extxyz", 3.6, 0.74, write=False)
+
+
+@pytest.mark.parametrize("blocked", ["structuretoolkit", "sklearn"])
+def test_melting_workflows_fail_before_running_the_engine(monkeypatch, blocked):
+    """The melting entry points check the extra before any (expensive) engine call."""
+    from pyiron_workflow_atomistics.physics.melting import (
+        MeltingInput,
+        calculate_melting_point,
+        estimate_melting_temperature,
+        melting_point_scan,
+    )
+    from pyiron_workflow_atomistics.physics.melting.md_steps import (
+        strain_scan_nvt_nve,
+    )
+
+    class Untouchable:
+        def __getattr__(self, name):
+            raise AssertionError(f"engine used before the dependency check: {name}")
+
+    engine = Untouchable()
+    for name in [n for n in sys.modules if n == blocked or n.startswith(blocked + ".")]:
+        monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setitem(sys.modules, blocked, None)
+
+    calls = [
+        lambda: calculate_melting_point(engine, MeltingInput(element="Al", a=4.05)),
+        lambda: melting_point_scan(engine, MeltingInput(element="Al", a=4.05)),
+        lambda: estimate_melting_temperature(None, engine, "fcc", 0.5, "fcc"),
+        lambda: strain_scan_nvt_nve(None, engine, 1000.0, [1.0], "fcc"),
+    ]
+    for call in calls:
+        with pytest.raises(ModuleNotFoundError, match=r"\[analysis\]"):
+            call()
