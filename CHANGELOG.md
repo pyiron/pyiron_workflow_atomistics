@@ -13,6 +13,19 @@ calphy 2.3 (#126).
 
 ### Fixed
 
+- **MD-renormalised FC2 was fitted at the wrong displacement distance.**
+  ``calculate_phonon_md_renormalisation`` generated its FC2 supercells with
+  phono3py (0.03 Å, ``is_diagonal=False``) but re-derived the dataset with
+  phonopy's defaults (0.01 Å, ``is_diagonal=True``), so on high-symmetry
+  cells the fitted force constants were silently scaled by 3 (frequencies
+  by √3) and on lower-symmetry cells the supercell-count guard raised. The
+  displacement kwargs are now passed to both sides, the macro exposes
+  ``displacement_distance`` / ``is_plusminus`` so callers can set them, and
+  the guard compares the displaced positions element-wise rather than only
+  the supercell count (#100).
+  ``anharmonic_free_energy_dynaphopy`` and
+  ``anharmonic_free_energy_dynaphopy_tdi`` expose the same two kwargs and
+  forward them to the FC2 fit.
 - **calphy free-energy nodes work with calphy 2.3.** The calphy adapter
   built its calculations with ``script_mode``, which calphy 2 removed, and
   the real-LAMMPS tests of ``physics.free_energy.calphy`` failed on each
