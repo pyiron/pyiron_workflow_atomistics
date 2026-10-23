@@ -57,7 +57,22 @@ pip install "pyiron_workflow_atomistics[phonons]"
 
 # Adds MD-trajectory anharmonic renormalisation via dynaphopy (superset of [phonons])
 pip install "pyiron_workflow_atomistics[phonons-md]"
+
+# calphy free energies, reversible scaling, melting temperature, alchemy and
+# composition scaling (physics.free_energy): pulls calphy 2.3.x +
+# pyiron_workflow_lammps 0.2.x
+pip install "pyiron_workflow_atomistics[free-energy]"
 ```
+
+The `[free-energy]` extra drives [calphy](https://github.com/ICAMS/calphy)
+(2.3.x; earlier releases are not supported), which runs a LAMMPS `lmp`
+executable that must be installed separately and must provide the pair styles
+of your potential (e.g. `conda install -c conda-forge lammps`). Note that
+calphy is distributed under the Academic Software Licence v1.0, which permits
+**non-commercial academic use only**; this package's BSD licence does not
+extend to it. Parallel runs take the launcher from the engine command, which
+must have the form `mpirun -np N lmp` (or `mpiexec`); launcher flags and
+`srun` are rejected because calphy builds the launch line itself.
 
 ## Quick start
 

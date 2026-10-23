@@ -55,9 +55,15 @@ phonons-md = [
     "symfc",
     "dynaphopy",
 ]
+# calphy free-energy nodes (physics.free_energy.calphy). Written as release
+# ranges like [analysis] below, but neither package is in the CI environments
+# (.ci_support/*.yml), so the lower bounds are set by hand: the adapter targets
+# the calphy 2.3 API (calphy 2 removed script_mode) and pyiron_workflow_lammps
+# 0.1.x pins pyiron_workflow 0.15. calphy is licensed under the Academic
+# Software Licence v1.0 (non-commercial academic use only).
 free-energy = [
-    "calphy>=1.5.6",
-    "pyiron_workflow_lammps",
+    "calphy>=2.3.0,<2.4.0",
+    "pyiron_workflow_lammps>=0.2.0,<0.3.0",
 ]
 # Grain-boundary CSL search. lz-GB-code is PyPI-only (no conda-forge package),
 # so keeping it out of the mandatory dependencies is what lets this project be
