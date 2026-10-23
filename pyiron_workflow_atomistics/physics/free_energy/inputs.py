@@ -23,6 +23,8 @@ class LammpsPotential:
         LAMMPS ``pair_coeff`` line, e.g.
         ``"* * /path/to/Cu01.eam.alloy Cu"``. Element ordering must
         match the structure's chemical-symbol first-occurrence order.
+        A relative potential file is resolved against the current
+        directory.
     potential_file
         Not supported: calphy>=2 deprecates and ignores
         ``Calculation.potential_file``, so the calphy nodes raise a

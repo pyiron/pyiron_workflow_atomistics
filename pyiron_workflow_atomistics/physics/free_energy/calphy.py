@@ -4,7 +4,8 @@ Each node:
   1. Asserts the [free-energy] extra is installed via _require_*.
   2. Validates the engine has only its `command` set, and the structure
      is a 3D fully-periodic supercell.
-  3. Creates ``working_directory/subdir/`` and chdirs into it.
+  3. Creates ``working_directory/subdir/``, makes a relative potential
+     file in ``pair_coeff`` absolute, and chdirs into it.
   4. Builds a calphy.input.Calculation, runs it, packs a FreeEnergyOutput.
   5. Restores the previous cwd in a try/finally.
 
@@ -17,6 +18,7 @@ Licence v1.0, which permits non-commercial academic use only.
 
 from __future__ import annotations
 
+import dataclasses
 import os
 from typing import Literal
 
@@ -24,6 +26,7 @@ import flowrep as fr
 from ase import Atoms
 
 from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+    _absolutize_pair_coeff,
     _build_calphy_calculation,
     _pack_free_energy_output,
     _run_calphy_job,
@@ -60,6 +63,18 @@ def _run_one(
     simfolder = os.path.abspath(os.path.join(working_directory, subdir))
     os.makedirs(simfolder, exist_ok=True)
     prev_cwd = os.getcwd()
+    # Relative potential files are meant relative to the caller, not to the
+    # simfolder the Calculation is validated in.
+    potential = dataclasses.replace(
+        potential, pair_coeff=_absolutize_pair_coeff(potential.pair_coeff, prev_cwd)
+    )
+    if builder_kwargs.get("pair_coeff_target"):
+        builder_kwargs = {
+            **builder_kwargs,
+            "pair_coeff_target": _absolutize_pair_coeff(
+                builder_kwargs["pair_coeff_target"], prev_cwd
+            ),
+        }
     try:
         os.chdir(simfolder)
         calc = _build_calphy_calculation(

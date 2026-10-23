@@ -977,6 +977,65 @@ def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
         )
 
 
+def test_nodes_resolve_relative_potential_files_against_caller_cwd(
+    monkeypatch, tmp_path, fcc_al_atoms
+):
+    """calphy resolves pair_coeff file paths against the cwd at validation
+    time, which is the node's simfolder; a path relative to the caller must
+    be made absolute first (for the target potential of alchemy as well)."""
+    pytest.importorskip("calphy")
+    import os
+
+    from pyiron_workflow_atomistics.physics.free_energy import calphy as calphy_nodes
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    (tmp_path / "Al.eam.alloy").write_text("placeholder\n")
+    (tmp_path / "Al_b.eam.alloy").write_text("placeholder\n")
+    seen = {}
+
+    def capture(calc):
+        seen["pair_coeff"] = list(calc.pair_coeff)
+        raise RuntimeError("stop before running LAMMPS")
+
+    monkeypatch.setattr(calphy_nodes, "_run_calphy_job", capture)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(RuntimeError, match="stop before"):
+        alchemy(
+            structure=fcc_al_atoms,
+            lammps_engine=_make_minimal_engine(),
+            potential=LammpsPotential(
+                pair_style="eam/alloy", pair_coeff="* * Al.eam.alloy Al"
+            ),
+            working_directory="runs",
+            temperature=300.0,
+            pair_style_target="eam/alloy",
+            pair_coeff_target="* * ./Al_b.eam.alloy Al",
+        )
+    assert seen["pair_coeff"] == [
+        f"* * {os.path.join(tmp_path, 'Al.eam.alloy')} Al",
+        f"* * {os.path.join(tmp_path, 'Al_b.eam.alloy')} Al",
+    ]
+
+
+@pytest.mark.parametrize(
+    "pair_coeff",
+    [
+        "* * /abs/Al.eam.alloy Al",  # already absolute
+        "* * missing.eam.alloy Al",  # no such file: left for LAMMPS to report
+        "* * eam/alloy Al.eam.alloy Al",  # hybrid style: token 3 is a style
+        "* *",
+    ],
+)
+def test_absolutize_pair_coeff_leaves_other_lines_alone(tmp_path, pair_coeff):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _absolutize_pair_coeff,
+    )
+
+    (tmp_path / "Al.eam.alloy").write_text("placeholder\n")
+    assert _absolutize_pair_coeff(pair_coeff, str(tmp_path)) == pair_coeff
+
+
 def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_atoms):
     pytest.importorskip("calphy")
     import os

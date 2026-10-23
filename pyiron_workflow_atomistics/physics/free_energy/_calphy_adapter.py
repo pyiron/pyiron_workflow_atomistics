@@ -300,6 +300,27 @@ def _validate_structure(structure: Atoms) -> None:
         )
 
 
+def _absolutize_pair_coeff(pair_coeff: str, base: str) -> str:
+    """Make the potential-file token of a ``pair_coeff`` line absolute.
+
+    calphy resolves the file token (``* * <file> <elements>``) against the
+    current directory when the ``Calculation`` is validated, and the public
+    nodes validate it from inside their simfolder. A relative path is
+    therefore resolved here against ``base`` (the caller's directory) first.
+    As in calphy's own ``fix_paths``, only a token naming an existing file is
+    rewritten; anything else (absolute paths, hybrid styles, missing files)
+    is left for calphy and LAMMPS to handle.
+    """
+    tokens = pair_coeff.split()
+    if len(tokens) < 3:
+        return pair_coeff
+    path = os.path.expandvars(os.path.expanduser(tokens[2]))
+    if os.path.isabs(path) or not os.path.isfile(os.path.join(base, path)):
+        return pair_coeff
+    tokens[2] = os.path.abspath(os.path.join(base, path))
+    return " ".join(tokens)
+
+
 # ---------------------------------------------------------------------------
 # _build_calphy_calculation — per-mode kwarg fan-out + data-file writer
 # ---------------------------------------------------------------------------
