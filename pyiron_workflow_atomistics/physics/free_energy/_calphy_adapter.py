@@ -23,21 +23,46 @@ if TYPE_CHECKING:
 
 _LAUNCHERS = ("mpirun", "mpiexec", "srun")
 _LAUNCHER_CORE_FLAGS = ("-np", "-n")
-_BINARY_TAIL_FLAGS = ("-in", "-log")
+# LAMMPS switches calphy sets on every launch itself (``-in <segment>
+# -log <segment log> -screen none``), long and short forms. A value given in
+# the engine command is dropped.
+_BINARY_TAIL_FLAGS = ("-in", "-i", "-log", "-l", "-screen", "-sc")
+# LAMMPS switches that change what a run does in ways calphy cannot drive:
+# multi-partition runs, conversion-only modes, help, and skipping ``run``.
+_REJECTED_TAIL_FLAGS = (
+    "-partition",
+    "-p",
+    "-plog",
+    "-pscreen",
+    "-mpicolor",
+    "-m",
+    "-restart2data",
+    "-r2data",
+    "-restart2dump",
+    "-r2dump",
+    "-skiprun",
+    "-sr",
+    "-help",
+    "-h",
+)
 
 
-def _split_lammps_command(cmd: str) -> tuple[str, str | None, int]:
-    """Parse a LAMMPS launcher command into (binary, mpi_executable, cores).
+def _split_lammps_command(cmd: str) -> tuple[str, str | None, int, str]:
+    """Parse a LAMMPS launcher command into (binary, mpi_executable, cores, cmdargs).
 
     Accepts:
-      "lmp"                                          -> ("lmp", None, 1)
-      "lmp -in in.lmp -log log.lammps"               -> ("lmp", None, 1)
-      "mpirun -np 4 lmp"                             -> ("lmp", "mpirun", 4)
-      "mpirun --bind-to none -np 2 lmp"              -> ("lmp", "mpirun --bind-to none", 2)
+      "lmp"                                   -> ("lmp", None, 1, "")
+      "lmp -in in.lmp -log log.lammps"        -> ("lmp", None, 1, "")
+      "mpirun -np 4 lmp"                      -> ("lmp", "mpirun", 4, "")
+      "mpirun --bind-to none -np 2 lmp"       -> ("lmp", "mpirun --bind-to none", 2, "")
+      "lmp -k on g 1 -sf kk -pk kokkos"       -> ("lmp", None, 1, "-k on g 1 -sf kk -pk kokkos")
 
-    Rejects any tokens other than recognised launcher flags, `-np`/`-n`,
-    and the trailing `-in <file>` / `-log <file>` pair (which calphy
-    overwrites with its own paths anyway).
+    Tokens after the binary become ``cmdargs``, which calphy (``md.cmdargs``)
+    appends to every ``lmp`` launch, e.g. accelerator switches. ``-in``,
+    ``-log`` and ``-screen`` (and their values) are dropped, because calphy
+    sets them on every launch itself. Switches calphy cannot drive
+    (``_REJECTED_TAIL_FLAGS``) and tokens containing whitespace (calphy splits
+    ``cmdargs`` on whitespace) are rejected.
     """
     if not cmd or not cmd.strip():
         raise ValueError("Empty LAMMPS command")
@@ -100,28 +125,35 @@ def _split_lammps_command(cmd: str) -> tuple[str, str | None, int]:
         )
     i += 1
 
-    # Tail may contain only `-in <file>` and `-log <file>`; calphy will
-    # replace these with its own paths. Anything else is rejected.
-    unknown: list[str] = []
+    # Tail: drop the switches calphy sets itself, refuse the ones it cannot
+    # drive, and forward the rest as calphy's md.cmdargs.
+    cmdargs: list[str] = []
+    rejected: list[str] = []
     while i < len(tokens):
         tok = tokens[i]
         if tok in _BINARY_TAIL_FLAGS:
             if i + 1 >= len(tokens):
-                unknown.append(tok)
+                rejected.append(tok)
                 break
             i += 2
             continue
-        unknown.append(tok)
+        if tok in _REJECTED_TAIL_FLAGS or any(c.isspace() for c in tok):
+            rejected.append(tok)
+        else:
+            cmdargs.append(tok)
         i += 1
-    if unknown:
+    if rejected:
         raise ValueError(
-            f"Unrecognized tokens in LammpsEngine.command: {unknown}. "
-            f"The calphy adapter only accepts launcher + binary + "
-            f"optional -in/-log; everything else is dropped silently "
-            f"by calphy and the adapter refuses rather than mislead."
+            f"Unsupported LAMMPS arguments in LammpsEngine.command {cmd!r}: "
+            f"{rejected}. calphy launches LAMMPS once per run segment with "
+            f"its own -in/-log/-screen and appends the remaining arguments "
+            f"verbatim (split on whitespace), so multi-partition, conversion "
+            f"and help switches, a -in/-log/-screen without a value, and "
+            f"arguments containing whitespace cannot be used."
         )
 
-    return binary, " ".join(mpi_parts) if mpi_parts else None, cores
+    mpi = " ".join(mpi_parts) if mpi_parts else None
+    return binary, mpi, cores, " ".join(cmdargs)
 
 
 def _looks_like_lammps_binary(token: str) -> bool:
@@ -346,7 +378,7 @@ def _build_calphy_calculation(
     os.makedirs(working_directory, exist_ok=True)
     _atoms_to_lammps_data(structure, data_path, element_order)
 
-    binary, mpi, cores = _split_lammps_command(lammps_engine.command)
+    binary, mpi, cores, cmdargs = _split_lammps_command(lammps_engine.command)
     _check_calphy_launcher(lammps_engine.command, mpi)
 
     kwargs: dict[str, Any] = {
@@ -371,6 +403,7 @@ def _build_calphy_calculation(
             "scheduler": "local",
             "cores": cores,
         },
+        "md": {"cmdargs": cmdargs},
     }
 
     # Per-mode kwarg routing

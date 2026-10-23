@@ -167,13 +167,25 @@ def test_free_energy_output_picklable():
 @pytest.mark.parametrize(
     "cmd, expected",
     [
-        ("lmp", ("lmp", None, 1)),
-        ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1)),
-        ("mpirun -np 4 lmp", ("lmp", "mpirun", 4)),
-        ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8)),
-        ("srun -n 16 lmp", ("lmp", "srun", 16)),
-        ("mpirun --bind-to none -np 2 lmp", ("lmp", "mpirun --bind-to none", 2)),
-        ("/opt/lammps/bin/lmp_mpi -in in.lmp", ("/opt/lammps/bin/lmp_mpi", None, 1)),
+        ("lmp", ("lmp", None, 1, "")),
+        ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1, "")),
+        ("lmp -i in.lmp -l log.lammps -sc none", ("lmp", None, 1, "")),
+        ("lmp -screen none", ("lmp", None, 1, "")),
+        ("mpirun -np 4 lmp", ("lmp", "mpirun", 4, "")),
+        ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8, "")),
+        ("srun -n 16 lmp", ("lmp", "srun", 16, "")),
+        ("mpirun --bind-to none -np 2 lmp", ("lmp", "mpirun --bind-to none", 2, "")),
+        (
+            "/opt/lammps/bin/lmp_mpi -in in.lmp",
+            ("/opt/lammps/bin/lmp_mpi", None, 1, ""),
+        ),
+        # accelerator switches are forwarded to calphy's md.cmdargs
+        (
+            "lmp -k on g 1 -sf kk -pk kokkos newton on",
+            ("lmp", None, 1, "-k on g 1 -sf kk -pk kokkos newton on"),
+        ),
+        ("mpirun -np 4 lmp -sf omp -in in.lmp", ("lmp", "mpirun", 4, "-sf omp")),
+        ("lmp -nocite", ("lmp", None, 1, "-nocite")),
     ],
 )
 def test_split_lammps_command_valid(cmd, expected):
@@ -187,17 +199,21 @@ def test_split_lammps_command_valid(cmd, expected):
 @pytest.mark.parametrize(
     "cmd",
     [
-        "mpirun -np 4 lmp -unknown-flag x",
         "lmp -partition 2x2",
-        "lmp -screen none",
+        "mpirun -np 4 lmp -p 2x2",
+        "lmp -restart2data file.restart file.data",
+        "lmp -sr",
+        "lmp -h",
+        "lmp -log",  # switch calphy sets, without its value
+        "lmp -var name 'two words'",  # calphy splits cmdargs on whitespace
     ],
 )
-def test_split_lammps_command_rejects_unknown_tokens(cmd):
+def test_split_lammps_command_rejects_unsupported_arguments(cmd):
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _split_lammps_command,
     )
 
-    with pytest.raises(ValueError, match="Unrecognized tokens"):
+    with pytest.raises(ValueError, match="Unsupported LAMMPS arguments"):
         _split_lammps_command(cmd)
 
 
@@ -417,6 +433,35 @@ def test_build_calphy_calculation_fe_passes_mpi_command(
     assert calc.mpi_executable == "mpirun"
     # cores is captured on queue.cores
     assert calc.queue.cores == 8
+    assert calc.md.cmdargs == ""
+
+
+def test_build_calphy_calculation_forwards_lammps_arguments(
+    tmp_path, fcc_al_atoms, monkeypatch
+):
+    """Arguments after the binary reach calphy's md.cmdargs, which calphy>=2.3
+    appends to every lmp launch (e.g. accelerator switches)."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    eng = _make_minimal_engine()
+    eng.command = "lmp -sf omp -pk omp 2 -log ignored.log"
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
+    calc = _build_calphy_calculation(
+        mode="fe",
+        structure=fcc_al_atoms,
+        potential=pot,
+        lammps_engine=eng,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        reference_phase="solid",
+    )
+    assert calc.lammps_executable == "lmp"
+    assert calc.md.cmdargs == "-sf omp -pk omp 2"
 
 
 def test_build_calphy_calculation_writes_data_file_matches_structure(
@@ -508,7 +553,7 @@ def test_check_calphy_launcher_accepts(cmd):
         _split_lammps_command,
     )
 
-    _, mpi, _ = _split_lammps_command(cmd)
+    _, mpi, _, _ = _split_lammps_command(cmd)
     _check_calphy_launcher(cmd, mpi)  # should not raise
 
 
@@ -528,7 +573,7 @@ def test_check_calphy_launcher_rejects(cmd, match):
         _split_lammps_command,
     )
 
-    _, mpi, _ = _split_lammps_command(cmd)
+    _, mpi, _, _ = _split_lammps_command(cmd)
     with pytest.raises(ValueError, match=match):
         _check_calphy_launcher(cmd, mpi)
 
@@ -968,7 +1013,8 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
         pair_style="eam/alloy",
         pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
     )
-    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+    # -nocite is forwarded to every lmp launch (calphy md.cmdargs)
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=f"{LAMMPS_BIN} -nocite")
 
     out = free_energy(
         structure=cu,
