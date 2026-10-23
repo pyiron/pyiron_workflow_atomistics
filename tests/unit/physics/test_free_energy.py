@@ -1159,8 +1159,10 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
     assert out.reference_phase == "solid"
     assert out.n_atoms == 108
     assert out.elements == ["Cu"]
-    assert -4.5 < out.free_energy < -3.0  # Cu EAM, eV/atom @ 100 K
-    assert out.free_energy_error >= 0
+    # Cu01 EAM (E_coh = -3.54 eV/atom) at 100 K: calphy 2.3 gave -3.5196 to
+    # -3.5203 over repeated runs; a few meV covers the 2000-step noise.
+    # (free_energy_error is always 0 with n_iterations=1.)
+    assert out.free_energy == pytest.approx(-3.520, abs=5e-3)
     assert os.path.isabs(out.simfolder)
     assert (Path(out.simfolder) / "report.yaml").exists()
 
@@ -1231,8 +1233,21 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
     assert out.free_energy_array is not None
     assert out.temperature_array.shape == out.free_energy_array.shape
     import numpy as np
+    from ase.units import kB
 
-    assert np.all(np.diff(out.temperature_array) >= 0)
+    t, f = out.temperature_array, out.free_energy_array
+    assert np.all(np.diff(t) >= 0)
+    assert (t[0], t[-1]) == pytest.approx((100.0, 300.0), abs=1e-3)
+    # the curve starts at the Frenkel-Ladd free energy of the start point
+    assert f[0] == pytest.approx(out.free_energy, abs=1e-3)
+    # S = -dF/dT > 0
+    assert np.all(np.diff(f) < 0)
+    # Gibbs-Helmholtz: U = F - T dF/dT; for a nearly harmonic solid U - 3kT
+    # stays at the cohesive energy of Cu01 (-3.54 eV/atom). Seen: within 2 meV.
+    near = np.abs(t - 300.0) <= 10.0
+    slope, intercept = np.polyfit(t[near], f[near], 1)
+    u_300 = slope * 300.0 + intercept - 300.0 * slope
+    assert u_300 - 3 * kB * 300.0 == pytest.approx(-3.54, abs=5e-3)
 
 
 # ---------------------------------------------------------------------------
@@ -1330,7 +1345,11 @@ def test_melting_temperature_runs(tmp_path):
     )
     assert out.mode == "melting_temperature"
     assert out.reference_phase == "both"
-    assert 800.0 < out.melting_temperature < 2000.0
+    # 108-atom Cu01 with 20k-step sweeps: 1387-1491 K over repeated runs
+    # (literature Tm(Cu01) ~1327 K; the excess shrinks with cell size).
+    assert 1300.0 < out.melting_temperature < 1600.0
+    # calphy only logs an irreversible (phase-changing) sweep; fail on it
+    assert out.report["results"]["ts_dissipation_high"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1468,9 +1487,19 @@ def test_reversible_scaling_pressure_smoke(tmp_path):
     )
     assert out.mode == "pscale"
     import numpy as np
+    from ase.units import GPa
 
-    assert out.pressure_array is not None
-    assert np.isfinite(out.free_energy)
+    p, g = out.pressure_array, out.free_energy_array
+    assert p is not None and g is not None
+    assert (p[0], p[-1]) == pytest.approx((0.0, 10_000.0))
+    assert g[0] == pytest.approx(out.free_energy, abs=1e-3)
+    # dG/dP = V > 0
+    assert np.all(np.diff(g) > 0)
+    # G(1 GPa) - G(0) = int V dP ~ V(0) dP; the solid's compression lowers it
+    # by ~0.4 % (seen: 0.0745 vs V dP = 0.0748 eV/atom).
+    v_atom = out.report["average"]["vol_atom"]
+    dp = (p[-1] - p[0]) * 1e-4 * GPa  # bar -> eV/A^3
+    assert g[-1] - g[0] == pytest.approx(v_atom * dp, rel=1e-2)
 
 
 @requires_lammps
@@ -1486,9 +1515,16 @@ def test_alchemy_smoke(tmp_path):
     from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
+    # Target: Cu01 with its embedding F(rho) shifted by +0.1 eV. Forces are
+    # identical, every atom's energy rises by 0.1 eV, so dF = +0.1 eV/atom
+    # exactly; this pins the sign, the units and which end is the target.
+    offset = 0.1
+    shifted = tmp_path / "Cu01_shifted.eam.alloy"
+    _write_shifted_eam(RESOURCES / "Cu01.eam.alloy", shifted, offset)
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
-    cu_potential = f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
-    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff=cu_potential)
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
+    )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
     out = alchemy(
         structure=cu,
@@ -1497,14 +1533,13 @@ def test_alchemy_smoke(tmp_path):
         working_directory=str(tmp_path),
         temperature=300.0,
         pair_style_target="eam/alloy",
-        pair_coeff_target=cu_potential,  # transform from Cu EAM back to Cu EAM → ΔF≈0
+        pair_coeff_target=f"* * {shifted} Cu",
         n_equilibration_steps=2000,
         n_switching_steps=2000,
     )
     assert out.mode == "alchemy"
-    import numpy as np
-
-    assert np.isfinite(out.free_energy)
+    assert out.free_energy == pytest.approx(offset, abs=1e-6)
+    assert out.report["results"]["work"] == pytest.approx(offset, abs=1e-6)
 
 
 def _shift_eam_embedding(values: list[str], n_rho: int, offset: float) -> list[str]:
@@ -1517,6 +1552,16 @@ def _shift_eam_embedding(values: list[str], n_rho: int, offset: float) -> list[s
     if not offset:
         return list(values)
     return [f"{float(v) + offset:.16e}" for v in values[:n_rho]] + values[n_rho:]
+
+
+def _write_shifted_eam(src: Path, dst: Path, offset: float) -> None:
+    """Write a copy of the single-element eam/alloy ``src`` whose embedding
+    function is shifted by ``offset`` eV (see :func:`_shift_eam_embedding`)."""
+    lines = src.read_text().splitlines()
+    n_rho = int(float(lines[4].split()[0]))
+    values = [v for line in lines[6:] for v in line.split()]
+    shifted = _shift_eam_embedding(values, n_rho, offset)
+    dst.write_text("\n".join(lines[:6] + shifted) + "\n")
 
 
 def _write_duplicated_binary_eam(
