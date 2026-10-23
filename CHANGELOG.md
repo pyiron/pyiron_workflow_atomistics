@@ -6,7 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
-## [Unreleased]
+## [0.3.1] — 2026-10-23
+
+Makes the calphy free-energy nodes (`[free-energy]` extra) work, with
+calphy 2.3 (#126).
 
 ### Fixed
 
@@ -61,11 +64,10 @@ via `versioneer`.
   ``pyiron_workflow_lammps`` becomes ``>=0.2.0,<0.3.0`` (0.1.x pins
   ``pyiron_workflow`` 0.15 and cannot be installed alongside this
   package). The extra did not work with any calphy release before, so no
-  working setup breaks. Release this as a 0.3.x patch:
+  working setup breaks. This is a patch release because
   ``pyiron_workflow_lammps`` 0.2.0 requires
-  ``pyiron-workflow-atomistics<0.4.0``, so under a 0.4.0 the extra could
-  not be resolved until a ``pyiron_workflow_lammps`` release raises that
-  cap. calphy is distributed under the Academic Software Licence v1.0,
+  ``pyiron-workflow-atomistics<0.4.0``: under a 0.4.0 the extra could not
+  be resolved until a ``pyiron_workflow_lammps`` release raises that cap. calphy is distributed under the Academic Software Licence v1.0,
   which permits non-commercial academic use only; the README now says so
   where the extra is described, and names the LAMMPS build and packages
   calphy needs.
