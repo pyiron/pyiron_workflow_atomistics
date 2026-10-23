@@ -24,8 +24,10 @@ class LammpsPotential:
         ``"* * /path/to/Cu01.eam.alloy Cu"``. Element ordering must
         match the structure's chemical-symbol first-occurrence order.
     potential_file
-        Optional auxiliary potential file path (some potentials require
-        one); passed to ``calphy.input.Calculation.potential_file``.
+        Not supported: calphy>=2 deprecates and ignores
+        ``Calculation.potential_file``, so the calphy nodes raise a
+        ``ValueError`` when it is set. Put everything the potential
+        needs into ``pair_style`` / ``pair_coeff``.
     """
 
     pair_style: str

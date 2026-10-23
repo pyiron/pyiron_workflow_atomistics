@@ -464,6 +464,35 @@ def test_build_calphy_calculation_forwards_lammps_arguments(
     assert calc.md.cmdargs == "-sf omp -pk omp 2"
 
 
+def test_build_calphy_calculation_rejects_potential_file(
+    tmp_path, fcc_al_atoms, monkeypatch
+):
+    """calphy>=2 ignores Calculation.potential_file (it only warns, and the
+    warning is hidden by default), so the file would be dropped silently."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff="* * /tmp/Al.eam.alloy Al",
+        potential_file="/tmp/include_me.lmp",
+    )
+    with pytest.raises(ValueError, match="potential_file"):
+        _build_calphy_calculation(
+            mode="fe",
+            structure=fcc_al_atoms,
+            potential=pot,
+            lammps_engine=_make_minimal_engine(),
+            working_directory=str(tmp_path),
+            temperature=300.0,
+            reference_phase="solid",
+        )
+
+
 def test_build_calphy_calculation_writes_data_file_matches_structure(
     tmp_path, fcc_al_atoms, monkeypatch
 ):

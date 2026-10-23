@@ -380,6 +380,14 @@ def _build_calphy_calculation(
 
     binary, mpi, cores, cmdargs = _split_lammps_command(lammps_engine.command)
     _check_calphy_launcher(lammps_engine.command, mpi)
+    if potential.potential_file is not None:
+        raise ValueError(
+            f"LammpsPotential.potential_file={potential.potential_file!r} is "
+            f"not supported: calphy>=2 deprecates Calculation.potential_file "
+            f"and no longer reads it, so the file would be silently ignored. "
+            f"Put everything the potential needs into `pair_style` / "
+            f"`pair_coeff`."
+        )
 
     kwargs: dict[str, Any] = {
         "mode": mode,
@@ -389,7 +397,6 @@ def _build_calphy_calculation(
         "file_format": "lammps-data",
         "pair_style": potential.pair_style,
         "pair_coeff": potential.pair_coeff,
-        "potential_file": potential.potential_file,
         "n_equilibration_steps": n_equilibration_steps,
         "n_switching_steps": n_switching_steps,
         "n_iterations": n_iterations,
