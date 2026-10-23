@@ -524,7 +524,23 @@ def _run_calculation(job):
     from calphy import MeltingTemp, routines
 
     if isinstance(job, MeltingTemp):
-        job.calculate_tm()
+        try:
+            job.calculate_tm()
+        except ValueError as exc:
+            if "Simulation folder" not in str(exc):
+                raise
+            # MeltingTemp names each solid/liquid sub-calculation after its
+            # temperature bracket and refuses to reuse a folder.
+            raise RuntimeError(
+                f"calphy's melting-temperature search needed a sub-calculation "
+                f"folder that already exists ({exc}). Either an earlier run "
+                f"left it in the working directory, or the bracket search "
+                f"oscillated: the liquid froze at the bottom of one bracket and "
+                f"the solid melted at the top of the next, so it went back to "
+                f"a bracket it had tried. Use a fresh working directory, and "
+                f"for oscillation a smaller `step`, a closer "
+                f"`temperature_guess`, a larger cell or longer sweeps."
+            ) from exc
         return job
 
     mode = getattr(getattr(job, "calc", None), "mode", None)

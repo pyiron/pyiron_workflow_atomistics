@@ -1146,8 +1146,11 @@ def test_melting_temperature_runs(tmp_path):
         working_directory=str(tmp_path),
         temperature_guess=1300.0,
         # calphy>=2 aborts sweeps whose dissipation shows a phase change;
-        # 2000-step sweeps are too irreversible to locate Tm (~74 s here).
-        step=200,
+        # 2000-step sweeps are too irreversible to locate Tm (~75 s here).
+        # With 108 atoms a +/-200 K bracket reaches the freezing/superheating
+        # limits and the search can oscillate between two brackets (2 of 4
+        # runs); +/-100 K converged in 8 of 8.
+        step=100,
         max_attempts=3,
         n_equilibration_steps=5000,
         n_switching_steps=20000,
@@ -1661,6 +1664,30 @@ def test_run_calculation_melting_calls_calculate_tm(monkeypatch):
     job = sys.modules["calphy"].MeltingTemp(_FakeCalc("melting_temperature"))
     _run_calculation(job)
     assert job.calls == ["calculate_tm"], job.calls
+
+
+def test_run_calculation_melting_explains_folder_clash(monkeypatch):
+    """A bracket search that revisits a bracket hits calphy's folder-exists
+    ValueError; it is re-raised with the cause and what to change."""
+    _patch_calphy_module(monkeypatch)
+    import sys
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _run_calculation,
+    )
+
+    job = sys.modules["calphy"].MeltingTemp(_FakeCalc("melting_temperature"))
+
+    def clash():
+        raise ValueError(
+            "Simulation folder /x/ts-lammps.data-solid-1100-0 exists. "
+            "Please remove and run again!"
+        )
+
+    job.calculate_tm = clash
+    with pytest.raises(RuntimeError, match="oscillated") as exc:
+        _run_calculation(job)
+    assert isinstance(exc.value.__cause__, ValueError)
 
 
 def test_run_calculation_rejects_unknown_mode(monkeypatch):

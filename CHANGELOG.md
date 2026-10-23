@@ -37,7 +37,10 @@ via `versioneer`.
 - ``melting_temperature`` reports its working directory as ``simfolder``
   (no longer an empty extra folder) and records the solid / liquid sweep
   dissipation verdicts in ``report``, as calphy only logs a warning when
-  a sweep was irreversible.
+  a sweep was irreversible. When calphy's bracket search returns to a
+  bracket it already tried (or a previous run left its folders behind),
+  the folder-exists ``ValueError`` is re-raised as a ``RuntimeError``
+  that names the cause and what to change.
 
 ### Changed
 
