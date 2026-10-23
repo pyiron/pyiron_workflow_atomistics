@@ -1,5 +1,7 @@
 # Calphy free-energy interface — implementation plan
 
+> **Superseded (calphy 2.3 port):** this records the original calphy 1.x design. The adapter now targets calphy 2.3, which has no `script_mode`, and dispatches each mode to calphy's own routines; see CHANGELOG.md, [Unreleased].
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `physics/free_energy/` subpackage with six user-facing function-nodes — `free_energy`, `reversible_scaling_temperature`, `reversible_scaling_pressure`, `melting_temperature`, `alchemy`, `composition_scaling` — each returning a typed `FreeEnergyOutput` dataclass. Each node wraps `calphy` and consumes a `LammpsEngine` (only its `command` field) plus a separate `LammpsPotential` dataclass.

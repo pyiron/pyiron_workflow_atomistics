@@ -66,13 +66,23 @@ pip install "pyiron_workflow_atomistics[free-energy]"
 
 The `[free-energy]` extra drives [calphy](https://github.com/ICAMS/calphy)
 (2.3.x; earlier releases are not supported), which runs a LAMMPS `lmp`
-executable that must be installed separately and must provide the pair styles
-of your potential (e.g. `conda install -c conda-forge lammps`). Note that
-calphy is distributed under the Academic Software Licence v1.0, which permits
-**non-commercial academic use only**; this package's BSD licence does not
-extend to it. Parallel runs take the launcher from the engine command, which
-must have the form `mpirun -np N lmp` (or `mpiexec`); launcher flags and
-`srun` are rejected because calphy builds the launch line itself.
+executable that must be installed separately. It must provide the pair styles
+of your potential and the EXTRA-FIX and EXTRA-PAIR packages (calphy uses
+`fix ti/spring` and `pair_style ufm`), as the conda-forge builds do:
+
+```bash
+conda install -c conda-forge "lammps=2025.07.22=*nompi_2"
+```
+
+(On Linux with glibc older than 2.38, e.g. Ubuntu 22.04, pin that build: the
+later conda-forge builds of 2025.07.22 need glibc 2.38 although their metadata
+says otherwise.) Note that calphy is distributed under the Academic Software
+Licence v1.0, which permits **non-commercial academic use only**; this
+package's BSD licence does not extend to it. Parallel runs take the launcher
+from the engine command, which must have the form `mpirun -np N lmp` (or
+`mpiexec`); launcher flags and `srun` are rejected because calphy builds the
+launch line itself. Arguments after `lmp` (e.g. `-sf omp` or
+`-k on g 1 -sf kk -pk kokkos`) are passed to every LAMMPS run.
 
 ## Quick start
 
