@@ -141,6 +141,41 @@ def _looks_like_lammps_binary(token: str) -> bool:
     return "lmp" in name or "lammps" in name
 
 
+def _check_calphy_launcher(cmd: str, mpi: str | None) -> None:
+    """Refuse launcher forms calphy>=2 cannot reproduce.
+
+    calphy>=2 starts every LAMMPS segment itself as ``[mpi_executable,
+    "-np", str(cores), lmp, ...]`` (``calphy.runner.ExecutableRunner``),
+    resolves ``mpi_executable`` with ``shutil.which`` and only uses it when
+    ``queue.cores > 1``. So launcher flags cannot be forwarded, ``srun``
+    (which has no ``-np``) cannot be driven, and a launcher without an
+    explicit core count would silently run serially. Refuse each case
+    rather than run something other than what the engine command says.
+    """
+    if mpi is None:
+        return
+    launcher, *flags = mpi.split()
+    if flags:
+        raise ValueError(
+            f"calphy>=2 accepts only a bare MPI launcher (e.g. 'mpirun -np 4 "
+            f"lmp'); the launcher flags {flags} in {cmd!r} cannot be "
+            f"forwarded. Remove them or set them via the launcher's "
+            f"environment (e.g. OMPI_MCA_*)."
+        )
+    if launcher == "srun":
+        raise ValueError(
+            f"calphy>=2 launches parallel LAMMPS as '<launcher> -np <cores> "
+            f"lmp', which srun does not accept; use 'mpirun -np N lmp' or "
+            f"'mpiexec -np N lmp' instead of {cmd!r}."
+        )
+    if not any(tok in _LAUNCHER_CORE_FLAGS for tok in shlex.split(cmd)):
+        raise ValueError(
+            f"{cmd!r} names an MPI launcher but no core count; calphy>=2 "
+            f"needs it explicitly (e.g. '{launcher} -np 4 lmp') and would "
+            f"otherwise run LAMMPS serially."
+        )
+
+
 _ENGINE_CARVE_OUTS = frozenset(
     {
         "EngineInput",  # required to construct; ignored by calphy
@@ -297,8 +332,10 @@ def _build_calphy_calculation(
     """Build a ``calphy.input.Calculation`` from the user kwargs.
 
     Returns the validated Pydantic model, ready to feed to
-    :func:`calphy.kernel.setup_calculation`. Writes the LAMMPS data
-    file to ``{working_directory}/lammps.data`` as a side effect.
+    :func:`_run_calphy_job`. Writes the LAMMPS data file to
+    ``{working_directory}/lammps.data`` as a side effect; calphy's validator
+    then copies it to ``<identifier>.0.data`` in the *current* directory,
+    which is why the public nodes chdir into the working directory first.
     """
     calphy = __import_calphy()
 
@@ -310,6 +347,7 @@ def _build_calphy_calculation(
     _atoms_to_lammps_data(structure, data_path, element_order)
 
     binary, mpi, cores = _split_lammps_command(lammps_engine.command)
+    _check_calphy_launcher(lammps_engine.command, mpi)
 
     kwargs: dict[str, Any] = {
         "mode": mode,
@@ -324,12 +362,9 @@ def _build_calphy_calculation(
         "n_switching_steps": n_switching_steps,
         "n_iterations": n_iterations,
         "npt": npt,
-        "equilibration_control": (
-            "nose_hoover"
-            if equilibration_control == "nose-hoover"
-            else equilibration_control
-        ),
-        "script_mode": True,
+        # calphy compares against the literal "nose-hoover"; any other
+        # string silently selects the Berendsen branch.
+        "equilibration_control": equilibration_control,
         "lammps_executable": binary,
         "mpi_executable": mpi,
         "queue": {
@@ -405,11 +440,36 @@ def _build_calphy_calculation(
         kwargs["temperature"] = float(temperature)
         kwargs["pressure"] = float(pressure)
         kwargs["reference_phase"] = "solid"
+        input_composition = {
+            el: structure.get_chemical_symbols().count(el) for el in element_order
+        }
+        output_composition = {
+            el: int(n) for el, n in output_chemical_composition.items() if n
+        }
+        if output_composition == input_composition:
+            raise ValueError(
+                f"composition_scaling: output_chemical_composition "
+                f"{dict(output_chemical_composition)} equals the composition of "
+                f"`structure`; there is nothing to transform (use "
+                f"`free_energy` for the free energy of this composition)."
+            )
         kwargs["composition_scaling"] = {
             "output_chemical_composition": dict(output_chemical_composition),
         }
     else:
         raise ValueError(f"Unknown mode: {mode!r}")
+
+    if mode == "melting_temperature":
+        # calphy's MeltingTemp re-reads ``calc.inputfile`` / ``calc.kernel``
+        # to spawn its solid and liquid ``ts`` sub-calculations, so a
+        # programmatically built Calculation must be backed by a file.
+        import yaml as _yaml
+
+        input_path = os.path.join(working_directory, "calphy_input.yaml")
+        with open(input_path, "w") as f:
+            _yaml.safe_dump({"calculations": [kwargs]}, f)
+        kwargs["inputfile"] = input_path
+        kwargs["kernel"] = 0
 
     return calphy.input.Calculation(**kwargs)
 
@@ -426,26 +486,26 @@ def __import_calphy():
 def _setup_calculation(calc):
     """Build the calphy phase-job from a Calculation.
 
-    calphy 1.5.6 exposes one job class per reference phase / mode:
-    ``Solid``, ``Liquid``, ``Alchemy``, ``MeltingTemp``,
-    ``CompositionTransformation``. The mode/reference-phase fields on
-    ``calc`` pick the constructor; the simfolder is materialised via
-    ``calc.create_folders()`` before the job is built (the constructors
-    immediately write ``input_file.yaml`` into ``simfolder``, so it must
-    exist on disk).
+    Mirrors ``calphy.queuekernel.setup_calculation`` (calphy>=2.3):
+    ``Solid`` / ``Liquid`` for ``fe``/``ts``/``tscale``/``pscale`` (by
+    ``reference_phase``), ``Alchemy`` for ``alchemy`` *and*
+    ``composition_scaling`` (the routine builds the
+    ``CompositionTransformation`` itself), and ``MeltingTemp`` for
+    ``melting_temperature``. The phase constructors write
+    ``input_file.yaml`` into ``simfolder`` immediately, so it is
+    materialised via ``calc.create_folders()`` first. ``MeltingTemp``
+    needs no folder of its own: it logs to, and creates its solid and
+    liquid sub-calculation folders in, the current directory, which is
+    what its ``simfolder`` is set to.
     """
     calphy = __import_calphy()
-    simfolder = calc.create_folders()
     mode = getattr(calc, "mode", None)
-    ref = getattr(calc, "reference_phase", None)
-    if mode == "alchemy":
-        return calphy.Alchemy(calculation=calc, simfolder=simfolder)
-    if mode == "composition_scaling":
-        from calphy.routines import CompositionTransformation
-
-        return CompositionTransformation(calculation=calc, simfolder=simfolder)
     if mode == "melting_temperature":
-        return calphy.MeltingTemp(calculation=calc, simfolder=simfolder)
+        return calphy.MeltingTemp(calculation=calc, simfolder=os.getcwd())
+    simfolder = calc.create_folders()
+    ref = getattr(calc, "reference_phase", None)
+    if mode in ("alchemy", "composition_scaling"):
+        return calphy.Alchemy(calculation=calc, simfolder=simfolder)
     # fe / ts / tscale / pscale fork on reference_phase
     if ref == "liquid":
         return calphy.Liquid(calculation=calc, simfolder=simfolder)
@@ -453,64 +513,36 @@ def _setup_calculation(calc):
 
 
 def _run_calculation(job):
-    """Run a calphy phase-job to completion.
+    """Run a calphy phase-job to completion via calphy's own routines.
 
-    For ``fe``/``ts``/``tscale``/``pscale`` we inline the routine flow:
-    ``run_averaging`` → ``process_averaging_results`` (populates
-    ``self.lx/ly/lz`` from ``avg.dat`` — the step that calphy 1.5.6's
-    ``routine_fe`` omits, expected to be supplied externally by the
-    CLI orchestrator) → ``run_integration`` → integrate. ``alchemy``,
-    ``composition_scaling``, ``melting_temperature`` delegate to the
-    upstream routines unchanged.
+    Mirrors ``calphy.queuekernel``: every mode maps 1:1 onto an upstream
+    ``routine_*`` function (calphy>=2 runs averaging *and* its
+    post-processing inside ``run_averaging`` and drives the ``lmp``
+    binary itself), and ``melting_temperature`` calls
+    ``MeltingTemp.calculate_tm``.
     """
-    from calphy import MeltingTemp
-    from calphy.routines import (
-        routine_alchemy,
-        routine_composition_scaling,
-    )
+    from calphy import MeltingTemp, routines
 
     if isinstance(job, MeltingTemp):
-        job.run_jobs()
+        job.calculate_tm()
         return job
 
     mode = getattr(getattr(job, "calc", None), "mode", None)
-
-    if mode in ("fe", "ts", "tscale", "pscale"):
-        # ── averaging ─────────────────────────────────────────────────
-        job.run_averaging()
-        # bridge missing from upstream routine_fe; populates lx/ly/lz
-        # and the spring constants used by run_integration.
-        job.process_averaging_results()
-        # ── free-energy integration (always; ts/tscale/pscale piggyback) ─
-        for i in range(job.calc.n_iterations):
-            job.run_integration(iteration=i + 1)
-        job.thermodynamic_integration()
-        job.submit_report()
-        if mode == "ts":
-            for i in range(job.calc.n_iterations):
-                job.reversible_scaling(iteration=i + 1)
-            job.integrate_reversible_scaling(scale_energy=True)
-        elif mode == "tscale":
-            for i in range(job.calc.n_iterations):
-                job.reversible_scaling(iteration=i + 1)
-            job.integrate_reversible_scaling(scale_energy=False)
-        elif mode == "pscale":
-            for i in range(job.calc.n_iterations):
-                job.pressure_scaling(iteration=i + 1)
-            job.integrate_pressure_scaling()
-        job.clean_up()
-        return job
-
-    if mode == "alchemy":
-        return routine_alchemy(job)
-    if mode == "composition_scaling":
-        return routine_composition_scaling(job)
-
-    raise ValueError(
-        f"No calphy routine for mode={mode!r}. Supported: "
-        "'fe', 'ts', 'tscale', 'pscale', 'alchemy', 'composition_scaling', "
-        "'melting_temperature'."
-    )
+    routine = {
+        "fe": routines.routine_fe,
+        "ts": routines.routine_ts,
+        "tscale": routines.routine_tscale,
+        "pscale": routines.routine_pscale,
+        "alchemy": routines.routine_alchemy,
+        "composition_scaling": routines.routine_composition_scaling,
+    }.get(mode)
+    if routine is None:
+        raise ValueError(
+            f"No calphy routine for mode={mode!r}. Supported: "
+            "'fe', 'ts', 'tscale', 'pscale', 'alchemy', 'composition_scaling', "
+            "'melting_temperature'."
+        )
+    return routine(job)
 
 
 def _run_calphy_job(calc):
@@ -519,12 +551,15 @@ def _run_calphy_job(calc):
     Returns ``(job, report)`` where ``report`` is the parsed
     ``report.yaml`` from ``job.simfolder``. Reading the file rather
     than scraping live attributes survives calphy minor-version
-    changes that move fields around.
+    changes that move fields around. ``melting_temperature`` writes no
+    such file; its report is assembled by :func:`_melting_report`.
     """
     import yaml as _yaml
 
     job = _setup_calculation(calc)
     job = _run_calculation(job)
+    if getattr(calc, "mode", None) == "melting_temperature":
+        return job, _melting_report(job)
     report_path = os.path.join(job.simfolder, "report.yaml")
     try:
         with open(report_path) as f:
@@ -541,6 +576,42 @@ def _run_calphy_job(calc):
             f"for malformed YAML."
         ) from exc
     return job, report
+
+
+def _melting_report(job) -> dict:
+    """Summarise a finished ``MeltingTemp`` job as a report dict.
+
+    calphy writes no top-level ``report.yaml`` for this mode; the result
+    lives on the job (``calc_tm`` / ``tmerr``) and the solid and liquid
+    ``ts`` sub-calculations keep their own reports. Their sweep-dissipation
+    verdicts are carried along because calphy only *logs* a warning when a
+    sweep was irreversible (a hidden phase change), which makes Tm
+    unreliable.
+    """
+    tm = getattr(job, "calc_tm", None)
+    err = getattr(job, "tmerr", None)
+    phases = {}
+    for name, sub in (("solid", "soljob"), ("liquid", "lqdjob")):
+        sub_job = getattr(job, sub, None)
+        if sub_job is None:
+            continue
+        phases[name] = {
+            "simfolder": getattr(sub_job, "simfolder", None),
+            "ts_dissipation": (
+                float(sub_job.ediss) if hasattr(sub_job, "ediss") else None
+            ),
+            "ts_dissipation_high": bool(getattr(sub_job, "ediss_high", False)),
+        }
+    return {
+        "results": {
+            "melting_temperature": None if tm is None else float(tm),
+            "melting_temperature_error": None if err is None else float(err),
+            "ts_dissipation_high": any(
+                p["ts_dissipation_high"] for p in phases.values()
+            ),
+        },
+        "phases": phases,
+    }
 
 
 def _pack_free_energy_output(
@@ -595,26 +666,37 @@ def _pack_free_energy_output(
         except FileNotFoundError:
             pass
     elif mode == "melting_temperature":
-        out.melting_temperature = (
-            float(job.tm) if getattr(job, "tm", None) is not None else None
-        )
-        out.melting_temperature_error = (
-            float(job.dtm) if getattr(job, "dtm", None) is not None else None
-        )
+        # calphy stores the result as ``calc_tm`` / ``tmerr``
+        tm = getattr(job, "calc_tm", None)
+        err = getattr(job, "tmerr", None)
+        out.melting_temperature = float(tm) if tm is not None else None
+        out.melting_temperature_error = float(err) if err is not None else None
     elif mode == "composition_scaling":
+        # calphy>=2's report.yaml no longer echoes the composition_scaling
+        # input block, so read the target from the job's Calculation.
         raw = (report or {}).get("input", {}).get("composition_scaling")
-        if isinstance(raw, dict):
-            comp = raw.get("output_chemical_composition")
-            if isinstance(comp, dict):
-                out.composition_path = [comp]
-            elif isinstance(comp, list) and all(isinstance(c, dict) for c in comp):
-                out.composition_path = list(comp)
-            else:
-                out.composition_path = None
+        if not isinstance(raw, dict):
+            raw = _composition_scaling_block(job)
+        comp = raw.get("output_chemical_composition") if raw else None
+        if isinstance(comp, dict):
+            out.composition_path = [dict(comp)]
+        elif isinstance(comp, list) and all(isinstance(c, dict) for c in comp):
+            out.composition_path = list(comp)
         else:
             out.composition_path = None
 
     return out
+
+
+def _composition_scaling_block(job) -> dict | None:
+    """Return ``job.calc.composition_scaling`` as a plain dict, if present."""
+    block = getattr(getattr(job, "calc", None), "composition_scaling", None)
+    if block is None:
+        return None
+    if isinstance(block, dict):
+        return block
+    comp = getattr(block, "output_chemical_composition", None)
+    return {"output_chemical_composition": comp} if comp is not None else None
 
 
 def _load_rs_curve(

@@ -10,6 +10,9 @@ Each node:
 
 All calphy and pyiron_workflow_lammps imports happen inside node bodies
 so importing this subpackage works without the [free-energy] extra.
+
+Requires calphy 2.3.x. calphy is distributed under the Academic Software
+Licence v1.0, which permits non-commercial academic use only.
 """
 
 from __future__ import annotations
