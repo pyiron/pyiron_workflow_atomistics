@@ -354,7 +354,6 @@ def _build_calphy_calculation(
     mode: Literal[
         "fe",
         "ts",
-        "tscale",
         "pscale",
         "melting_temperature",
         "alchemy",
@@ -556,7 +555,7 @@ def _setup_calculation(calc):
     """Build the calphy phase-job from a Calculation.
 
     Mirrors ``calphy.queuekernel.setup_calculation`` (calphy>=2.3):
-    ``Solid`` / ``Liquid`` for ``fe``/``ts``/``tscale``/``pscale`` (by
+    ``Solid`` / ``Liquid`` for ``fe``/``ts``/``pscale`` (by
     ``reference_phase``), ``Alchemy`` for ``alchemy`` *and*
     ``composition_scaling`` (the routine builds the
     ``CompositionTransformation`` itself), and ``MeltingTemp`` for
@@ -575,7 +574,7 @@ def _setup_calculation(calc):
     ref = getattr(calc, "reference_phase", None)
     if mode in ("alchemy", "composition_scaling"):
         return calphy.Alchemy(calculation=calc, simfolder=simfolder)
-    # fe / ts / tscale / pscale fork on reference_phase
+    # fe / ts / pscale fork on reference_phase
     if ref == "liquid":
         return calphy.Liquid(calculation=calc, simfolder=simfolder)
     return calphy.Solid(calculation=calc, simfolder=simfolder)
@@ -616,7 +615,6 @@ def _run_calculation(job):
     routine = {
         "fe": routines.routine_fe,
         "ts": routines.routine_ts,
-        "tscale": routines.routine_tscale,
         "pscale": routines.routine_pscale,
         "alchemy": routines.routine_alchemy,
         "composition_scaling": routines.routine_composition_scaling,
@@ -624,7 +622,7 @@ def _run_calculation(job):
     if routine is None:
         raise ValueError(
             f"No calphy routine for mode={mode!r}. Supported: "
-            "'fe', 'ts', 'tscale', 'pscale', 'alchemy', 'composition_scaling', "
+            "'fe', 'ts', 'pscale', 'alchemy', 'composition_scaling', "
             "'melting_temperature'."
         )
     return routine(job)
@@ -734,7 +732,7 @@ def _pack_free_energy_output(
         einstein = results.get("einstein_crystal")
         if einstein is not None:
             out.einstein_free_energy = float(einstein)
-    elif mode in ("ts", "tscale"):
+    elif mode == "ts":
         try:
             t_arr, f_arr = _load_rs_curve(simfolder)
             out.temperature_array = t_arr
@@ -790,7 +788,7 @@ def _load_rs_curve(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Read calphy's reversible-scaling sweep file.
 
-    Calphy writes ``temperature_sweep.dat`` for ``ts``/``tscale`` and
+    Calphy writes ``temperature_sweep.dat`` for ``ts`` and
     ``pressure_sweep.dat`` for ``pscale``. Both are two-column whitespace-
     separated: independent variable, then free energy.
 

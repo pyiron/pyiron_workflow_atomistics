@@ -1857,7 +1857,6 @@ def _patch_calphy_module(monkeypatch):
     for _name in (
         "routine_fe",
         "routine_ts",
-        "routine_tscale",
         "routine_pscale",
         "routine_alchemy",
         "routine_composition_scaling",
@@ -1877,7 +1876,6 @@ def _patch_calphy_module(monkeypatch):
     [
         ("fe", "routine_fe"),
         ("ts", "routine_ts"),
-        ("tscale", "routine_tscale"),
         ("pscale", "routine_pscale"),
         ("alchemy", "routine_alchemy"),
         ("composition_scaling", "routine_composition_scaling"),
@@ -1932,7 +1930,8 @@ def test_run_calculation_melting_explains_folder_clash(monkeypatch):
     assert isinstance(exc.value.__cause__, ValueError)
 
 
-def test_run_calculation_rejects_unknown_mode(monkeypatch):
+@pytest.mark.parametrize("mode", ["tscale", "totally-fake"])
+def test_run_calculation_rejects_unknown_mode(monkeypatch, mode):
     _patch_calphy_module(monkeypatch)
     import pytest as _pytest
 
@@ -1940,7 +1939,7 @@ def test_run_calculation_rejects_unknown_mode(monkeypatch):
         _run_calculation,
     )
 
-    job = _RecordingJob(_FakeCalc("totally-fake"))
+    job = _RecordingJob(_FakeCalc(mode))
     with _pytest.raises(ValueError, match="No calphy routine for mode"):
         _run_calculation(job)
 
