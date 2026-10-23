@@ -1,5 +1,7 @@
 # Calphy free-energy interface
 
+> **Superseded (calphy 2.3 port):** this records the original calphy 1.x design. The adapter now targets calphy 2.3, which has no `script_mode`, and dispatches each mode to calphy's own routines; see CHANGELOG.md, [Unreleased].
+
 | Field | Value |
 |---|---|
 | Status | Draft |

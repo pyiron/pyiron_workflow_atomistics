@@ -167,13 +167,25 @@ def test_free_energy_output_picklable():
 @pytest.mark.parametrize(
     "cmd, expected",
     [
-        ("lmp", ("lmp", None, 1)),
-        ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1)),
-        ("mpirun -np 4 lmp", ("lmp", "mpirun", 4)),
-        ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8)),
-        ("srun -n 16 lmp", ("lmp", "srun", 16)),
-        ("mpirun --bind-to none -np 2 lmp", ("lmp", "mpirun --bind-to none", 2)),
-        ("/opt/lammps/bin/lmp_mpi -in in.lmp", ("/opt/lammps/bin/lmp_mpi", None, 1)),
+        ("lmp", ("lmp", None, 1, "")),
+        ("lmp -in in.lmp -log log.lammps", ("lmp", None, 1, "")),
+        ("lmp -i in.lmp -l log.lammps -sc none", ("lmp", None, 1, "")),
+        ("lmp -screen none", ("lmp", None, 1, "")),
+        ("mpirun -np 4 lmp", ("lmp", "mpirun", 4, "")),
+        ("mpiexec -n 8 lmp -in in.lmp -log log.lammps", ("lmp", "mpiexec", 8, "")),
+        ("srun -n 16 lmp", ("lmp", "srun", 16, "")),
+        ("mpirun --bind-to none -np 2 lmp", ("lmp", "mpirun --bind-to none", 2, "")),
+        (
+            "/opt/lammps/bin/lmp_mpi -in in.lmp",
+            ("/opt/lammps/bin/lmp_mpi", None, 1, ""),
+        ),
+        # accelerator switches are forwarded to calphy's md.cmdargs
+        (
+            "lmp -k on g 1 -sf kk -pk kokkos newton on",
+            ("lmp", None, 1, "-k on g 1 -sf kk -pk kokkos newton on"),
+        ),
+        ("mpirun -np 4 lmp -sf omp -in in.lmp", ("lmp", "mpirun", 4, "-sf omp")),
+        ("lmp -nocite", ("lmp", None, 1, "-nocite")),
     ],
 )
 def test_split_lammps_command_valid(cmd, expected):
@@ -187,17 +199,21 @@ def test_split_lammps_command_valid(cmd, expected):
 @pytest.mark.parametrize(
     "cmd",
     [
-        "mpirun -np 4 lmp -unknown-flag x",
         "lmp -partition 2x2",
-        "lmp -screen none",
+        "mpirun -np 4 lmp -p 2x2",
+        "lmp -restart2data file.restart file.data",
+        "lmp -sr",
+        "lmp -h",
+        "lmp -log",  # switch calphy sets, without its value
+        "lmp -var name 'two words'",  # calphy splits cmdargs on whitespace
     ],
 )
-def test_split_lammps_command_rejects_unknown_tokens(cmd):
+def test_split_lammps_command_rejects_unsupported_arguments(cmd):
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _split_lammps_command,
     )
 
-    with pytest.raises(ValueError, match="Unrecognized tokens"):
+    with pytest.raises(ValueError, match="Unsupported LAMMPS arguments"):
         _split_lammps_command(cmd)
 
 
@@ -340,8 +356,9 @@ def test_validate_structure_rejects_zero_volume(fcc_al_atoms):
 # ---------------------------------------------------------------------------
 
 
-def test_build_calphy_calculation_fe_basic(tmp_path, fcc_al_atoms):
+def test_build_calphy_calculation_fe_basic(tmp_path, fcc_al_atoms, monkeypatch):
     pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)  # calphy copies the data file into cwd
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _build_calphy_calculation,
     )
@@ -371,19 +388,24 @@ def test_build_calphy_calculation_fe_basic(tmp_path, fcc_al_atoms):
     assert calc.element == ["Al"]
     assert calc.pair_style == ["eam/alloy"]
     assert calc.pair_coeff == ["* * /tmp/Al.eam.alloy Al"]
-    assert calc.script_mode is True
+    assert calc.execution_mode == "executable"
     assert calc.lammps_executable == "lmp"
     assert calc.mpi_executable is None
     assert calc.reference_phase == "solid"
     assert calc.npt is True
+    # calphy branches on the literal "nose-hoover"; anything else is Berendsen
+    assert calc.equilibration_control == "nose-hoover"
     # data file must exist in working_directory
     assert (tmp_path / "lammps.data").exists()
-    assert str(tmp_path / "lammps.data") in calc.lattice
+    assert calc.lattice.endswith(".data")
     assert calc.file_format == "lammps-data"
 
 
-def test_build_calphy_calculation_fe_passes_mpi_command(tmp_path, fcc_al_atoms):
+def test_build_calphy_calculation_fe_passes_mpi_command(
+    tmp_path, fcc_al_atoms, monkeypatch
+):
     pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)  # calphy copies the data file into cwd
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _build_calphy_calculation,
     )
@@ -411,12 +433,110 @@ def test_build_calphy_calculation_fe_passes_mpi_command(tmp_path, fcc_al_atoms):
     assert calc.mpi_executable == "mpirun"
     # cores is captured on queue.cores
     assert calc.queue.cores == 8
+    assert calc.md.cmdargs == ""
+
+
+def test_build_calphy_calculation_forwards_lammps_arguments(
+    tmp_path, fcc_al_atoms, monkeypatch
+):
+    """Arguments after the binary reach calphy's md.cmdargs, which calphy>=2.3
+    appends to every lmp launch (e.g. accelerator switches)."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    eng = _make_minimal_engine()
+    eng.command = "lmp -sf omp -pk omp 2 -log ignored.log"
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
+    calc = _build_calphy_calculation(
+        mode="fe",
+        structure=fcc_al_atoms,
+        potential=pot,
+        lammps_engine=eng,
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        reference_phase="solid",
+    )
+    assert calc.lammps_executable == "lmp"
+    assert calc.md.cmdargs == "-sf omp -pk omp 2"
+
+
+def test_build_calphy_calculation_rejects_potential_file(
+    tmp_path, fcc_al_atoms, monkeypatch
+):
+    """calphy>=2 ignores Calculation.potential_file (it only warns, and the
+    warning is hidden by default), so the file would be dropped silently."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    pot = LammpsPotential(
+        pair_style="eam/alloy",
+        pair_coeff="* * /tmp/Al.eam.alloy Al",
+        potential_file="/tmp/include_me.lmp",
+    )
+    with pytest.raises(ValueError, match="potential_file"):
+        _build_calphy_calculation(
+            mode="fe",
+            structure=fcc_al_atoms,
+            potential=pot,
+            lammps_engine=_make_minimal_engine(),
+            working_directory=str(tmp_path),
+            temperature=300.0,
+            reference_phase="solid",
+        )
+
+
+def test_build_calphy_calculation_composition_scaling_adds_target_elements(
+    tmp_path, monkeypatch
+):
+    """A pure-element structure scaled into an alloy: the target element the
+    structure lacks becomes an extra (empty) atom type after its own."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from ase.build import bulk
+    from ase.data import atomic_masses, atomic_numbers
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    cu = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff="* * /tmp/CuNi.eam.alloy Cu Ni"
+    )
+    calc = _build_calphy_calculation(
+        mode="composition_scaling",
+        structure=cu,
+        potential=pot,
+        lammps_engine=_make_minimal_engine(),
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        output_chemical_composition={"Cu": len(cu) - 1, "Ni": 1},
+    )
+    assert calc.element == ["Cu", "Ni"]
+    assert calc.mass == pytest.approx(
+        [atomic_masses[atomic_numbers[e]] for e in ("Cu", "Ni")]
+    )
+    assert calc.composition_scaling._input_chemical_composition == {
+        "Cu": len(cu),
+        "Ni": 0,
+    }
+    assert "2 atom types" in (tmp_path / "lammps.data").read_text()
 
 
 def test_build_calphy_calculation_writes_data_file_matches_structure(
-    tmp_path, fcc_al_atoms
+    tmp_path, fcc_al_atoms, monkeypatch
 ):
     pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)  # calphy copies the data file into cwd
     from ase.io import read as ase_read
 
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
@@ -444,16 +564,177 @@ def test_build_calphy_calculation_writes_data_file_matches_structure(
     round_trip = ase_read(
         str(tmp_path / "lammps.data"),
         format="lammps-data",
-        style="atomic",
+        atom_style="atomic",
     )
     import numpy as np
 
+    assert len(round_trip) == len(fcc_al_atoms)
     np.testing.assert_allclose(
-        round_trip.get_positions(), fcc_al_atoms.get_positions(), atol=1e-8
+        round_trip.cell.cellpar(), fcc_al_atoms.cell.cellpar(), atol=1e-8
     )
     np.testing.assert_allclose(
-        round_trip.get_cell(), fcc_al_atoms.get_cell(), atol=1e-8
+        round_trip.get_scaled_positions(wrap=True),
+        fcc_al_atoms.get_scaled_positions(wrap=True),
+        atol=1e-8,
     )
+
+
+@pytest.mark.parametrize("control", ["nose-hoover", "berendsen"])
+def test_build_calphy_calculation_passes_equilibration_control_verbatim(
+    tmp_path, fcc_al_atoms, monkeypatch, control
+):
+    """calphy>=2 compares against 'nose-hoover' literally; a rewritten value
+    (e.g. 'nose_hoover') silently falls through to the Berendsen branch."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
+    calc = _build_calphy_calculation(
+        mode="fe",
+        structure=fcc_al_atoms,
+        potential=pot,
+        lammps_engine=_make_minimal_engine(),
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        reference_phase="solid",
+        equilibration_control=control,
+    )
+    assert calc.equilibration_control == control
+
+
+@pytest.mark.parametrize(
+    "cmd",
+    [
+        "lmp",
+        "/opt/lammps/bin/lmp_mpi -in in.lmp",
+        "mpirun -np 4 lmp",
+        "mpiexec -n 8 lmp",
+    ],
+)
+def test_check_calphy_launcher_accepts(cmd):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _check_calphy_launcher,
+        _split_lammps_command,
+    )
+
+    _, mpi, _, _ = _split_lammps_command(cmd)
+    _check_calphy_launcher(cmd, mpi)  # should not raise
+
+
+@pytest.mark.parametrize(
+    "cmd, match",
+    [
+        ("mpirun --bind-to none -np 2 lmp", "launcher flags"),
+        ("srun -n 16 lmp", "srun"),
+        ("mpirun lmp", "no core count"),
+    ],
+)
+def test_check_calphy_launcher_rejects(cmd, match):
+    """calphy>=2 runs ``<launcher> -np <cores> lmp`` itself (resolving the
+    launcher with shutil.which, and only when cores > 1)."""
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _check_calphy_launcher,
+        _split_lammps_command,
+    )
+
+    _, mpi, _, _ = _split_lammps_command(cmd)
+    with pytest.raises(ValueError, match=match):
+        _check_calphy_launcher(cmd, mpi)
+
+
+def test_build_calphy_calculation_rejects_launcher_flags(
+    tmp_path, fcc_al_atoms, monkeypatch
+):
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    eng = _make_minimal_engine()
+    eng.command = "mpirun --oversubscribe -np 2 lmp"
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Al.eam.alloy Al")
+    with pytest.raises(ValueError, match="launcher flags"):
+        _build_calphy_calculation(
+            mode="fe",
+            structure=fcc_al_atoms,
+            potential=pot,
+            lammps_engine=eng,
+            working_directory=str(tmp_path),
+            temperature=300.0,
+            reference_phase="solid",
+        )
+
+
+def test_build_calphy_calculation_rejects_identity_composition_scaling(
+    tmp_path, monkeypatch
+):
+    """calphy finds no transformation for output == input and dies with an
+    IndexError deep inside routine_composition_scaling; refuse up front."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from ase.build import bulk
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    cu = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Cu.eam.alloy Cu")
+    with pytest.raises(ValueError, match="nothing to transform"):
+        _build_calphy_calculation(
+            mode="composition_scaling",
+            structure=cu,
+            potential=pot,
+            lammps_engine=_make_minimal_engine(),
+            working_directory=str(tmp_path),
+            temperature=300.0,
+            output_chemical_composition={"Cu": len(cu)},
+        )
+
+
+def test_build_calphy_calculation_melting_writes_backing_input_file(
+    tmp_path, monkeypatch
+):
+    """MeltingTemp re-reads calc.inputfile[calc.kernel] to build its solid and
+    liquid ``ts`` sub-calculations, so the built Calculation must point at a
+    file whose block reproduces it."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    import yaml
+    from ase.build import bulk
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    cu = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff="* * /tmp/Cu.eam.alloy Cu")
+    calc = _build_calphy_calculation(
+        mode="melting_temperature",
+        structure=cu,
+        potential=pot,
+        lammps_engine=_make_minimal_engine(),
+        working_directory=str(tmp_path),
+        temperature_guess=1300.0,
+        melting_step=150,
+        melting_max_attempts=2,
+    )
+    assert calc.kernel == 0
+    with open(calc.inputfile) as f:
+        block = yaml.safe_load(f)["calculations"][0]
+    assert block["mode"] == "melting_temperature"
+    assert block["temperature"] == 1300.0
+    assert block["melting_temperature"] == {"step": 150, "attempts": 2}
+    assert block["pair_coeff"] == pot.pair_coeff
+    assert calc.melting_temperature.step == 150
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +790,7 @@ def test_pack_free_energy_output_melting_temperature(fcc_al_atoms, tmp_path):
         _pack_free_energy_output,
     )
 
-    fake_job = SimpleNamespace(simfolder=str(tmp_path), tm=1357.0, dtm=15.0)
+    fake_job = SimpleNamespace(simfolder=str(tmp_path), calc_tm=1357.0, tmerr=15.0)
     fake_report = {"results": {"free_energy": 0.0, "error": 0.0}}
     out = _pack_free_energy_output(
         mode="melting_temperature",
@@ -523,6 +804,59 @@ def test_pack_free_energy_output_melting_temperature(fcc_al_atoms, tmp_path):
     )
     assert out.melting_temperature == 1357.0
     assert out.melting_temperature_error == 15.0
+
+
+def test_pack_free_energy_output_composition_path_from_calc(fcc_al_atoms, tmp_path):
+    """calphy>=2's report.yaml does not echo the composition_scaling block."""
+    from types import SimpleNamespace
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _pack_free_energy_output,
+    )
+
+    target = {"Al": 3, "Cu": 1}
+    fake_job = SimpleNamespace(
+        simfolder=str(tmp_path),
+        calc=SimpleNamespace(
+            composition_scaling=SimpleNamespace(output_chemical_composition=target)
+        ),
+    )
+    out = _pack_free_energy_output(
+        mode="composition_scaling",
+        job=fake_job,
+        report={"input": {"temperature": 300}, "results": {"free_energy": 0.1}},
+        simfolder=str(tmp_path),
+        structure=fcc_al_atoms,
+        reference_phase="solid",
+        temperature=300.0,
+        pressure=0.0,
+    )
+    assert out.composition_path == [target]
+
+
+def test_melting_report_summarises_job_and_sweep_quality(tmp_path):
+    from types import SimpleNamespace
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _melting_report,
+    )
+
+    job = SimpleNamespace(
+        calc_tm=1312.5,
+        tmerr=4.0,
+        soljob=SimpleNamespace(simfolder="/s", ediss=1e-4, ediss_high=False),
+        lqdjob=SimpleNamespace(simfolder="/l", ediss=5e-2, ediss_high=True),
+    )
+    report = _melting_report(job)
+    assert report["results"]["melting_temperature"] == 1312.5
+    assert report["results"]["melting_temperature_error"] == 4.0
+    assert report["results"]["ts_dissipation_high"] is True
+    assert report["phases"]["solid"] == {
+        "simfolder": "/s",
+        "ts_dissipation": 1e-4,
+        "ts_dissipation_high": False,
+    }
+    assert report["phases"]["liquid"]["ts_dissipation_high"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -682,6 +1016,65 @@ def test_free_energy_node_rejects_non_periodic_structure(fcc_al_atoms):
         )
 
 
+def test_nodes_resolve_relative_potential_files_against_caller_cwd(
+    monkeypatch, tmp_path, fcc_al_atoms
+):
+    """calphy resolves pair_coeff file paths against the cwd at validation
+    time, which is the node's simfolder; a path relative to the caller must
+    be made absolute first (for the target potential of alchemy as well)."""
+    pytest.importorskip("calphy")
+    import os
+
+    from pyiron_workflow_atomistics.physics.free_energy import calphy as calphy_nodes
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    (tmp_path / "Al.eam.alloy").write_text("placeholder\n")
+    (tmp_path / "Al_b.eam.alloy").write_text("placeholder\n")
+    seen = {}
+
+    def capture(calc):
+        seen["pair_coeff"] = list(calc.pair_coeff)
+        raise RuntimeError("stop before running LAMMPS")
+
+    monkeypatch.setattr(calphy_nodes, "_run_calphy_job", capture)
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(RuntimeError, match="stop before"):
+        alchemy(
+            structure=fcc_al_atoms,
+            lammps_engine=_make_minimal_engine(),
+            potential=LammpsPotential(
+                pair_style="eam/alloy", pair_coeff="* * Al.eam.alloy Al"
+            ),
+            working_directory="runs",
+            temperature=300.0,
+            pair_style_target="eam/alloy",
+            pair_coeff_target="* * ./Al_b.eam.alloy Al",
+        )
+    assert seen["pair_coeff"] == [
+        f"* * {os.path.join(tmp_path, 'Al.eam.alloy')} Al",
+        f"* * {os.path.join(tmp_path, 'Al_b.eam.alloy')} Al",
+    ]
+
+
+@pytest.mark.parametrize(
+    "pair_coeff",
+    [
+        "* * /abs/Al.eam.alloy Al",  # already absolute
+        "* * missing.eam.alloy Al",  # no such file: left for LAMMPS to report
+        "* * eam/alloy Al.eam.alloy Al",  # hybrid style: token 3 is a style
+        "* *",
+    ],
+)
+def test_absolutize_pair_coeff_leaves_other_lines_alone(tmp_path, pair_coeff):
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _absolutize_pair_coeff,
+    )
+
+    (tmp_path / "Al.eam.alloy").write_text("placeholder\n")
+    assert _absolutize_pair_coeff(pair_coeff, str(tmp_path)) == pair_coeff
+
+
 def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_atoms):
     pytest.importorskip("calphy")
     import os
@@ -690,7 +1083,7 @@ def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_at
     from pyiron_workflow_lammps.engine import LammpsEngine
 
     from pyiron_workflow_atomistics.engine import CalcInputStatic
-    from pyiron_workflow_atomistics.physics.free_energy import _calphy_adapter
+    from pyiron_workflow_atomistics.physics.free_energy import calphy as calphy_nodes
     from pyiron_workflow_atomistics.physics.free_energy.calphy import free_energy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
@@ -700,7 +1093,7 @@ def test_free_energy_node_restores_cwd_on_error(monkeypatch, tmp_path, fcc_al_at
     def boom(_calc):
         raise RuntimeError("calphy exploded mid-run")
 
-    monkeypatch.setattr(_calphy_adapter, "_run_calphy_job", boom)
+    monkeypatch.setattr(calphy_nodes, "_run_calphy_job", boom)
     monkeypatch.chdir(tmp_path)
     cwd_before = os.getcwd()
     with pytest.raises(RuntimeError, match="calphy exploded"):
@@ -747,7 +1140,8 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
         pair_style="eam/alloy",
         pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
     )
-    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
+    # -nocite is forwarded to every lmp launch (calphy md.cmdargs)
+    eng = LammpsEngine(EngineInput=CalcInputStatic(), command=f"{LAMMPS_BIN} -nocite")
 
     out = free_energy(
         structure=cu,
@@ -765,10 +1159,12 @@ def test_free_energy_fcc_cu_smoke(tmp_path):
     assert out.reference_phase == "solid"
     assert out.n_atoms == 108
     assert out.elements == ["Cu"]
-    assert -4.5 < out.free_energy < -3.0  # Cu EAM, eV/atom @ 100 K
-    assert out.free_energy_error >= 0
+    # Cu01 EAM (E_coh = -3.54 eV/atom) at 100 K: calphy 2.3 gave -3.5196 to
+    # -3.5203 over repeated runs; a few meV covers the 2000-step noise.
+    # (free_energy_error is always 0 with n_iterations=1.)
+    assert out.free_energy == pytest.approx(-3.520, abs=5e-3)
     assert os.path.isabs(out.simfolder)
-    assert (tmp_path / "fe" / "report.yaml").exists()
+    assert (Path(out.simfolder) / "report.yaml").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -837,8 +1233,21 @@ def test_reversible_scaling_temperature_returns_curve(tmp_path):
     assert out.free_energy_array is not None
     assert out.temperature_array.shape == out.free_energy_array.shape
     import numpy as np
+    from ase.units import kB
 
-    assert np.all(np.diff(out.temperature_array) >= 0)
+    t, f = out.temperature_array, out.free_energy_array
+    assert np.all(np.diff(t) >= 0)
+    assert (t[0], t[-1]) == pytest.approx((100.0, 300.0), abs=1e-3)
+    # the curve starts at the Frenkel-Ladd free energy of the start point
+    assert f[0] == pytest.approx(out.free_energy, abs=1e-3)
+    # S = -dF/dT > 0
+    assert np.all(np.diff(f) < 0)
+    # Gibbs-Helmholtz: U = F - T dF/dT; for a nearly harmonic solid U - 3kT
+    # stays at the cohesive energy of Cu01 (-3.54 eV/atom). Seen: within 2 meV.
+    near = np.abs(t - 300.0) <= 10.0
+    slope, intercept = np.polyfit(t[near], f[near], 1)
+    u_300 = slope * 300.0 + intercept - 300.0 * slope
+    assert u_300 - 3 * kB * 300.0 == pytest.approx(-3.54, abs=5e-3)
 
 
 # ---------------------------------------------------------------------------
@@ -924,14 +1333,23 @@ def test_melting_temperature_runs(tmp_path):
         potential=pot,
         working_directory=str(tmp_path),
         temperature_guess=1300.0,
-        step=400,
+        # calphy>=2 aborts sweeps whose dissipation shows a phase change;
+        # 2000-step sweeps are too irreversible to locate Tm (~75 s here).
+        # With 108 atoms a +/-200 K bracket reaches the freezing/superheating
+        # limits and the search can oscillate between two brackets (2 of 4
+        # runs); +/-100 K converged in 8 of 8.
+        step=100,
         max_attempts=3,
-        n_equilibration_steps=2000,
-        n_switching_steps=2000,
+        n_equilibration_steps=5000,
+        n_switching_steps=20000,
     )
     assert out.mode == "melting_temperature"
     assert out.reference_phase == "both"
-    assert 800.0 < out.melting_temperature < 2000.0
+    # 108-atom Cu01 with 20k-step sweeps: 1387-1491 K over repeated runs
+    # (literature Tm(Cu01) ~1327 K; the excess shrinks with cell size).
+    assert 1300.0 < out.melting_temperature < 1600.0
+    # calphy only logs an irreversible (phase-changing) sweep; fail on it
+    assert out.report["results"]["ts_dissipation_high"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -1069,9 +1487,19 @@ def test_reversible_scaling_pressure_smoke(tmp_path):
     )
     assert out.mode == "pscale"
     import numpy as np
+    from ase.units import GPa
 
-    assert out.pressure_array is not None
-    assert np.isfinite(out.free_energy)
+    p, g = out.pressure_array, out.free_energy_array
+    assert p is not None and g is not None
+    assert (p[0], p[-1]) == pytest.approx((0.0, 10_000.0))
+    assert g[0] == pytest.approx(out.free_energy, abs=1e-3)
+    # dG/dP = V > 0
+    assert np.all(np.diff(g) > 0)
+    # G(1 GPa) - G(0) = int V dP ~ V(0) dP; the solid's compression lowers it
+    # by ~0.4 % (seen: 0.0745 vs V dP = 0.0748 eV/atom).
+    v_atom = out.report["average"]["vol_atom"]
+    dp = (p[-1] - p[0]) * 1e-4 * GPa  # bar -> eV/A^3
+    assert g[-1] - g[0] == pytest.approx(v_atom * dp, rel=1e-2)
 
 
 @requires_lammps
@@ -1087,9 +1515,16 @@ def test_alchemy_smoke(tmp_path):
     from pyiron_workflow_atomistics.physics.free_energy.calphy import alchemy
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
+    # Target: Cu01 with its embedding F(rho) shifted by +0.1 eV. Forces are
+    # identical, every atom's energy rises by 0.1 eV, so dF = +0.1 eV/atom
+    # exactly; this pins the sign, the units and which end is the target.
+    offset = 0.1
+    shifted = tmp_path / "Cu01_shifted.eam.alloy"
+    _write_shifted_eam(RESOURCES / "Cu01.eam.alloy", shifted, offset)
     cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
-    cu_potential = f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
-    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff=cu_potential)
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu"
+    )
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
     out = alchemy(
         structure=cu,
@@ -1098,21 +1533,76 @@ def test_alchemy_smoke(tmp_path):
         working_directory=str(tmp_path),
         temperature=300.0,
         pair_style_target="eam/alloy",
-        pair_coeff_target=cu_potential,  # transform from Cu EAM back to Cu EAM → ΔF≈0
+        pair_coeff_target=f"* * {shifted} Cu",
         n_equilibration_steps=2000,
         n_switching_steps=2000,
     )
     assert out.mode == "alchemy"
-    import numpy as np
+    assert out.free_energy == pytest.approx(offset, abs=1e-6)
+    assert out.report["results"]["work"] == pytest.approx(offset, abs=1e-6)
 
-    assert np.isfinite(out.free_energy)
+
+def _shift_eam_embedding(values: list[str], n_rho: int, offset: float) -> list[str]:
+    """Add ``offset`` (eV) to the first ``n_rho`` values: an embedding F(rho).
+
+    A constant shift of F leaves every force unchanged and raises the energy
+    by ``offset`` per atom of that element, so the switching work between the
+    shifted and unshifted potential is known exactly.
+    """
+    if not offset:
+        return list(values)
+    return [f"{float(v) + offset:.16e}" for v in values[:n_rho]] + values[n_rho:]
+
+
+def _write_shifted_eam(src: Path, dst: Path, offset: float) -> None:
+    """Write a copy of the single-element eam/alloy ``src`` whose embedding
+    function is shifted by ``offset`` eV (see :func:`_shift_eam_embedding`)."""
+    lines = src.read_text().splitlines()
+    n_rho = int(float(lines[4].split()[0]))
+    values = [v for line in lines[6:] for v in line.split()]
+    shifted = _shift_eam_embedding(values, n_rho, offset)
+    dst.write_text("\n".join(lines[:6] + shifted) + "\n")
+
+
+def _write_duplicated_binary_eam(
+    src: Path, dst: Path, second: str, embedding_offset: float = 0.0
+) -> None:
+    """Write a two-element eam/alloy file whose second element is a verbatim
+    copy of the single element in ``src`` under another name.
+
+    Both species then interact identically, so a composition_scaling run
+    between them has a known answer: zero alchemical work, leaving only the
+    mass correction and the ideal mixing entropy. With ``embedding_offset``
+    the second element's embedding is shifted by that many eV, so each atom
+    turned into it costs exactly that much work and no force changes.
+    """
+    from ase.data import atomic_masses, atomic_numbers
+
+    lines = src.read_text().splitlines()
+    header, element_line, grid, element_info = lines[:3], lines[3], lines[4], lines[5]
+    values = [v for line in lines[6:] for v in line.split()]
+    n_rho, _, n_r = (int(float(x)) for x in grid.split()[:3])
+    embedding, density = values[:n_rho], values[n_rho : n_rho + n_r]
+    pair = values[n_rho + n_r : n_rho + 2 * n_r]
+    first = element_line.split()[1]
+    z = atomic_numbers[second]
+    _, _, lattice_a, lattice = element_info.split()
+    out = [*header, f"2 {first} {second}", grid]
+    out += [element_info, *embedding, *density]
+    second_embedding = _shift_eam_embedding(embedding, n_rho, embedding_offset)
+    out += [f"{z} {atomic_masses[z]:.6f} {lattice_a} {lattice}", *second_embedding]
+    out += density
+    out += pair * 3  # phi_11, phi_21, phi_22
+    dst.write_text("\n".join(out) + "\n")
 
 
 @requires_lammps
 @pytest.mark.slow
 def test_composition_scaling_smoke(tmp_path):
     pytest.importorskip("calphy")
+    import numpy as np
     from ase.build import bulk
+    from ase.units import kB
 
     pytest.importorskip("pyiron_workflow_lammps")
     from pyiron_workflow_lammps.engine import LammpsEngine
@@ -1123,29 +1613,95 @@ def test_composition_scaling_smoke(tmp_path):
     )
     from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
 
-    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
-    pot = LammpsPotential(
-        pair_style="eam/alloy",
-        pair_coeff=f"* * {RESOURCES / 'Cu01.eam.alloy'} Cu",
-    )
+    # "Ni" is Cu01 under another name and mass, so Cu107Ni1 -> Cu106Ni2 costs
+    # no alchemical work; what remains is calphy's mass correction and the
+    # ideal mixing entropy it reports alongside.
+    eam = tmp_path / "CuNi_dup.eam.alloy"
+    _write_duplicated_binary_eam(RESOURCES / "Cu01.eam.alloy", eam, "Ni")
+    alloy = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    alloy.symbols[-1] = "Ni"  # keep Cu first so element order is [Cu, Ni]
+    pot = LammpsPotential(pair_style="eam/alloy", pair_coeff=f"* * {eam} Cu Ni")
     eng = LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN)
     out = composition_scaling(
-        structure=cu,
+        structure=alloy,
         lammps_engine=eng,
         potential=pot,
         working_directory=str(tmp_path),
         temperature=300.0,
-        output_chemical_composition={"Cu": 108},  # identity transform → ΔF≈0
+        output_chemical_composition={"Cu": 106, "Ni": 2},
         n_equilibration_steps=2000,
         n_switching_steps=2000,
     )
     assert out.mode == "composition_scaling"
-    import numpy as np
-
+    assert out.elements == ["Cu", "Ni"]
     assert np.isfinite(out.free_energy)
-    # composition_path should be populated (verify the coercion bug is fixed)
-    assert out.composition_path is not None
-    assert all(isinstance(c, dict) for c in out.composition_path)
+    results = out.report["results"]
+    # identical interactions: the switching work is noise around zero
+    assert abs(results["work"]) < 1e-3
+    # mixing entropy of x_Ni 1/108 -> 2/108, as calphy defines it (kB units)
+    x1, x2 = 1 / 108, 2 / 108
+    s_mix = kB * sum(
+        t2 * np.log(t2) - t1 * np.log(t1) for t1, t2 in ((1 - x1, 1 - x2), (x1, x2))
+    )
+    assert results["entropy_contribution"] == pytest.approx(s_mix, rel=1e-6)
+    # classical mass term of one Cu -> Ni swap: (3/2) kT ln(m_Cu / m_Ni) / N
+    from ase.data import atomic_masses, atomic_numbers
+
+    m_cu, m_ni = (atomic_masses[atomic_numbers[e]] for e in ("Cu", "Ni"))
+    df_mass = 1.5 * kB * 300.0 * np.log(m_cu / m_ni) / 108
+    assert out.free_energy == pytest.approx(df_mass, rel=1e-2)
+    assert out.composition_path == [{"Cu": 106, "Ni": 2}]
+
+
+@requires_lammps
+@pytest.mark.slow
+def test_composition_scaling_pure_element_to_alloy(tmp_path):
+    """Pure Cu108 -> Cu107Ni1, where "Ni" is Cu01 with its embedding shifted
+    by +0.1 eV: the alchemical work is exactly 0.1 eV / 108 atoms, on top of
+    the mass term of one Cu -> Ni swap."""
+    pytest.importorskip("calphy")
+    import numpy as np
+    from ase.build import bulk
+    from ase.data import atomic_masses, atomic_numbers
+    from ase.units import kB
+
+    pytest.importorskip("pyiron_workflow_lammps")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        composition_scaling,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    offset = 0.1
+    eam = tmp_path / "CuNi_shifted.eam.alloy"
+    _write_duplicated_binary_eam(
+        RESOURCES / "Cu01.eam.alloy", eam, "Ni", embedding_offset=offset
+    )
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    out = composition_scaling(
+        structure=cu,
+        lammps_engine=LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN),
+        potential=LammpsPotential(
+            pair_style="eam/alloy", pair_coeff=f"* * {eam} Cu Ni"
+        ),
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        output_chemical_composition={"Cu": 107, "Ni": 1},
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    results = out.report["results"]
+    assert results["work"] == pytest.approx(offset / 108, abs=1e-8)
+    m_cu, m_ni = (atomic_masses[atomic_numbers[e]] for e in ("Cu", "Ni"))
+    df_mass = 1.5 * kB * 300.0 * np.log(m_cu / m_ni) / 108
+    assert out.free_energy == pytest.approx(offset / 108 + df_mass, abs=1e-8)
+    # x_Ni 0 -> 1/108 (0 ln 0 = 0)
+    x = 1 / 108
+    s_mix = kB * ((1 - x) * np.log(1 - x) + x * np.log(x))
+    assert results["entropy_contribution"] == pytest.approx(s_mix, rel=1e-6)
+    assert out.composition_path == [{"Cu": 107, "Ni": 1}]
 
 
 def test_free_energy_output_accepts_harmonic_mode():
@@ -1291,7 +1847,7 @@ def test_public_free_energy_exports():
         assert hasattr(fe, name), f"missing public export: {name}"
 
 
-# -- Adapter dispatch regression tests (calphy 1.5.6 API) ---------------------
+# -- Adapter dispatch regression tests (calphy>=2.3 API) ----------------------
 
 
 class _FakeCalc:
@@ -1325,6 +1881,12 @@ class _RecordingJob:
         return _record
 
 
+class _FakeMeltingTemp(_RecordingJob):
+    def __init__(self, calculation=None, simfolder=None) -> None:
+        super().__init__(calculation)
+        self.simfolder = simfolder
+
+
 def _patch_calphy_module(monkeypatch):
     """Install a stand-in calphy module so _setup_calculation can dispatch."""
     import sys
@@ -1334,72 +1896,87 @@ def _patch_calphy_module(monkeypatch):
     fake.Solid = lambda calculation=None, simfolder=None: _RecordingJob(calculation)
     fake.Liquid = lambda calculation=None, simfolder=None: _RecordingJob(calculation)
     fake.Alchemy = lambda calculation=None, simfolder=None: _RecordingJob(calculation)
-    fake.MeltingTemp = type("MeltingTemp", (_RecordingJob,), {})
+    fake.MeltingTemp = _FakeMeltingTemp
 
     fake_routines = types.SimpleNamespace()
-    fake_routines.CompositionTransformation = (
-        lambda calculation=None, simfolder=None: _RecordingJob(calculation)
-    )
-    fake_routines.routine_alchemy = lambda job: (
-        job.calls.append("routine_alchemy") or job
-    )
-    fake_routines.routine_composition_scaling = lambda job: (
-        job.calls.append("routine_composition_scaling") or job
-    )
+    for _name in (
+        "routine_fe",
+        "routine_ts",
+        "routine_pscale",
+        "routine_alchemy",
+        "routine_composition_scaling",
+    ):
+        setattr(
+            fake_routines,
+            _name,
+            (lambda n: lambda job: job.calls.append(n) or job)(_name),
+        )
     monkeypatch.setitem(sys.modules, "calphy", fake)
     monkeypatch.setitem(sys.modules, "calphy.routines", fake_routines)
     fake.routines = fake_routines
 
 
-def test_run_calculation_inlines_process_averaging_for_fe(monkeypatch):
-    """fe-mode dispatch must call process_averaging_results between averaging and integration."""
+@pytest.mark.parametrize(
+    "mode, routine",
+    [
+        ("fe", "routine_fe"),
+        ("ts", "routine_ts"),
+        ("pscale", "routine_pscale"),
+        ("alchemy", "routine_alchemy"),
+        ("composition_scaling", "routine_composition_scaling"),
+    ],
+)
+def test_run_calculation_delegates_to_upstream_routine(monkeypatch, mode, routine):
+    """Each mode maps 1:1 onto calphy.routines.routine_<mode> (as calphy's kernel does)."""
     _patch_calphy_module(monkeypatch)
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _run_calculation,
     )
 
-    job = _RecordingJob(_FakeCalc("fe"))
+    job = _RecordingJob(_FakeCalc(mode))
     _run_calculation(job)
-    expected_prefix = [
-        "run_averaging",
-        "process_averaging_results",
-        "run_integration",
-        "thermodynamic_integration",
-        "submit_report",
-        "clean_up",
-    ]
-    assert job.calls == expected_prefix, job.calls
+    assert job.calls == [routine], job.calls
 
 
-def test_run_calculation_ts_appends_reversible_scaling(monkeypatch):
-    """ts mode adds reversible_scaling + integrate_reversible_scaling at the end."""
+def test_run_calculation_melting_calls_calculate_tm(monkeypatch):
     _patch_calphy_module(monkeypatch)
+    import sys
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _run_calculation,
     )
 
-    job = _RecordingJob(_FakeCalc("ts"))
+    job = sys.modules["calphy"].MeltingTemp(_FakeCalc("melting_temperature"))
     _run_calculation(job)
-    assert "reversible_scaling" in job.calls
-    assert "integrate_reversible_scaling" in job.calls
-    assert job.calls.index("reversible_scaling") > job.calls.index("run_integration")
+    assert job.calls == ["calculate_tm"], job.calls
 
 
-def test_run_calculation_pscale_branches_to_pressure_scaling(monkeypatch):
-    """pscale mode uses pressure_scaling / integrate_pressure_scaling, not the ts variants."""
+def test_run_calculation_melting_explains_folder_clash(monkeypatch):
+    """A bracket search that revisits a bracket hits calphy's folder-exists
+    ValueError; it is re-raised with the cause and what to change."""
     _patch_calphy_module(monkeypatch)
+    import sys
+
     from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
         _run_calculation,
     )
 
-    job = _RecordingJob(_FakeCalc("pscale"))
-    _run_calculation(job)
-    assert "pressure_scaling" in job.calls
-    assert "integrate_pressure_scaling" in job.calls
-    assert "reversible_scaling" not in job.calls
+    job = sys.modules["calphy"].MeltingTemp(_FakeCalc("melting_temperature"))
+
+    def clash():
+        raise ValueError(
+            "Simulation folder /x/ts-lammps.data-solid-1100-0 exists. "
+            "Please remove and run again!"
+        )
+
+    job.calculate_tm = clash
+    with pytest.raises(RuntimeError, match="oscillated") as exc:
+        _run_calculation(job)
+    assert isinstance(exc.value.__cause__, ValueError)
 
 
-def test_run_calculation_rejects_unknown_mode(monkeypatch):
+@pytest.mark.parametrize("mode", ["tscale", "totally-fake"])
+def test_run_calculation_rejects_unknown_mode(monkeypatch, mode):
     _patch_calphy_module(monkeypatch)
     import pytest as _pytest
 
@@ -1407,7 +1984,7 @@ def test_run_calculation_rejects_unknown_mode(monkeypatch):
         _run_calculation,
     )
 
-    job = _RecordingJob(_FakeCalc("totally-fake"))
+    job = _RecordingJob(_FakeCalc(mode))
     with _pytest.raises(ValueError, match="No calphy routine for mode"):
         _run_calculation(job)
 
@@ -1423,6 +2000,24 @@ def test_setup_calculation_creates_simfolder_first(monkeypatch):
     job = _setup_calculation(calc)
     assert calc._folder_created, "create_folders() must run before the job is built"
     assert isinstance(job, _RecordingJob)
+
+
+def test_setup_calculation_melting_uses_cwd_without_own_folder(monkeypatch, tmp_path):
+    """MeltingTemp works in the cwd (as calphy's own kernel runs it); an extra
+    folder from create_folders() would stay empty and mislead out.simfolder."""
+    import os
+
+    _patch_calphy_module(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _setup_calculation,
+    )
+
+    calc = _FakeCalc("melting_temperature", reference_phase="")
+    job = _setup_calculation(calc)
+    assert isinstance(job, _FakeMeltingTemp)
+    assert not calc._folder_created
+    assert job.simfolder == os.getcwd()
 
 
 def test_pack_free_energy_output_reads_temperature_sweep_dat(tmp_path):

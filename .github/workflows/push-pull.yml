@@ -28,6 +28,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+      with:
+        # versioneer derives the version from git tags; without them the
+        # project is 0.post0.dev1 and pyiron_workflow_lammps ([free-energy]),
+        # which needs pyiron-workflow-atomistics>=0.2.2, cannot be resolved
+        fetch-depth: 0
     - uses: astral-sh/setup-uv@v7
     - name: Install the project and pip check
       shell: bash -l {0}
@@ -55,3 +60,32 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           file: coverage.xml
+
+  # The calphy adapter against real calphy and LAMMPS. The other jobs have
+  # neither, so the free-energy tests that need them skip there.
+  free-energy:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # versioneer derives the version from git tags
+      - uses: pyiron/actions/cached-miniforge@actions-4.2.1
+        with:
+          python-version: '3.12'
+          env-files: .ci_support/environment.yml .ci_support/environment-free-energy.yml
+      - name: Install calphy and pyiron_workflow_lammps
+        shell: bash -l {0}
+        run: |
+          pip install calphy==2.3.0 pyiron_workflow_lammps==0.2.0
+          pip check
+          which lmp
+      - name: Run the free-energy tests (none may skip)
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          pytest tests/unit/physics/test_free_energy.py -rs | tee pytest.log
+          if grep -q SKIPPED pytest.log; then
+            echo "::error::free-energy tests were skipped"
+            exit 1
+          fi

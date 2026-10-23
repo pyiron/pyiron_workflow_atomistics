@@ -22,10 +22,16 @@ class LammpsPotential:
     pair_coeff
         LAMMPS ``pair_coeff`` line, e.g.
         ``"* * /path/to/Cu01.eam.alloy Cu"``. Element ordering must
-        match the structure's chemical-symbol first-occurrence order.
+        match the structure's chemical-symbol first-occurrence order
+        (for ``composition_scaling``, followed by any target elements
+        the structure lacks, in the order of
+        ``output_chemical_composition``). A relative potential file is
+        resolved against the current directory.
     potential_file
-        Optional auxiliary potential file path (some potentials require
-        one); passed to ``calphy.input.Calculation.potential_file``.
+        Not supported: calphy>=2 deprecates and ignores
+        ``Calculation.potential_file``, so the calphy nodes raise a
+        ``ValueError`` when it is set. Put everything the potential
+        needs into ``pair_style`` / ``pair_coeff``.
     """
 
     pair_style: str

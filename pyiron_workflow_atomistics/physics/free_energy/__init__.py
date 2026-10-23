@@ -3,7 +3,7 @@
 Public API
 ----------
 Dataclasses:
-    LammpsPotential  - calphy-only: pair_style + pair_coeff + optional potential_file
+    LammpsPotential  - calphy-only: pair_style + pair_coeff
     FreeEnergyOutput - typed result of every node
 
 calphy function-nodes (one per mode):

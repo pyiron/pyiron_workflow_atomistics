@@ -6,6 +6,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the package follows [PEP 440](https://peps.python.org/pep-0440/) versioning
 via `versioneer`.
 
+## [Unreleased]
+
+### Fixed
+
+- **calphy free-energy nodes work with calphy 2.3.** The calphy adapter
+  built its calculations with ``script_mode``, which calphy 2 removed, and
+  the real-LAMMPS tests of ``physics.free_energy.calphy`` failed on each
+  calphy release checked (1.5.6, 1.8.5 and 2.3.0). It now dispatches each mode to calphy's own
+  ``routine_*`` functions as ``calphy.queuekernel`` does (``Alchemy`` for
+  ``composition_scaling``, ``MeltingTemp.calculate_tm`` for
+  ``melting_temperature``), backs the melting calculation with the input
+  file ``MeltingTemp`` re-reads, and reads the melting temperature from
+  ``calc_tm`` / ``tmerr``.
+- **Nose-Hoover equilibration.** ``equilibration_control="nose-hoover"``
+  (the default) was passed to calphy as ``"nose_hoover"``, which calphy
+  treats as Berendsen, so every run equilibrated with Berendsen. It is
+  now passed through verbatim.
+- **Launcher handling for calphy 2.** calphy 2 builds the parallel launch
+  line itself as ``<launcher> -np <cores> lmp``. Engine commands with
+  launcher flags (``mpirun --bind-to none -np 2 lmp``), with ``srun``, or
+  with a launcher but no core count are now rejected with a
+  ``ValueError`` instead of failing inside calphy or silently running
+  serially. Arguments after the binary (e.g. ``lmp -sf omp`` or
+  ``lmp -k on g 1 -sf kk -pk kokkos``) are passed to every LAMMPS run
+  through calphy's ``md.cmdargs``; ``-in`` / ``-log`` / ``-screen`` are
+  dropped (calphy sets them) and multi-partition, restart-conversion,
+  ``-skiprun`` and ``-help`` switches are rejected.
+- ``LammpsPotential.potential_file`` is rejected with a ``ValueError``:
+  calphy 2 no longer reads it, so the file was silently ignored.
+- A relative potential file in ``pair_coeff`` (or ``pair_coeff_target``)
+  is resolved against the caller's directory. calphy resolved it against
+  the node's simfolder, so LAMMPS could not find the file.
+- ``composition_scaling`` rejects a target composition equal to that of
+  the input structure (calphy failed with an ``IndexError``), and fills
+  ``composition_path`` from the calculation, since calphy 2's
+  ``report.yaml`` no longer echoes the composition block. The target may
+  now contain elements the structure lacks (pure Cu → Cu107Ni1); they
+  become extra atom types after the structure's own elements, which
+  ``pair_coeff`` must map in that order. Its tests run real Cu107Ni1 →
+  Cu106Ni2 and Cu108 → Cu107Ni1 transformations with known answers.
+- ``melting_temperature`` reports its working directory as ``simfolder``
+  (no longer an empty extra folder) and records the solid / liquid sweep
+  dissipation verdicts in ``report``, as calphy only logs a warning when
+  a sweep was irreversible. When calphy's bracket search returns to a
+  bracket it already tried (or a previous run left its folders behind),
+  the folder-exists ``ValueError`` is re-raised as a ``RuntimeError``
+  that names the cause and what to change.
+
+### Changed
+
+- **The ``[free-energy]`` extra requires calphy 2.3.**
+  ``calphy>=1.5.6`` becomes ``calphy>=2.3.0,<2.4.0`` and
+  ``pyiron_workflow_lammps`` becomes ``>=0.2.0,<0.3.0`` (0.1.x pins
+  ``pyiron_workflow`` 0.15 and cannot be installed alongside this
+  package). The extra did not work with any calphy release before, so no
+  working setup breaks. Release this as a 0.3.x patch:
+  ``pyiron_workflow_lammps`` 0.2.0 requires
+  ``pyiron-workflow-atomistics<0.4.0``, so under a 0.4.0 the extra could
+  not be resolved until a ``pyiron_workflow_lammps`` release raises that
+  cap. calphy is distributed under the Academic Software Licence v1.0,
+  which permits non-commercial academic use only; the README now says so
+  where the extra is described, and names the LAMMPS build and packages
+  calphy needs.
+- The adapter no longer lists calphy's ``tscale`` mode, which no node
+  exposed and the calculation builder rejected.
+
 ## [0.3.0] — 2026-10-22
 
 ### Changed
