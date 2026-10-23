@@ -219,3 +219,137 @@ def test_anharmonic_free_energy_dynaphopy_tdi_emt_al(tmp_path):
         2,
         *out.renormalised_frequencies_per_T.shape[1:],
     )
+
+
+# ---------------------------------------------------------------------------
+# displacement kwargs reach the FC2 fit (#100 follow-up)
+# ---------------------------------------------------------------------------
+
+
+def _reference_fc2(structure, supercell_matrix, displacement_distance, is_plusminus):
+    """Independently fit FC2 with generation and synthesis kwargs held in step."""
+    from ase.calculators.emt import EMT
+    from phonopy import Phonopy
+
+    from pyiron_workflow_atomistics.physics.phonons.harmonic import (
+        _ase_to_phonopy,
+        _generate_fc2_supercells,
+    )
+
+    cells = _generate_fc2_supercells(
+        structure=structure,
+        fc2_supercell_matrix=supercell_matrix,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
+    )
+    forces = []
+    for cell in cells:
+        evaluated = cell.copy()
+        evaluated.calc = EMT()
+        forces.append(evaluated.get_forces())
+    phonon = Phonopy(
+        unitcell=_ase_to_phonopy(structure),
+        supercell_matrix=supercell_matrix,
+        primitive_matrix="auto",
+    )
+    phonon.generate_displacements(
+        distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        is_diagonal=False,
+    )
+    phonon.forces = np.stack(forces)
+    phonon.produce_force_constants()
+    return np.asarray(phonon.force_constants)
+
+
+@pytest.mark.slow
+def test_anharmonic_dynaphopy_threads_displacement_kwargs_to_fc2_fit(tmp_path):
+    """Caller-supplied displacement kwargs reach the FC2 fit behind the macro."""
+    pytest.importorskip("phonopy")
+    pytest.importorskip("phono3py")
+    pytest.importorskip("dynaphopy")
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.anharmonic_dynaphopy import (
+        anharmonic_free_energy_dynaphopy,
+    )
+
+    structure = bulk("Al", "fcc", a=4.05, cubic=True)
+    supercell_matrix = 2 * np.eye(3, dtype=int)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    out = anharmonic_free_energy_dynaphopy(
+        structure=structure,
+        engine=engine,
+        fc2_supercell_matrix=supercell_matrix,
+        displacement_distance=0.05,
+        is_plusminus=True,
+        temperature=300.0,
+        equilibration_steps=200,
+        production_steps=2000,
+        q_mesh=(3, 3, 3),
+        working_directory=str(tmp_path),
+        subdir="anharmonic_disp",
+        keep_handles=True,
+    )
+    expected = _reference_fc2(
+        structure, supercell_matrix, displacement_distance=0.05, is_plusminus=True
+    )
+
+    assert np.allclose(
+        np.asarray(out.phonopy_handle.force_constants), expected, rtol=1e-6, atol=1e-8
+    )
+
+
+@pytest.mark.slow
+def test_anharmonic_dynaphopy_tdi_threads_displacement_kwargs(tmp_path):
+    """The T-sweep forwards displacement kwargs to each per-T FC2 fit.
+
+    The sweep runs with ``keep_handles=False`` so the FC2 is not on the
+    output; instead observe the generator: fcc Al gives one displaced
+    supercell with ``is_plusminus="auto"`` and two with ``is_plusminus=True``,
+    so the second ``fc2_disp_0001`` directory only exists if the kwarg
+    reached the per-T macro.
+    """
+    pytest.importorskip("phonopy")
+    pytest.importorskip("phono3py")
+    pytest.importorskip("dynaphopy")
+    from ase.build import bulk
+    from ase.calculators.emt import EMT
+
+    from pyiron_workflow_atomistics.engine import ASEEngine, CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.anharmonic_dynaphopy import (
+        anharmonic_free_energy_dynaphopy_tdi,
+    )
+
+    structure = bulk("Al", "fcc", a=4.05, cubic=True)
+    engine = ASEEngine(
+        EngineInput=CalcInputStatic(),
+        calculator=EMT(),
+        working_directory=str(tmp_path),
+    )
+
+    out = anharmonic_free_energy_dynaphopy_tdi(
+        structure=structure,
+        engine=engine,
+        fc2_supercell_matrix=2 * np.eye(3, dtype=int),
+        displacement_distance=0.05,
+        is_plusminus=True,
+        temperatures=(300.0,),
+        equilibration_steps=200,
+        production_steps=2000,
+        q_mesh=(3, 3, 3),
+        working_directory=str(tmp_path),
+        subdir="anharmonic_tdi_disp",
+    )
+
+    assert out.mode == "anharmonic_dynaphopy_tdi"
+    per_T_dir = tmp_path / "anharmonic_tdi_disp" / "T_000_300.0K"
+    assert (per_T_dir / "fc2_disp_0000").exists()
+    assert (per_T_dir / "fc2_disp_0001").exists()

@@ -290,6 +290,8 @@ def anharmonic_free_energy_dynaphopy(
     engine: Engine,
     fc2_supercell_matrix,
     temperature: float,
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
     equilibration_steps: int = 2000,
     production_steps: int = 10000,
     time_step: float = 1.0,
@@ -313,6 +315,10 @@ def anharmonic_free_energy_dynaphopy(
 
     Engine must expose ``.calculator`` (inherited from
     ``calculate_phonon_md_renormalisation``).
+
+    ``displacement_distance`` (Å) and ``is_plusminus`` are forwarded to the
+    FC2 fit in ``calculate_phonon_md_renormalisation``; they are ignored when
+    FC2 is reused from ``phono3py_output``.
 
     Notes
     -----
@@ -343,6 +349,8 @@ def anharmonic_free_energy_dynaphopy(
         structure=structure,
         engine=sub_engine,
         fc2_supercell_matrix=fc2_supercell_matrix,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
         temperature=temperature,
         equilibration_steps=equilibration_steps,
         production_steps=production_steps,
@@ -392,6 +400,8 @@ def _sweep_dynaphopy_over_T(
     engine: Engine,
     fc2_supercell_matrix,
     temperatures,
+    displacement_distance: float,
+    is_plusminus,
     equilibration_steps: int,
     production_steps: int,
     time_step: float,
@@ -414,6 +424,8 @@ def _sweep_dynaphopy_over_T(
             engine=engine,
             fc2_supercell_matrix=fc2_supercell_matrix,
             temperature=float(T),
+            displacement_distance=displacement_distance,
+            is_plusminus=is_plusminus,
             equilibration_steps=equilibration_steps,
             production_steps=production_steps,
             time_step=time_step,
@@ -498,6 +510,8 @@ def anharmonic_free_energy_dynaphopy_tdi(
     engine: Engine,
     fc2_supercell_matrix,
     temperatures=(100.0, 200.0, 300.0, 400.0, 500.0),
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
     equilibration_steps: int = 2000,
     production_steps: int = 10000,
     time_step: float = 1.0,
@@ -520,6 +534,9 @@ def anharmonic_free_energy_dynaphopy_tdi(
     integration over a coupling parameter — see spec
     ``docs/design/specs/2026-05-15-free-energy-consolidation-design.md`` for
     the renormalised-harmonic-over-T justification.
+
+    ``displacement_distance`` (Å) and ``is_plusminus`` are forwarded to the
+    FC2 fit at every temperature.
     """
     simfolder, _ = _resolve_simfolder(
         engine=engine,
@@ -531,6 +548,8 @@ def anharmonic_free_energy_dynaphopy_tdi(
         engine=engine,
         fc2_supercell_matrix=fc2_supercell_matrix,
         temperatures=temperatures,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
         equilibration_steps=equilibration_steps,
         production_steps=production_steps,
         time_step=time_step,

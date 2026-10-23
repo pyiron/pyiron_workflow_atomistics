@@ -20,6 +20,9 @@ via `versioneer`.
   ``displacement_distance`` / ``is_plusminus`` so callers can set them, and
   the guard compares the displaced positions element-wise rather than only
   the supercell count (#100).
+  ``anharmonic_free_energy_dynaphopy`` and
+  ``anharmonic_free_energy_dynaphopy_tdi`` expose the same two kwargs and
+  forward them to the FC2 fit.
 - **calphy free-energy nodes work with calphy 2.3.** The calphy adapter
   built its calculations with ``script_mode``, which calphy 2 removed, and
   the real-LAMMPS tests of ``physics.free_energy.calphy`` failed on each
