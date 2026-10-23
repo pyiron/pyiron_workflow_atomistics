@@ -165,12 +165,22 @@ def _compute_fc2_from_scratch(
     structure: Atoms,
     engine: Engine,
     resolved_fc2_supercell,
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
 ) -> np.ndarray:
     """Run FC2 displacements, evaluate forces via the engine, fit FC2 via phonopy.
 
     Reuses the v0.0.7 building blocks (`_generate_fc2_supercells`,
     `_evaluate_supercells`) and feeds the resulting forces into a
     phonopy.Phonopy view that owns the FC2 fit.
+
+    ``displacement_distance`` and ``is_plusminus`` are passed to *both* the
+    phono3py generator and the phonopy synthesiser so the two sides agree on
+    which supercells exist and how far each atom was displaced. The libraries'
+    defaults differ (phono3py 0.03 Å / ``is_diagonal=False``, phonopy 0.01 Å /
+    ``is_diagonal=True``); if the synthesis side were left at its defaults the
+    forces would be divided by the wrong displacement and FC2 would come out
+    scaled by a constant factor with no error raised (#100).
     """
     require_phonopy()
     from phonopy import Phonopy
@@ -187,6 +197,8 @@ def _compute_fc2_from_scratch(
     fc2_supercells = _generate_fc2_supercells(
         structure=structure,
         fc2_supercell_matrix=resolved_fc2_supercell,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
     )
     # Evaluate forces on each supercell.
     fc2_engine_outputs = _evaluate_supercells(
@@ -202,14 +214,42 @@ def _compute_fc2_from_scratch(
 
     # Build a phonopy view, attach forces, fit FC2.
     unitcell = _ase_to_phonopy(structure)
-    phonon = Phonopy(unitcell=unitcell, supercell_matrix=resolved_fc2_supercell)
-    phonon.generate_displacements()
-    forces = np.stack([np.asarray(o.final_forces) for o in fc2_engine_outputs], axis=0)
-    if forces.shape[0] != len(phonon.supercells_with_displacements):
+    phonon = Phonopy(
+        unitcell=unitcell,
+        supercell_matrix=resolved_fc2_supercell,
+        primitive_matrix="auto",
+    )
+    # `is_diagonal=False` reproduces phono3py's FC2 dataset exactly (same atom
+    # indices, same displacement vectors, same order); phonopy's default of
+    # True permits combined-axis directions and so expects fewer supercells
+    # on low-symmetry cells. See `free_energy.harmonic._produce_fc2_view`.
+    phonon.generate_displacements(
+        distance=displacement_distance,
+        is_plusminus=is_plusminus,
+        is_diagonal=False,
+    )
+    expected_cells = phonon.supercells_with_displacements
+    if len(fc2_supercells) != len(expected_cells):
         raise RuntimeError(
-            f"FC2 force/supercell count mismatch: {forces.shape[0]} forces vs "
-            f"{len(phonon.supercells_with_displacements)} expected supercells."
+            f"FC2 force/supercell count mismatch: {len(fc2_supercells)} generated "
+            f"vs {len(expected_cells)} expected supercells. displacement kwargs "
+            "drifted between generation and synthesis."
         )
+    # Counts can agree by coincidence (fcc/bcc give 1 either way); the fit is
+    # only right if the synthesiser assumes the displacements that were
+    # actually applied, so compare positions element-wise.
+    for i, (generated, expected) in enumerate(
+        zip(fc2_supercells, expected_cells, strict=True)
+    ):
+        if not np.allclose(
+            generated.get_positions(), np.asarray(expected.positions), atol=1e-8
+        ):
+            raise RuntimeError(
+                f"FC2 displaced supercell {i} does not match the phonopy "
+                "synthesis dataset: the displacement distance / direction "
+                "drifted between generation and synthesis."
+            )
+    forces = np.stack([np.asarray(o.final_forces) for o in fc2_engine_outputs], axis=0)
     phonon.forces = forces
     phonon.produce_force_constants()
     fc2_array = np.asarray(phonon.force_constants)
@@ -549,6 +589,8 @@ def _select_or_compute_fc2(
     resolved_fc2_supercell,
     fc2_source_tag: str,
     fc2_array_reused,
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
 ) -> np.ndarray:
     """Pick FC2 between reuse (from phono3py_output) and recomputation.
 
@@ -567,6 +609,8 @@ def _select_or_compute_fc2(
             structure=structure,
             engine=engine,
             resolved_fc2_supercell=resolved_fc2_supercell,
+            displacement_distance=displacement_distance,
+            is_plusminus=is_plusminus,
         )
     else:
         raise ValueError(f"Unknown fc2_source_tag: {fc2_source_tag!r}")
@@ -578,6 +622,8 @@ def calculate_phonon_md_renormalisation(
     structure: Atoms,
     engine: Engine,
     fc2_supercell_matrix=None,
+    displacement_distance: float = 0.03,
+    is_plusminus="auto",
     temperature: float = 300.0,
     # MD plumbing
     equilibration_steps: int = 2000,
@@ -600,6 +646,10 @@ def calculate_phonon_md_renormalisation(
     ``engine.calculate``; MD trajectory generation borrows the engine's
     calculator directly (per the spec's documented carve-out for step-by-step
     MD control).
+
+    ``displacement_distance`` (Å) and ``is_plusminus`` control the finite
+    displacements used to fit FC2 when it is recomputed here; they are
+    ignored when FC2 is reused from ``phono3py_output``.
 
     See spec: docs/design/specs/2026-05-15-dynaphopy-md-renormalisation-design.md
     """
@@ -626,6 +676,8 @@ def calculate_phonon_md_renormalisation(
         resolved_fc2_supercell=resolved_fc2_supercell,
         fc2_source_tag=fc2_source_tag,
         fc2_array_reused=fc2_array,
+        displacement_distance=displacement_distance,
+        is_plusminus=is_plusminus,
     )
 
     # Node 2: MD trajectory.
