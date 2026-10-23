@@ -395,7 +395,12 @@ def composition_scaling(
 
     The starting composition is read off ``structure``; the target
     composition is given as ``output_chemical_composition`` (a dict of
-    element-symbol → atom-count).
+    element-symbol → atom-count, with the same total number of atoms).
+    The target may add elements the structure lacks (e.g. pure Cu108 →
+    Cu107Ni1): they become extra atom types after the structure's own
+    elements, in the order of ``output_chemical_composition``, and
+    ``potential.pair_coeff`` must map its elements in that order (here
+    ``"* * CuNi.eam.alloy Cu Ni"``).
     """
     if not output_chemical_composition:
         raise ValueError(

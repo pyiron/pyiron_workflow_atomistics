@@ -392,7 +392,15 @@ def _build_calphy_calculation(
     """
     calphy = __import_calphy()
 
-    element_order = _atoms_element_order(structure)
+    structure_elements = _atoms_element_order(structure)
+    element_order = list(structure_elements)
+    if mode == "composition_scaling" and output_chemical_composition:
+        # calphy only accepts target elements it knows from ``element``; an
+        # element the structure lacks (pure Cu -> Cu107Ni1) becomes an extra,
+        # initially empty atom type after the structure's own elements.
+        element_order += [
+            el for el in output_chemical_composition if el not in element_order
+        ]
     mass = [float(atomic_masses[atomic_numbers[s]]) for s in element_order]
 
     data_path = os.path.join(working_directory, "lammps.data")
@@ -502,7 +510,7 @@ def _build_calphy_calculation(
         kwargs["pressure"] = float(pressure)
         kwargs["reference_phase"] = "solid"
         input_composition = {
-            el: structure.get_chemical_symbols().count(el) for el in element_order
+            el: structure.get_chemical_symbols().count(el) for el in structure_elements
         }
         output_composition = {
             el: int(n) for el, n in output_chemical_composition.items() if n

@@ -493,6 +493,45 @@ def test_build_calphy_calculation_rejects_potential_file(
         )
 
 
+def test_build_calphy_calculation_composition_scaling_adds_target_elements(
+    tmp_path, monkeypatch
+):
+    """A pure-element structure scaled into an alloy: the target element the
+    structure lacks becomes an extra (empty) atom type after its own."""
+    pytest.importorskip("calphy")
+    monkeypatch.chdir(tmp_path)
+    from ase.build import bulk
+    from ase.data import atomic_masses, atomic_numbers
+
+    from pyiron_workflow_atomistics.physics.free_energy._calphy_adapter import (
+        _build_calphy_calculation,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    cu = bulk("Cu", "fcc", a=3.6, cubic=True).repeat((2, 2, 2))
+    pot = LammpsPotential(
+        pair_style="eam/alloy", pair_coeff="* * /tmp/CuNi.eam.alloy Cu Ni"
+    )
+    calc = _build_calphy_calculation(
+        mode="composition_scaling",
+        structure=cu,
+        potential=pot,
+        lammps_engine=_make_minimal_engine(),
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        output_chemical_composition={"Cu": len(cu) - 1, "Ni": 1},
+    )
+    assert calc.element == ["Cu", "Ni"]
+    assert calc.mass == pytest.approx(
+        [atomic_masses[atomic_numbers[e]] for e in ("Cu", "Ni")]
+    )
+    assert calc.composition_scaling._input_chemical_composition == {
+        "Cu": len(cu),
+        "Ni": 0,
+    }
+    assert "2 atom types" in (tmp_path / "lammps.data").read_text()
+
+
 def test_build_calphy_calculation_writes_data_file_matches_structure(
     tmp_path, fcc_al_atoms, monkeypatch
 ):
@@ -1468,13 +1507,29 @@ def test_alchemy_smoke(tmp_path):
     assert np.isfinite(out.free_energy)
 
 
-def _write_duplicated_binary_eam(src: Path, dst: Path, second: str) -> None:
+def _shift_eam_embedding(values: list[str], n_rho: int, offset: float) -> list[str]:
+    """Add ``offset`` (eV) to the first ``n_rho`` values: an embedding F(rho).
+
+    A constant shift of F leaves every force unchanged and raises the energy
+    by ``offset`` per atom of that element, so the switching work between the
+    shifted and unshifted potential is known exactly.
+    """
+    if not offset:
+        return list(values)
+    return [f"{float(v) + offset:.16e}" for v in values[:n_rho]] + values[n_rho:]
+
+
+def _write_duplicated_binary_eam(
+    src: Path, dst: Path, second: str, embedding_offset: float = 0.0
+) -> None:
     """Write a two-element eam/alloy file whose second element is a verbatim
     copy of the single element in ``src`` under another name.
 
     Both species then interact identically, so a composition_scaling run
     between them has a known answer: zero alchemical work, leaving only the
-    mass correction and the ideal mixing entropy.
+    mass correction and the ideal mixing entropy. With ``embedding_offset``
+    the second element's embedding is shifted by that many eV, so each atom
+    turned into it costs exactly that much work and no force changes.
     """
     from ase.data import atomic_masses, atomic_numbers
 
@@ -1489,7 +1544,9 @@ def _write_duplicated_binary_eam(src: Path, dst: Path, second: str) -> None:
     _, _, lattice_a, lattice = element_info.split()
     out = [*header, f"2 {first} {second}", grid]
     out += [element_info, *embedding, *density]
-    out += [f"{z} {atomic_masses[z]:.6f} {lattice_a} {lattice}", *embedding, *density]
+    second_embedding = _shift_eam_embedding(embedding, n_rho, embedding_offset)
+    out += [f"{z} {atomic_masses[z]:.6f} {lattice_a} {lattice}", *second_embedding]
+    out += density
     out += pair * 3  # phi_11, phi_21, phi_22
     dst.write_text("\n".join(out) + "\n")
 
@@ -1549,6 +1606,57 @@ def test_composition_scaling_smoke(tmp_path):
     df_mass = 1.5 * kB * 300.0 * np.log(m_cu / m_ni) / 108
     assert out.free_energy == pytest.approx(df_mass, rel=1e-2)
     assert out.composition_path == [{"Cu": 106, "Ni": 2}]
+
+
+@requires_lammps
+@pytest.mark.slow
+def test_composition_scaling_pure_element_to_alloy(tmp_path):
+    """Pure Cu108 -> Cu107Ni1, where "Ni" is Cu01 with its embedding shifted
+    by +0.1 eV: the alchemical work is exactly 0.1 eV / 108 atoms, on top of
+    the mass term of one Cu -> Ni swap."""
+    pytest.importorskip("calphy")
+    import numpy as np
+    from ase.build import bulk
+    from ase.data import atomic_masses, atomic_numbers
+    from ase.units import kB
+
+    pytest.importorskip("pyiron_workflow_lammps")
+    from pyiron_workflow_lammps.engine import LammpsEngine
+
+    from pyiron_workflow_atomistics.engine import CalcInputStatic
+    from pyiron_workflow_atomistics.physics.free_energy.calphy import (
+        composition_scaling,
+    )
+    from pyiron_workflow_atomistics.physics.free_energy.inputs import LammpsPotential
+
+    offset = 0.1
+    eam = tmp_path / "CuNi_shifted.eam.alloy"
+    _write_duplicated_binary_eam(
+        RESOURCES / "Cu01.eam.alloy", eam, "Ni", embedding_offset=offset
+    )
+    cu = bulk("Cu", crystalstructure="fcc", a=3.6, cubic=True).repeat((3, 3, 3))
+    out = composition_scaling(
+        structure=cu,
+        lammps_engine=LammpsEngine(EngineInput=CalcInputStatic(), command=LAMMPS_BIN),
+        potential=LammpsPotential(
+            pair_style="eam/alloy", pair_coeff=f"* * {eam} Cu Ni"
+        ),
+        working_directory=str(tmp_path),
+        temperature=300.0,
+        output_chemical_composition={"Cu": 107, "Ni": 1},
+        n_equilibration_steps=2000,
+        n_switching_steps=2000,
+    )
+    results = out.report["results"]
+    assert results["work"] == pytest.approx(offset / 108, abs=1e-8)
+    m_cu, m_ni = (atomic_masses[atomic_numbers[e]] for e in ("Cu", "Ni"))
+    df_mass = 1.5 * kB * 300.0 * np.log(m_cu / m_ni) / 108
+    assert out.free_energy == pytest.approx(offset / 108 + df_mass, abs=1e-8)
+    # x_Ni 0 -> 1/108 (0 ln 0 = 0)
+    x = 1 / 108
+    s_mix = kB * ((1 - x) * np.log(1 - x) + x * np.log(x))
+    assert results["entropy_contribution"] == pytest.approx(s_mix, rel=1e-6)
+    assert out.composition_path == [{"Cu": 107, "Ni": 1}]
 
 
 def test_free_energy_output_accepts_harmonic_mode():
