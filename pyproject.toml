@@ -92,7 +92,7 @@ gb = [
 analysis = [
     "pyscal3>=4.1.0,<4.2.0",
     "scikit-learn>=1.0.0,<1.10.0",
-    "structuretoolkit==0.0.48",
+    "structuretoolkit==0.1.0",
 ]
 
 [project.license]
